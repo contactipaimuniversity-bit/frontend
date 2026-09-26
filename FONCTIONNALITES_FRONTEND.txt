@@ -14,6 +14,7 @@ seule interface :
 - les prospects et leurs relances ;
 - les demandes de bourse ;
 - les inscriptions directes ou liees a une bourse ;
+- les certificats PDF de bourse et d'inscription ;
 - les paiements et les soldes ;
 - les pieces manquantes dans les dossiers ;
 - les types de bourse et leurs echeances ;
@@ -109,6 +110,7 @@ Le menu lateral contient :
 - Vue d'ensemble ;
 - Demandes de bourse ;
 - Inscriptions ;
+- Certificats ;
 - Paiements ;
 - Prospects ;
 - Personnes ;
@@ -135,6 +137,7 @@ Fonctionnalites :
 - creation d'une demande ;
 - choix d'une personne dans une modale ;
 - choix du niveau de demande ;
+- saisie de la filiere principale et d'une filiere secondaire facultative ;
 - consultation et mise a jour des pieces ;
 - planification de l'entretien ;
 - choix de l'equipe et de la date de l'entretien ;
@@ -148,8 +151,14 @@ Creation d'une demande :
 1. Cliquer sur Nouvelle demande.
 2. Choisir le candidat dans la modale de selection.
 3. Choisir Premiere annee ou Deuxieme annee.
-4. Saisir la filiere souhaitee et, si besoin, l'ecole d'origine.
+4. Saisir la filiere souhaitee, eventuellement une filiere secondaire et, si
+  besoin, l'ecole d'origine.
 5. Enregistrer.
+
+La filiere secondaire est un choix alternatif indique lors de la demande de
+bourse. Elle est facultative et peut etre reprise sur le certificat
+d'attribution. Elle ne se saisit pas lors d'une inscription directe, qui
+indique la filiere effectivement choisie pour l'inscription.
 
 Le backend genere automatiquement les obligations configurees pour le contexte
 BOURSE et le niveau choisi.
@@ -174,6 +183,11 @@ La modale affiche pour chaque obligation :
 Le frais de depot initial est configurable dans les referentiels. Il est
 initialise a 10 000 F par le seed, mais il ne doit pas etre recode dans le
 frontend ou dans le traitement metier.
+
+Attribution :
+
+- le type de bourse est obligatoire lorsque la demande passe au statut ACCEPTEE ;
+- le type attribue est affiche avec la filiere sur le certificat de bourse.
 
 Workflow recommande :
 
@@ -219,7 +233,41 @@ Le backend applique aussi cette regle. Sans confirmation explicite, il refuse
 la creation de l'inscription. Cela evite de lier silencieusement une
 inscription a une demande encore non decidee.
 
-8. PAIEMENTS
+La filiere saisie ici est la filiere effective de l'inscription. Pour une
+inscription directe, aucune filiere secondaire n'est demandee.
+
+8. CERTIFICATS
+--------------
+
+Ecran : Certificats
+Composant : components/certificates-page.tsx
+
+L'ecran comporte deux listes accessibles par onglets :
+
+- Bourses accordees : demandes au statut ACCEPTEE avec un type de bourse ;
+- Inscriptions reglees : inscriptions non abandonnees dont le montant attendu
+  est positif et le solde restant nul.
+
+Avant de produire le document, le frontend relit le dossier et reverifie son
+eligibilite aupres du backend. Pour une inscription, le solde est egalement
+recalcule au telechargement. Un dossier dont la verification echoue reste
+masque ou ne produit pas de certificat.
+
+Chaque certificat est genere en PDF A4 portrait, sur une seule page, avec le
+logo IPAIM :
+
+- le certificat de bourse indique le type attribue, les filieres souhaitees,
+  le niveau, l'ecole d'origine et les informations personnelles disponibles ;
+- le certificat d'inscription indique la filiere effective, le niveau,
+  l'annee scolaire, la date, le mode d'inscription, les informations
+  personnelles et le montant regle ;
+- les deux documents portent une reference IPAIM et un message de felicitation
+  ou de bienvenue.
+
+Le bouton Actualiser du dashboard recharge aussi les listes et les soldes de
+cet ecran.
+
+9. PAIEMENTS
 ------------
 
 Ecran : Paiements
@@ -248,7 +296,7 @@ verifie aussi que l'echeance appartient au type de bourse du dossier.
 Les paiements peuvent etre partiels. Ils peuvent aussi etre affectes a une
 obligation precise avec elementDossierId.
 
-9. PROSPECTS
+10. PROSPECTS
 ------------
 
 Ecran : Prospects
@@ -275,7 +323,7 @@ Creation :
 Le prospect est rattache a une Personne. Une personne ne peut pas avoir deux
 prospects actifs identiques dans le backend.
 
-10. PERSONNES
+11. PERSONNES
 -------------
 
 Ecran : Personnes
@@ -295,7 +343,7 @@ Fonctionnalites :
 La Personne est l'identite centrale partagee par les prospects, demandes de
 bourse et inscriptions.
 
-11. RECRUTEMENT
+12. RECRUTEMENT
 ---------------
 
 Ecran : Recrutement
@@ -339,7 +387,7 @@ Routes backend utilisees :
 - PATCH /candidatures-personnel/:id ;
 - PATCH /candidatures-personnel/:id/elements/:elementId.
 
-12. REFERENTIELS
+13. REFERENTIELS
 ----------------
 
 Ecran : Referentiels
@@ -371,7 +419,7 @@ Les montants comme 10 000 F ou 30 000 F doivent etre des donnees configurables.
 Une modification du montant dans les referentiels doit s'appliquer aux nouveaux
 dossiers sans modification du code.
 
-13. RAPPORTS
+14. RAPPORTS
 ------------
 
 Ecran : Rapports
@@ -390,7 +438,7 @@ Les rapports utilisent :
 - GET /rapports/paiements-en-retard ;
 - GET /rapports/synthese.
 
-14. PARAMETRES ET PROFIL
+15. PARAMETRES ET PROFIL
 ------------------------
 
 Profil :
@@ -410,7 +458,7 @@ Parametres :
 Les actions sensibles sont protegees par le backend avec JWT et, selon le cas,
 avec AdminGuard.
 
-15. MODALES DE SELECTION
+16. MODALES DE SELECTION
 ------------------------
 
 Les anciens selecteurs de donnees metier ont ete remplaces par le composant
@@ -428,7 +476,7 @@ Fonctionnement :
 Ce choix est utile pour les longues listes de personnes, de demandes, de
 statuts et de types de bourse.
 
-16. FONCTIONNEMENT TECHNIQUE GLOBAL
+17. FONCTIONNEMENT TECHNIQUE GLOBAL
 -----------------------------------
 
 Point d'entree : app/page.tsx
@@ -441,6 +489,9 @@ Le composant Home :
 - affiche la vue choisie ;
 - relance les appels lorsque l'utilisateur recherche ou change de page ;
 - recharge les donnees avec le bouton Actualiser.
+
+La generation des certificats utilise jsPDF cote navigateur et relit les
+dossiers et soldes par l'API avant le telechargement.
 
 Les listes principales sont paginees avec une limite par defaut de 20 :
 
@@ -458,7 +509,7 @@ La fonction apiFetch :
 - parse les erreurs du backend ;
 - declenche la fermeture de session sur HTTP 401.
 
-17. POINTS IMPORTANTS POUR L'UTILISATION
+18. POINTS IMPORTANTS POUR L'UTILISATION
 ----------------------------------------
 
 - Toujours configurer le backend avant de tester le frontend.
@@ -484,7 +535,7 @@ Commandes frontend recommandees :
     cd front
     npm run dev
 
-18. LIMITES ACTUELLES A CONNAITRE
+19. LIMITES ACTUELLES A CONNAITRE
 ---------------------------------
 
 - Les modales de selection des personnes, demandes et inscriptions proposent

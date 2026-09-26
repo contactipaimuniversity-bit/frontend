@@ -95,7 +95,7 @@ function addCertificateFrame(
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(8.5);
   pdf.setTextColor(222, 232, 247);
-  pdf.text("ADMISSIONS - FORMATION - REUSSITE", 65, 33);
+  pdf.text("INNOVER - FORMER - TRANSFORMER", 65, 33);
   pdf.setTextColor(228, 177, 59);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(9);
