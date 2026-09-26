@@ -1,0 +1,498 @@
+DOCUMENTATION DU FRONTEND IPAIM
+================================
+
+Version : 26/09/2026
+Projet : front Next.js / React
+
+1. BUT DU FRONTEND
+-------------------
+
+Le frontend est l'espace de gestion de l'IPAIM. Il permet de suivre dans une
+seule interface :
+
+- les personnes connues par l'etablissement ;
+- les prospects et leurs relances ;
+- les demandes de bourse ;
+- les inscriptions directes ou liees a une bourse ;
+- les paiements et les soldes ;
+- les pieces manquantes dans les dossiers ;
+- les types de bourse et leurs echeances ;
+- les candidatures des enseignants et du personnel administratif ;
+- les utilisateurs autorises a acceder au systeme.
+
+L'objectif est de remplacer les suivis disperses par des dossiers consultables,
+recherchables et actualisables depuis le dashboard.
+
+2. DEMARRAGE
+------------
+
+Depuis le dossier front :
+
+    npm install
+    npm run dev
+
+Le frontend demarre generalement sur :
+
+    http://localhost:3000
+
+Si le port 3000 est deja utilise, Next.js choisit un autre port disponible.
+
+Pour verifier la version de production :
+
+    npm run lint
+    npm run build
+
+Le backend doit etre lance separement depuis sgi :
+
+    npm run start:dev
+
+La variable frontend principale est :
+
+    NEXT_PUBLIC_API_URL=http://localhost:3000
+
+Elle indique l'URL du backend NestJS. Elle ne doit pas pointer vers le serveur
+Next.js si le backend utilise aussi le port 3000 : il est recommande d'utiliser
+un port distinct pour le frontend et le backend en developpement.
+
+3. CONNEXION ET SESSION
+-----------------------
+
+Ecran : ecran de connexion
+Fichier principal : components/login-screen.tsx
+
+Utilisation :
+
+1. Saisir l'adresse email.
+2. Saisir le mot de passe.
+3. Valider le formulaire.
+
+Fonctionnement :
+
+- le frontend appelle POST /auth/login ;
+- le token JWT est conserve dans sessionStorage sous la cle ipaim-token ;
+- les informations de l'utilisateur sont conservees sous ipaim-user ;
+- chaque requete API ajoute automatiquement Authorization: Bearer <token> ;
+- une reponse 401 ferme la session via l'evenement ipaim-session-expired ;
+- la deconnexion supprime le token et les informations de session.
+
+Pourquoi :
+
+Le JWT permet de proteger les endpoints backend et d'associer les actions a
+un utilisateur authentifie.
+
+4. VUE D'ENSEMBLE
+-----------------
+
+Ecran : Vue d'ensemble
+Fichier : components/dashboard-home.tsx
+
+Cette page affiche :
+
+- le nombre de prospects actifs ;
+- le nombre de demandes de bourse en cours ;
+- le nombre total d'inscriptions ;
+- le montant total encaisse ;
+- les dernieres demandes de bourse ;
+- les inscriptions recentes ;
+- un acces rapide vers les demandes, inscriptions et paiements.
+
+Source backend : GET /rapports/synthese et les listes paginees chargees par le
+layout principal.
+
+Le bouton Actualiser recharge les donnees principales sans refaire la connexion.
+
+5. NAVIGATION PRINCIPALE
+------------------------
+
+Le menu lateral contient :
+
+- Vue d'ensemble ;
+- Demandes de bourse ;
+- Inscriptions ;
+- Paiements ;
+- Prospects ;
+- Personnes ;
+- Recrutement ;
+- Referentiels ;
+- Rapports ;
+- Profil ;
+- Parametres.
+
+Le composant DashboardLayout gere le menu, le titre de la page, la session et
+la confirmation de deconnexion.
+
+6. DEMANDES DE BOURSE
+---------------------
+
+Ecran : Demandes de bourse
+Composant : components/operations-page.tsx
+
+Fonctionnalites :
+
+- recherche par nom, prenom, telephone, filiere ou ecole d'origine ;
+- pagination serveur ;
+- filtre par statut ;
+- creation d'une demande ;
+- choix d'une personne dans une modale ;
+- choix du niveau de demande ;
+- consultation et mise a jour des pieces ;
+- planification de l'entretien ;
+- choix de l'equipe et de la date de l'entretien ;
+- passage en deliberation ;
+- acceptation ou refus ;
+- attribution d'un type de bourse lors de l'acceptation ;
+- affichage de la situation financiere.
+
+Creation d'une demande :
+
+1. Cliquer sur Nouvelle demande.
+2. Choisir le candidat dans la modale de selection.
+3. Choisir Premiere annee ou Deuxieme annee.
+4. Saisir la filiere souhaitee et, si besoin, l'ecole d'origine.
+5. Enregistrer.
+
+Le backend genere automatiquement les obligations configurees pour le contexte
+BOURSE et le niveau choisi.
+
+Suivi financier :
+
+Le bouton Finance ouvre une modale qui appelle :
+
+    GET /demandes-bourse/:id/finance
+
+La modale affiche pour chaque obligation :
+
+- le nom de l'obligation ;
+- sa categorie ;
+- le statut de la piece ;
+- le montant attendu ;
+- le montant paye ;
+- le reste a payer ;
+- les paiements non affectes ;
+- le total attendu et le total paye.
+
+Le frais de depot initial est configurable dans les referentiels. Il est
+initialise a 10 000 F par le seed, mais il ne doit pas etre recode dans le
+frontend ou dans le traitement metier.
+
+Workflow recommande :
+
+    Depose
+    -> pieces controlees
+    -> entretien programme
+    -> entretien realise
+    -> deliberation
+    -> acceptee ou refusee
+
+7. INSCRIPTIONS
+---------------
+
+Ecran : Inscriptions
+Composant : components/operations-page.tsx
+
+Fonctionnalites :
+
+- recherche par nom, prenom, telephone, filiere, niveau ou annee scolaire ;
+- pagination serveur ;
+- filtre par statut ;
+- creation d'une inscription directe ;
+- creation d'une inscription liee a une demande de bourse ;
+- suivi des pieces ;
+- modification du statut de l'inscription ;
+- gestion des paiements lies au dossier.
+
+Creation d'une inscription :
+
+1. Cliquer sur Nouvelle inscription.
+2. Choisir l'etudiant dans la modale.
+3. Saisir l'annee scolaire, le niveau et la filiere.
+4. Cocher Inscription via une bourse si necessaire.
+5. Choisir la demande de bourse liee.
+6. Valider.
+
+Si la demande liee n'est pas acceptee, le frontend affiche une confirmation :
+
+    La demande de bourse est encore en attente de decision.
+    Voulez-vous continuer ?
+
+Le backend applique aussi cette regle. Sans confirmation explicite, il refuse
+la creation de l'inscription. Cela evite de lier silencieusement une
+inscription a une demande encore non decidee.
+
+8. PAIEMENTS
+------------
+
+Ecran : Paiements
+Composant : components/operations-page.tsx
+
+L'ecran affiche actuellement les echeances de bourse en retard :
+
+- libelle de l'echeance ;
+- type de bourse ;
+- date limite ;
+- montant attendu ;
+- montant paye ;
+- reste a payer.
+
+Le formulaire de paiement permet de choisir :
+
+- une demande de bourse ou une inscription ;
+- le dossier concerne ;
+- le montant verse ;
+- le type de paiement ;
+- l'echeance de bourse lorsque le paiement concerne une echeance.
+
+Pour un paiement ECHEANCE_BOURSE, l'echeance doit etre choisie. Le backend
+verifie aussi que l'echeance appartient au type de bourse du dossier.
+
+Les paiements peuvent etre partiels. Ils peuvent aussi etre affectes a une
+obligation precise avec elementDossierId.
+
+9. PROSPECTS
+------------
+
+Ecran : Prospects
+Composant : components/operations-page.tsx
+
+Fonctionnalites :
+
+- recherche par nom, prenom, telephone, filiere ou intention ;
+- pagination serveur ;
+- filtre par statut de relance ;
+- creation d'un prospect ;
+- suivi de la filiere souhaitee ;
+- suivi de l'intention ;
+- modification du statut A_RELANCER, RELANCE, CONVERTI ou ABANDONNE.
+
+Creation :
+
+1. Cliquer sur Nouveau prospect.
+2. Saisir nom, prenom et telephone.
+3. Ajouter la filiere souhaitee si elle est connue.
+4. Noter l'intention ou la question du prospect.
+5. Enregistrer.
+
+Le prospect est rattache a une Personne. Une personne ne peut pas avoir deux
+prospects actifs identiques dans le backend.
+
+10. PERSONNES
+-------------
+
+Ecran : Personnes
+Composant : components/additional-pages.tsx
+
+Fonctionnalites :
+
+- recherche par nom, telephone ou quartier ;
+- pagination serveur ;
+- creation d'une personne ;
+- modification des informations ;
+- consultation de l'historique ;
+- consultation des demandes de bourse et inscriptions associees ;
+- informations du tuteur ;
+- date et lieu de naissance.
+
+La Personne est l'identite centrale partagee par les prospects, demandes de
+bourse et inscriptions.
+
+11. RECRUTEMENT
+---------------
+
+Ecran : Recrutement
+Composant : components/personnel-page.tsx
+
+Cette page est reservee aux enseignants et personnels administratifs. Elle ne
+reutilise pas le workflow etudiant, car ses statuts et ses informations sont
+differents.
+
+Informations enregistrees :
+
+- nom ;
+- prenom ;
+- date de naissance ;
+- diplome obtenu ;
+- fonction souhaitee ;
+- quartier ;
+- elements du dossier.
+
+Statuts disponibles :
+
+- DEPOSE ;
+- ENTRETIEN_PROGRAMME ;
+- ENTRETIEN_REALISE ;
+- RETENU ;
+- REFUSE.
+
+Utilisation :
+
+1. Cliquer sur Nouveau dossier.
+2. Saisir les informations de la personne.
+3. Saisir les elements du dossier, un element par ligne.
+4. Enregistrer.
+5. Utiliser Suivre pour modifier le statut.
+6. Si le statut est Entretien programme, renseigner la date et l'equipe.
+
+Routes backend utilisees :
+
+- GET /candidatures-personnel ;
+- POST /candidatures-personnel ;
+- PATCH /candidatures-personnel/:id ;
+- PATCH /candidatures-personnel/:id/elements/:elementId.
+
+12. REFERENTIELS
+----------------
+
+Ecran : Referentiels
+Composant : components/additional-pages.tsx
+
+Cette page configure les regles utilisees lors de la creation des dossiers.
+
+Elements requis :
+
+- nom ;
+- categorie DOCUMENT, FOURNITURE ou FRAIS ;
+- contexte BOURSE, INSCRIPTION_DIRECTE ou TOUS ;
+- niveau applicable ;
+- obligatoire ou facultatif ;
+- montant attendu pour les obligations financieres.
+
+Types de bourse :
+
+- nom ;
+- frais d'inscription ;
+- taux de reduction ;
+- echeances ;
+- date d'echeance ;
+- montant attendu par echeance.
+
+Pourquoi cette page est importante :
+
+Les montants comme 10 000 F ou 30 000 F doivent etre des donnees configurables.
+Une modification du montant dans les referentiels doit s'appliquer aux nouveaux
+dossiers sans modification du code.
+
+13. RAPPORTS
+------------
+
+Ecran : Rapports
+Composant : components/additional-pages.tsx
+
+Rapports actuels :
+
+- dossiers incomplets ;
+- pieces manquantes ;
+- paiements en retard ;
+- montant restant a recouvrer par echeance.
+
+Les rapports utilisent :
+
+- GET /rapports/dossiers-incomplets ;
+- GET /rapports/paiements-en-retard ;
+- GET /rapports/synthese.
+
+14. PARAMETRES ET PROFIL
+------------------------
+
+Profil :
+
+- nom de l'utilisateur connecte ;
+- email ;
+- role ;
+- deconnexion.
+
+Parametres :
+
+- liste des utilisateurs autorises ;
+- creation d'un administrateur ou membre de l'equipe ;
+- suppression d'un utilisateur autre que la session courante ;
+- choix du role via une modale.
+
+Les actions sensibles sont protegees par le backend avec JWT et, selon le cas,
+avec AdminGuard.
+
+15. MODALES DE SELECTION
+------------------------
+
+Les anciens selecteurs de donnees metier ont ete remplaces par le composant
+components/modal-choice.tsx.
+
+Fonctionnement :
+
+- le champ affiche la valeur selectionnee ;
+- un clic ouvre une modale ;
+- les options sont affichees dans une liste lisible ;
+- la selection ferme la modale et renseigne le formulaire ;
+- une option peut afficher un detail secondaire ;
+- les erreurs de chargement sont affichees dans la modale.
+
+Ce choix est utile pour les longues listes de personnes, de demandes, de
+statuts et de types de bourse.
+
+16. FONCTIONNEMENT TECHNIQUE GLOBAL
+-----------------------------------
+
+Point d'entree : app/page.tsx
+
+Le composant Home :
+
+- detecte le token de session ;
+- charge les donnees du dashboard ;
+- conserve les recherches et pages courantes ;
+- affiche la vue choisie ;
+- relance les appels lorsque l'utilisateur recherche ou change de page ;
+- recharge les donnees avec le bouton Actualiser.
+
+Les listes principales sont paginees avec une limite par defaut de 20 :
+
+- demandes de bourse ;
+- inscriptions ;
+- prospects ;
+- personnes ;
+- candidatures personnel.
+
+La fonction apiFetch :
+
+- construit l'URL avec NEXT_PUBLIC_API_URL ;
+- ajoute le Content-Type pour les corps JSON ;
+- ajoute le token JWT ;
+- parse les erreurs du backend ;
+- declenche la fermeture de session sur HTTP 401.
+
+17. POINTS IMPORTANTS POUR L'UTILISATION
+----------------------------------------
+
+- Toujours configurer le backend avant de tester le frontend.
+- Appliquer les migrations Prisma avant d'utiliser Recrutement et le detail
+  financier.
+- Executer le seed pour creer les obligations de base et l'administrateur.
+- Ne pas lancer plusieurs serveurs sur le meme port.
+- Si le port 3000 est occupe, verifier si c'est le frontend ou le backend.
+- Utiliser Actualiser apres une creation ou une modification si la liste ne
+  s'est pas encore rafraichie.
+- Les droits reels sont controles par le backend : masquer un bouton dans le
+  frontend ne remplace jamais une protection backend.
+
+Commandes backend recommandees :
+
+    cd sgi
+    npx prisma migrate deploy
+    npx prisma db seed
+    npm run start:dev
+
+Commandes frontend recommandees :
+
+    cd front
+    npm run dev
+
+18. LIMITES ACTUELLES A CONNAITRE
+---------------------------------
+
+- Les modales de selection des formulaires utilisent les donnees deja chargees
+  dans le dashboard ; une recherche dediee dans une modale sera necessaire si
+  le volume devient tres important.
+- Les rapports sont encore principalement des rapports operationnels et non
+  des exports periodiques complets pour la direction.
+- Le suivi des candidatures personnel gere les statuts et les pieces, mais pas
+  encore les commentaires detailles par entretien.
+- Les paiements non affectes sont signales, mais leur affectation ulterieure
+  doit encore etre exposee par une interface dediee.

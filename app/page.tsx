@@ -1,69 +1,296 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { DashboardHome } from "@/components/dashboard-home";
+import { DashboardLayout, AppHeader } from "@/components/dashboard-layout";
+import { ProfilePage, SettingsPage } from "@/components/account-pages";
+import { LoginScreen } from "@/components/login-screen";
+import { OperationsPage } from "@/components/operations-page";
+import { PersonnelPage } from "@/components/personnel-page";
+import {
+  PeoplePage,
+  ReferencesPage,
+  ReportsPage,
+} from "@/components/additional-pages";
+import { apiFetch, notifySessionChanged } from "@/lib/api";
+import {
+  Application,
+  ApplicationPage,
+  Enrollment,
+  EnrollmentPage,
+  LatePayment,
+  Person,
+  PersonPage,
+  Prospect,
+  ProspectPage,
+  PersonnelApplication,
+  PersonnelApplicationPage,
+  ScholarshipType,
+  Summary,
+  User,
+  ViewName,
+} from "@/lib/types";
+
+const subscribeToSession = (onChange: () => void) => {
+  window.addEventListener("storage", onChange);
+  window.addEventListener("ipaim-session", onChange);
+  window.addEventListener("ipaim-session-expired", onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener("ipaim-session", onChange);
+    window.removeEventListener("ipaim-session-expired", onChange);
+  };
+};
+
+const useStoredValue = (key: string) =>
+  useSyncExternalStore(
+    subscribeToSession,
+    () => window.sessionStorage.getItem(key),
+    () => null,
+  );
 
 export default function Home() {
+  const storedToken = useStoredValue("ipaim-token");
+  const storedUser = useStoredValue("ipaim-user");
+  const [temporaryToken, setTemporaryToken] = useState<string | null>(null);
+  const [temporaryUser, setTemporaryUser] = useState<User | null>(null);
+  const [view, setView] = useState<ViewName>("Vue d'ensemble");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [applicationMeta, setApplicationMeta] = useState<ApplicationPage["meta"]>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+  });
+  const [applicationSearch, setApplicationSearch] = useState("");
+  const [applicationPage, setApplicationPage] = useState(1);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [enrollmentMeta, setEnrollmentMeta] = useState<EnrollmentPage["meta"]>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+  });
+  const [enrollmentSearch, setEnrollmentSearch] = useState("");
+  const [enrollmentPage, setEnrollmentPage] = useState(1);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [prospectMeta, setProspectMeta] = useState<ProspectPage["meta"]>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+  });
+  const [prospectSearch, setProspectSearch] = useState("");
+  const [prospectPage, setProspectPage] = useState(1);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [peopleMeta, setPeopleMeta] = useState<PersonPage["meta"]>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 1,
+  });
+  const [peopleSearch, setPeopleSearch] = useState("");
+  const [peoplePage, setPeoplePage] = useState(1);
+  const [personnelApplications, setPersonnelApplications] = useState<PersonnelApplication[]>([]);
+  const [personnelMeta, setPersonnelMeta] = useState<PersonnelApplicationPage["meta"]>({ page: 1, limit: 20, total: 0, totalPages: 1 });
+  const [personnelSearch, setPersonnelSearch] = useState("");
+  const [personnelPage, setPersonnelPage] = useState(1);
+  const [latePayments, setLatePayments] = useState<LatePayment[]>([]);
+  const [scholarshipTypes, setScholarshipTypes] = useState<ScholarshipType[]>(
+    [],
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const token = temporaryToken ?? storedToken;
+  const user =
+    temporaryUser ?? (storedUser ? (JSON.parse(storedUser) as User) : null);
+
+  useEffect(() => {
+    if (!token) return;
+    const loadData = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [
+          summaryData,
+          applicationData,
+          enrollmentData,
+          prospectData,
+          personData,
+          personnelData,
+          paymentData,
+          typeData,
+        ] = await Promise.all([
+          apiFetch<Summary>("/rapports/synthese"),
+          apiFetch<ApplicationPage>(
+            `/demandes-bourse?page=${applicationPage}&limit=20${applicationSearch ? `&q=${encodeURIComponent(applicationSearch)}` : ""}`,
+          ),
+          apiFetch<EnrollmentPage>(
+            `/inscriptions?page=${enrollmentPage}&limit=20${enrollmentSearch ? `&q=${encodeURIComponent(enrollmentSearch)}` : ""}`,
+          ),
+          apiFetch<ProspectPage>(
+            `/prospects?page=${prospectPage}&limit=20${prospectSearch ? `&q=${encodeURIComponent(prospectSearch)}` : ""}`,
+          ),
+          apiFetch<PersonPage>(
+            `/personnes?page=${peoplePage}&limit=20${
+              peopleSearch
+                ? `&q=${encodeURIComponent(peopleSearch)}`
+                : ""
+            }`,
+          ),
+          apiFetch<PersonnelApplicationPage>(
+            `/candidatures-personnel?page=${personnelPage}&limit=20${personnelSearch ? `&q=${encodeURIComponent(personnelSearch)}` : ""}`,
+          ),
+          apiFetch<{ echeances: LatePayment[] }>(
+            "/rapports/paiements-en-retard",
+          ),
+          apiFetch<ScholarshipType[]>("/types-bourse"),
+        ]);
+        setSummary(summaryData);
+        setApplications(applicationData.data);
+        setApplicationMeta(applicationData.meta);
+        setEnrollments(enrollmentData.data);
+        setEnrollmentMeta(enrollmentData.meta);
+        setProspects(prospectData.data);
+        setProspectMeta(prospectData.meta);
+        setPeople(personData.data);
+        setPeopleMeta(personData.meta);
+        setPersonnelApplications(personnelData.data);
+        setPersonnelMeta(personnelData.meta);
+        setLatePayments(paymentData.echeances);
+        setScholarshipTypes(typeData);
+      } catch (failure) {
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : "Le backend est indisponible.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadData();
+  }, [
+    applicationPage,
+    applicationSearch,
+    enrollmentPage,
+    enrollmentSearch,
+    prospectPage,
+    prospectSearch,
+    peoplePage,
+    peopleSearch,
+    personnelPage,
+    personnelSearch,
+    token,
+    refreshKey,
+  ]);
+
+  const logout = () => {
+    window.sessionStorage.removeItem("ipaim-token");
+    window.sessionStorage.removeItem("ipaim-user");
+    setTemporaryToken(null);
+    setTemporaryUser(null);
+    notifySessionChanged();
+  };
+  const refresh = () => setRefreshKey((value) => value + 1);
+  if (!token)
+    return (
+      <LoginScreen
+        onLoggedIn={(newToken, newUser) => {
+          setTemporaryToken(newToken);
+          setTemporaryUser(newUser);
+        }}
+      />
+    );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <DashboardLayout
+      activeView={view}
+      setActiveView={setView}
+      user={user}
+      summary={summary}
+      onLogout={logout}
+      onProfile={() => setView("Profil")}
+      onSettings={() => setView("Paramètres")}
+    >
+      <AppHeader title={view} onRefresh={refresh} />
+      {error && (
+        <div className="api-error">
+          <strong>Erreur de chargement.</strong> {error}
+          <button onClick={refresh}>Réessayer</button>
+        </div>
+      )}
+      {view === "Vue d'ensemble" ? (
+        <DashboardHome
+          summary={summary}
+          applications={applications}
+          enrollments={enrollments}
+          loading={loading}
+          onOpen={setView}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      ) : view === "Profil" ? (
+        <ProfilePage user={user} onLogout={logout} />
+      ) : view === "Paramètres" ? (
+        <SettingsPage currentUser={user} onRefresh={refresh} />
+      ) : view === "Personnes" ? (
+        <PeoplePage
+          people={people}
+          peopleMeta={peopleMeta}
+          onPeopleSearch={(value) => {
+            setPeopleSearch(value);
+            setPeoplePage(1);
+          }}
+          onPeoplePage={setPeoplePage}
+          onRefresh={refresh}
+        />
+      ) : view === "Recrutement" ? (
+        <PersonnelPage
+          data={personnelApplications}
+          meta={personnelMeta}
+          search={personnelSearch}
+          onSearch={(value) => {
+            setPersonnelSearch(value);
+            setPersonnelPage(1);
+          }}
+          onPage={setPersonnelPage}
+          onRefresh={refresh}
+        />
+      ) : view === "Référentiels" ? (
+        <ReferencesPage onRefresh={refresh} />
+      ) : view === "Rapports" ? (
+        <ReportsPage />
+      ) : (
+        <OperationsPage
+          view={view}
+          applications={applications}
+          enrollments={enrollments}
+          prospects={prospects}
+          people={people}
+          latePayments={latePayments}
+          scholarshipTypes={scholarshipTypes}
+          applicationMeta={applicationMeta}
+          onApplicationSearch={(value) => {
+            setApplicationSearch(value);
+            setApplicationPage(1);
+          }}
+          onApplicationPage={setApplicationPage}
+          enrollmentMeta={enrollmentMeta}
+          onEnrollmentSearch={(value) => {
+            setEnrollmentSearch(value);
+            setEnrollmentPage(1);
+          }}
+          onEnrollmentPage={setEnrollmentPage}
+          prospectMeta={prospectMeta}
+          onProspectSearch={(value) => {
+            setProspectSearch(value);
+            setProspectPage(1);
+          }}
+          onProspectPage={setProspectPage}
+          onRefresh={refresh}
+        />
+      )}
+    </DashboardLayout>
   );
 }
