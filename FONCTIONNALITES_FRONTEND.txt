@@ -487,12 +487,13 @@ Commandes frontend recommandees :
 18. LIMITES ACTUELLES A CONNAITRE
 ---------------------------------
 
-- Les modales de selection des formulaires utilisent les donnees deja chargees
-  dans le dashboard ; une recherche dediee dans une modale sera necessaire si
-  le volume devient tres important.
-- Les rapports sont encore principalement des rapports operationnels et non
-  des exports periodiques complets pour la direction.
-- Le suivi des candidatures personnel gere les statuts et les pieces, mais pas
-  encore les commentaires detailles par entretien.
-- Les paiements non affectes sont signales, mais leur affectation ulterieure
-  doit encore etre exposee par une interface dediee.
+- Les modales de selection des personnes, demandes et inscriptions proposent
+  une recherche dediee cote serveur, independante de la page chargee dans le
+  dashboard.
+- Les rapports proposent un filtre de dates et un export CSV detaille des
+  paiements, demandes de bourse, inscriptions et prospects de la periode.
+- Le suivi des candidatures permet d'enregistrer un compte rendu detaille de
+  l'entretien programme ou realise, conserve avec la candidature.
+- Le registre des paiements liste les versements non affectes et permet de les
+  rattacher a une obligation financiere du meme dossier, dans la limite du
+  montant restant a regler.

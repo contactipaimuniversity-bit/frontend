@@ -211,10 +211,66 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
   return <div className="content-scroll"><div className="page-intro"><div><p className="eyebrow">Configuration</p><h2>Référentiels</h2><p>Paramétrez les pièces exigées et les plans de bourse.</p></div><div className="toolbar"><button className="outline-button small" onClick={() => { setSelectedElement(undefined); setModal("element"); }}>+ Élément</button><button className="primary-button compact" onClick={() => { setSelectedType(undefined); setModal("scholarship"); }}>+ Type de bourse</button></div></div><ErrorMessage error={error} /><div className="reference-grid"><section className="panel"><div className="panel-heading"><div><p className="eyebrow">Dossiers</p><h3>Éléments requis</h3></div></div><div className="table-wrap"><table><thead><tr><th>Nom</th><th>Catégorie</th><th>Contexte</th><th>Obligatoire</th><th /></tr></thead><tbody>{elements.map((item) => <tr key={item.id}><td className="strong-cell">{item.nom}</td><td>{item.categorie}</td><td>{item.contexte}</td><td>{item.obligatoire ? "Oui" : "Non"}</td><td><button className="row-action" onClick={() => { setSelectedElement(item); setModal("element"); }}>Modifier</button></td></tr>)}{!elements.length && <tr><td colSpan={5} className="empty-state">Aucun élément configuré.</td></tr>}</tbody></table></div></section><section className="panel"><div className="panel-heading"><div><p className="eyebrow">Financement</p><h3>Types de bourse</h3></div></div><div className="reference-cards">{types.map((type) => <article className="reference-card" key={type.id}><div><strong>{type.nom}</strong><span>{formatMoney(type.fraisInscription)} · {type.tauxReduction ?? 0}% de réduction</span></div><button className="row-action" onClick={() => { setSelectedType(type); setModal("schedule"); }}>+ Échéance</button><div className="schedule-list">{type.echeances?.map((echeance: Echeance) => <span key={echeance.id}>{echeance.ordre}. {echeance.libelle} · {echeance.montantAttendu ? formatMoney(echeance.montantAttendu) : "-"}</span>)}{!type.echeances?.length && <small>Aucune échéance configurée</small>}</div></article>)}{!types.length && <p className="empty-state">Aucun type de bourse.</p>}</div></section></div>{modal === "element" && <ReferenceForm type="element" element={selectedElement} onClose={() => setModal(null)} onSaved={saved} />}{modal === "scholarship" && <ReferenceForm type="scholarship" onClose={() => setModal(null)} onSaved={saved} />}{modal === "schedule" && selectedType && <ScheduleForm type={selectedType} onClose={() => setModal(null)} onSaved={saved} />}</div>;
 }
 
-export function ReportsPage() {
+function OperationalReportsPage() {
   const [report, setReport] = useState<IncompleteReport | null>(null);
   const [latePayments, setLatePayments] = useState<Array<{ echeance: { libelle: string; dateEcheance?: string; typeBourse?: { nom: string } }; resteAPayer: string }>>([]);
   const [error, setError] = useState("");
   useEffect(() => { void Promise.all([apiFetch<IncompleteReport>("/rapports/dossiers-incomplets"), apiFetch<{ echeances: typeof latePayments }>("/rapports/paiements-en-retard")]).then(([incomplete, late]) => { setReport(incomplete); setLatePayments(late.echeances); }).catch((failure) => setError(failure instanceof Error ? failure.message : "Rapports indisponibles.")); }, []);
   return <div className="content-scroll"><div className="page-intro"><div><p className="eyebrow">Pilotage</p><h2>Rapports</h2><p>Priorisez les dossiers incomplets et les échéances à recouvrer.</p></div></div><ErrorMessage error={error} /><div className="report-grid"><section className="panel"><div className="panel-heading"><div><p className="eyebrow">Pièces manquantes</p><h3>{report?.total ?? "--"} dossier(s) incomplet(s)</h3></div></div><div className="report-list">{report?.dossiers.map((item) => <article className="report-row" key={`${item.dossierType}-${item.dossierId}`}><div><strong>{fullName(item.personne)}</strong><span>{item.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</span></div><div className="report-tags">{item.elementsManquants.map((element) => <span className="tag" key={element.id}>{element.elementRequis.nom}</span>)}</div></article>)}{report && !report.dossiers.length && <p className="empty-state">Tous les dossiers sont complets.</p>}</div></section><section className="panel"><div className="panel-heading"><div><p className="eyebrow">Recouvrement</p><h3>{latePayments.length} échéance(s) en retard</h3></div></div><div className="report-list">{latePayments.map((item, index) => <div className="report-row" key={`${item.echeance.libelle}-${index}`}><div><strong>{item.echeance.libelle}</strong><span>{item.echeance.typeBourse?.nom ?? "Bourse"} · {formatDate(item.echeance.dateEcheance)}</span></div><strong className="report-amount">{formatMoney(item.resteAPayer)}</strong></div>)}{!latePayments.length && <p className="empty-state">Aucun retard de paiement.</p>}</div></section></div></div>;
+}
+
+type ActivityReport = {
+  synthese: {
+    nombrePaiements: number;
+    montantEncaisse: string;
+    nouvellesDemandes: number;
+    nouvellesInscriptions: number;
+    nouveauxProspects: number;
+  };
+  paiements: Array<{ date: string; personne: Person; type: string; dossier: string; montant: string }>;
+  demandes: Array<{ date: string; personne: Person; filiere: string; statut: string }>;
+  inscriptions: Array<{ date: string; personne: Person; filiere: string; statut: string }>;
+  prospects: Array<{ date: string; personne: Person; filiere?: string | null; statut: string }>;
+};
+
+function PeriodicReport() {
+  const today = new Date();
+  const dateValue = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const [dateDebut, setDateDebut] = useState(() => dateValue(new Date(today.getFullYear(), today.getMonth(), 1)));
+  const [dateFin, setDateFin] = useState(() => dateValue(today));
+  const [report, setReport] = useState<ActivityReport | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = async (debut: string, fin: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await apiFetch<ActivityReport>(`/rapports/activite-periode?dateDebut=${debut}&dateFin=${fin}`);
+      setReport(result);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Rapport périodique indisponible.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const download = () => {
+    if (!report) return;
+    const rows: Array<Array<string | number>> = [["Activité", "Date", "Personne", "Téléphone", "Détail", "Statut", "Montant"]];
+    for (const item of report.paiements) rows.push(["Paiement", item.date.slice(0, 10), fullName(item.personne), item.personne.telephone ?? "", `${item.dossier} · ${item.type}`, "", item.montant]);
+    for (const item of report.demandes) rows.push(["Demande de bourse", item.date.slice(0, 10), fullName(item.personne), item.personne.telephone ?? "", item.filiere, item.statut, ""]);
+    for (const item of report.inscriptions) rows.push(["Inscription", item.date.slice(0, 10), fullName(item.personne), item.personne.telephone ?? "", item.filiere, item.statut, ""]);
+    for (const item of report.prospects) rows.push(["Prospect", item.date.slice(0, 10), fullName(item.personne), item.personne.telephone ?? "", item.filiere ?? "", item.statut, ""]);
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(";")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `rapport-ipaim-${dateDebut}-${dateFin}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  return <section className="panel full-panel"><div className="panel-heading"><div><p className="eyebrow">Export de direction</p><h3>Activité sur une période</h3></div>{report && <button className="outline-button small" onClick={download}>Télécharger CSV</button>}</div><form className="toolbar report-period-form" onSubmit={(event) => { event.preventDefault(); void load(dateDebut, dateFin); }}><label>Du<input required type="date" value={dateDebut} onChange={(event) => setDateDebut(event.target.value)} /></label><label>Au<input required type="date" value={dateFin} onChange={(event) => setDateFin(event.target.value)} /></label><button className="primary-button compact" disabled={busy}>{busy ? "Calcul..." : "Générer"}</button></form><ErrorMessage error={error} />{report && <div className="payment-summary"><strong>{report.synthese.nombrePaiements}</strong><span>paiements</span><strong>{formatMoney(report.synthese.montantEncaisse)}</strong><span>encaissé</span><strong>{report.synthese.nouvellesDemandes}</strong><span>demandes</span><strong>{report.synthese.nouvellesInscriptions}</strong><span>inscriptions</span><strong>{report.synthese.nouveauxProspects}</strong><span>prospects</span></div>}</section>;
+}
+
+export function ReportsPage() {
+  return <><div className="content-scroll"><PeriodicReport /></div><OperationalReportsPage /></>;
 }

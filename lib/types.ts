@@ -26,8 +26,11 @@ export type Application = {
   id: string;
   statut: string;
   filiereSouhaitee: string;
+  filiereSecondaireSouhaitee?: string | null;
   niveauDemande: string;
+  ecoleOrigine?: string | null;
   dateDepot: string;
+  dateDecision?: string | null;
   dateEntretien?: string | null;
   equipeEntretien?: string | null;
   personne?: Person;
@@ -43,6 +46,7 @@ export type Enrollment = {
   filiere: string;
   niveau: string;
   anneeScolaire: string;
+  viaBourse?: boolean;
   dateInscription: string;
   personne?: Person;
   demandeBourse?: { typeBourseId?: string | null } | null;
@@ -73,6 +77,15 @@ export type LatePayment = {
   montantPaye: string;
   resteAPayer: string;
 };
+export type UnassignedPayment = {
+  id: string;
+  montant: string | number;
+  datePaiement: string;
+  typePaiement: string;
+  dossierId: string;
+  dossierType: "demande-bourse" | "inscription";
+  personne?: Person;
+};
 export type RequiredElement = {
   id: string;
   nom?: string;
@@ -81,6 +94,8 @@ export type RequiredElement = {
   niveauApplicable?: string;
   obligatoire?: boolean;
   statut: string;
+  montantAttendu?: string | number | null;
+  paiements?: Array<{ montant: string | number }>;
   elementRequis: {
     id: string;
     nom: string;
@@ -139,6 +154,7 @@ export type PersonnelApplication = {
   statut: string;
   dateEntretien?: string | null;
   equipeEntretien?: string | null;
+  remarques?: string | null;
   dateDepot: string;
   elementsDossier: Array<{ id: string; nom: string; statut: string }>;
 };
@@ -161,7 +177,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Rapports" | "Profil" | "Paramètres";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Rapports" | "Profil" | "Paramètres";
 
 export const statusLabels: Record<string, string> = {
   EN_ATTENTE: "En attente",

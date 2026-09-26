@@ -1,17 +1,21 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { ModalChoice } from "@/components/modal-choice";
 import {
   Application,
+  ApplicationPage,
   ApplicationFinance,
   Enrollment,
+  EnrollmentPage,
   LatePayment,
   Person,
+  PersonPage,
   Prospect,
   RequiredElement,
   ScholarshipType,
+  UnassignedPayment,
   ViewName,
   formatDate,
   formatMoney,
@@ -78,6 +82,7 @@ function CreateApplication({
     personneId: "",
     niveauDemande: "PREMIERE_ANNEE",
     filiereSouhaitee: "",
+    filiereSecondaireSouhaitee: "",
     ecoleOrigine: "",
   });
   const [busy, setBusy] = useState(false);
@@ -112,6 +117,12 @@ function CreateApplication({
           placeholder="Sélectionner une personne"
           value={form.personneId}
           choices={people.map((person) => ({ value: person.id, label: fullName(person) }))}
+          loadChoices={async (query, page) => {
+            const result = await apiFetch<PersonPage>(
+              `/personnes?page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+            );
+            return { choices: result.data.map((person) => ({ value: person.id, label: fullName(person) })), hasMore: result.meta.page < result.meta.totalPages };
+          }}
           onChange={(value) => setForm({ ...form, personneId: value })}
         />
         <ModalChoice
@@ -128,6 +139,15 @@ function CreateApplication({
             value={form.filiereSouhaitee}
             onChange={(event) =>
               setForm({ ...form, filiereSouhaitee: event.target.value })
+            }
+          />
+        </label>
+        <label>
+          Filière secondaire souhaitée (facultatif)
+          <input
+            value={form.filiereSecondaireSouhaitee}
+            onChange={(event) =>
+              setForm({ ...form, filiereSecondaireSouhaitee: event.target.value })
             }
           />
         </label>
@@ -219,6 +239,12 @@ function CreateEnrollment({
           placeholder="Sélectionner une personne"
           value={form.personneId}
           choices={people.map((person) => ({ value: person.id, label: fullName(person) }))}
+          loadChoices={async (query, page) => {
+            const result = await apiFetch<PersonPage>(
+              `/personnes?page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+            );
+            return { choices: result.data.map((person) => ({ value: person.id, label: fullName(person) })), hasMore: result.meta.page < result.meta.totalPages };
+          }}
           onChange={(value) => setForm({ ...form, personneId: value })}
         />
         <label>
@@ -268,6 +294,12 @@ function CreateEnrollment({
             placeholder="Sélectionner une demande"
             value={form.demandeBourseId}
             choices={applications.map((application) => ({ value: application.id, label: fullName(application.personne), detail: application.filiereSouhaitee }))}
+            loadChoices={async (query, page) => {
+              const result = await apiFetch<ApplicationPage>(
+                `/demandes-bourse?page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+              );
+              return { choices: result.data.map((application) => ({ value: application.id, label: fullName(application.personne), detail: application.filiereSouhaitee })), hasMore: result.meta.page < result.meta.totalPages };
+            }}
             onChange={(value) => setForm({ ...form, demandeBourseId: value })}
           />
         )}
@@ -395,20 +427,31 @@ function CreatePayment({
     typePaiement: "FRAIS_DEPOT",
     echeanceId: "",
   });
+  const [matchingApplications, setMatchingApplications] = useState(applications);
+  const [matchingEnrollments, setMatchingEnrollments] = useState(enrollments);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const dossiers =
-    form.dossierType === "demandeBourseId" ? applications : enrollments;
+    form.dossierType === "demandeBourseId" ? matchingApplications : matchingEnrollments;
   const selectedDossier = dossiers.find((dossier) => dossier.id === form.dossierId);
-  const selectedType =
-    form.dossierType === "demandeBourseId"
-      ? (selectedDossier as Application | undefined)?.typeBourse
-      : scholarshipTypes.find(
-          (type) =>
-            type.id ===
-            (selectedDossier as Enrollment | undefined)?.demandeBourse
-              ?.typeBourseId,
-        );
+  const selectedTypeId = form.dossierType === "demandeBourseId"
+    ? (selectedDossier as Application | undefined)?.typeBourse?.id
+    : (selectedDossier as Enrollment | undefined)?.demandeBourse?.typeBourseId;
+  const selectedType = scholarshipTypes.find((type) => type.id === selectedTypeId);
+  const loadPaymentDossiers = useCallback(async (query: string, page: number) => {
+    if (form.dossierType === "demandeBourseId") {
+      const result = await apiFetch<ApplicationPage>(
+        `/demandes-bourse?page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+      );
+      setMatchingApplications((current) => page === 1 ? result.data : [...current, ...result.data]);
+      return { choices: result.data.map((dossier) => ({ value: dossier.id, label: fullName(dossier.personne), detail: dossier.filiereSouhaitee })), hasMore: result.meta.page < result.meta.totalPages };
+    }
+    const result = await apiFetch<EnrollmentPage>(
+      `/inscriptions?page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+    );
+    setMatchingEnrollments((current) => page === 1 ? result.data : [...current, ...result.data]);
+    return { choices: result.data.map((dossier) => ({ value: dossier.id, label: fullName(dossier.personne), detail: dossier.filiere })), hasMore: result.meta.page < result.meta.totalPages };
+  }, [form.dossierType]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -451,6 +494,7 @@ function CreatePayment({
           placeholder="Sélectionner un dossier"
           value={form.dossierId}
           choices={dossiers.map((dossier) => ({ value: dossier.id, label: fullName(dossier.personne), detail: "filiereSouhaitee" in dossier ? dossier.filiereSouhaitee : dossier.filiere }))}
+          loadChoices={loadPaymentDossiers}
           onChange={(value) => setForm({ ...form, dossierId: value })}
         />
         <label>
@@ -718,6 +762,70 @@ function FinanceModal({ applicationId, onClose }: { applicationId: string; onClo
   return <Modal title="Situation financière de la demande" onClose={onClose}>{error && <p className="form-error">{error}</p>}{!finance && !error && <p className="empty-state">Chargement...</p>}{finance && <><div className="payment-summary"><strong>{formatMoney(finance.totalAttendu)}</strong><span>attendu</span><strong>{formatMoney(finance.totalPaye)}</strong><span>payé</span><strong>{formatMoney(String(Number(finance.totalAttendu) - Number(finance.totalPaye)))}</strong><span>reste</span></div><div className="table-wrap"><table><thead><tr><th>Obligation</th><th>Statut</th><th>Attendu</th><th>Payé</th><th>Reste</th></tr></thead><tbody>{finance.obligations.map((item) => <tr key={item.id}><td className="strong-cell">{item.nom}</td><td>{statusLabels[item.statut] ?? item.statut}</td><td>{formatMoney(item.montantAttendu)}</td><td>{formatMoney(item.montantPaye)}</td><td><span className="status status-refusee">{formatMoney(item.resteAPayer)}</span></td></tr>)}</tbody></table></div><p className="panel-subtitle">Paiements non affectés : {formatMoney(finance.montantPayeNonAffecte)}</p></>}</Modal>;
 }
 
+function AssignPaymentModal({ payment, onClose, onSaved }: { payment: UnassignedPayment; onClose: () => void; onSaved: () => void }) {
+  const [elements, setElements] = useState<RequiredElement[] | null>(null);
+  const [elementDossierId, setElementDossierId] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const resource = payment.dossierType === "demande-bourse" ? "demandes-bourse" : "inscriptions";
+  useEffect(() => {
+    void apiFetch<RequiredElement[]>(`/${resource}/${payment.dossierId}/elements`)
+      .then(setElements)
+      .catch((failure) => setError(failure instanceof Error ? failure.message : "Obligations indisponibles."));
+  }, [payment.dossierId, resource]);
+  const choices = (elements ?? []).flatMap((element) => {
+    if (element.montantAttendu === null || element.montantAttendu === undefined) return [];
+    const paid = (element.paiements ?? []).reduce((sum, item) => sum + Number(item.montant), 0);
+    const remaining = Number(element.montantAttendu) - paid;
+    return remaining > 0 ? [{ value: element.id, label: element.elementRequis.nom, detail: `${formatMoney(remaining)} restant` }] : [];
+  });
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await apiFetch(`/paiements/${payment.id}/affectation`, {
+        method: "PATCH",
+        body: JSON.stringify({ elementDossierId }),
+      });
+      onSaved();
+      onClose();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Affectation impossible.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <Modal title="Affecter le paiement" onClose={onClose}><form className="entity-form" onSubmit={submit}><p>{fullName(payment.personne)} · {formatMoney(payment.montant)}</p>{elements === null && !error && <p className="empty-state">Chargement des obligations...</p>}{elements && <>{choices.length ? <ModalChoice required label="Obligation" placeholder="Sélectionner une obligation" value={elementDossierId} choices={choices} onChange={setElementDossierId} /> : <p className="empty-state">Aucune obligation financière ne reste à régler.</p>}</>}{error && <p className="form-error">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Annuler</button><button className="primary-button compact" disabled={busy || !elementDossierId}>{busy ? "Affectation..." : "Affecter"}</button></div></form></Modal>;
+}
+
+function UnassignedPaymentsPanel({ onRefresh }: { onRefresh: () => void }) {
+  const [payments, setPayments] = useState<UnassignedPayment[]>([]);
+  const [selected, setSelected] = useState<UnassignedPayment | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const load = async () => {
+    setLoading(true);
+    try {
+      setPayments(await apiFetch<UnassignedPayment[]>("/paiements/non-affectes"));
+      setError("");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Paiements non affectés indisponibles.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    let active = true;
+    void apiFetch<UnassignedPayment[]>("/paiements/non-affectes")
+      .then((result) => { if (active) setPayments(result); })
+      .catch((failure) => { if (active) setError(failure instanceof Error ? failure.message : "Paiements non affectés indisponibles."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+  return <><section className="panel full-panel"><div className="panel-heading"><div><p className="eyebrow">Affectation</p><h3>{payments.length} paiement(s) à affecter</h3></div><button className="outline-button small" onClick={() => void load()}>Actualiser</button></div>{error && <p className="form-error">{error}</p>}{loading && <p className="empty-state">Chargement...</p>}{!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Personne</th><th>Dossier</th><th>Type</th><th>Montant</th><th /></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}</td><td>{payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{formatMoney(payment.montant)}</td><td><button className="row-action" onClick={() => setSelected(payment)}>Affecter</button></td></tr>)}{!payments.length && <tr><td colSpan={6} className="empty-state">Tous les paiements sont affectés.</td></tr>}</tbody></table></div>}</section>{selected && <AssignPaymentModal payment={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); void load(); onRefresh(); }} />}</>;
+}
+
 export function OperationsPage({
   view,
   applications,
@@ -757,6 +865,7 @@ export function OperationsPage({
 }) {
   const [filter, setFilter] = useState("ALL");
   const [searchDraft, setSearchDraft] = useState("");
+  const [paymentsRefreshKey, setPaymentsRefreshKey] = useState(0);
   const [modal, setModal] = useState<
     | "application"
     | "enrollment"
@@ -781,6 +890,10 @@ export function OperationsPage({
     filter === "ALL"
       ? prospects
       : prospects.filter((item) => item.statutRelance === filter);
+  const refreshAfterPayment = () => {
+    onRefresh();
+    setPaymentsRefreshKey((current) => current + 1);
+  };
   const selectedApplication = applications.find(
     (item) => item.id === selectedId,
   );
@@ -1160,6 +1273,7 @@ export function OperationsPage({
                 </tbody>
               </table>
             </div>
+            <UnassignedPaymentsPanel key={paymentsRefreshKey} onRefresh={onRefresh} />
           </>
         )}
         {view === "Demandes de bourse" && applicationMeta.totalPages > 1 && (
@@ -1256,7 +1370,7 @@ export function OperationsPage({
           enrollments={enrollments}
           scholarshipTypes={scholarshipTypes}
           onClose={() => setModal(null)}
-          onSaved={onRefresh}
+          onSaved={refreshAfterPayment}
         />
       )}
       {modal === "elements" && (

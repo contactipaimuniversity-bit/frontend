@@ -26,9 +26,32 @@ function PersonnelStatus({ application, onClose, onSaved }: { application: Perso
   const [status, setStatus] = useState(application.statut);
   const [dateEntretien, setDateEntretien] = useState(application.dateEntretien?.slice(0, 16) ?? "");
   const [equipeEntretien, setEquipeEntretien] = useState(application.equipeEntretien ?? "");
+  const [remarques, setRemarques] = useState(application.remarques ?? "");
   const [error, setError] = useState("");
-  const submit = async (event: FormEvent) => { event.preventDefault(); try { await apiFetch(`/candidatures-personnel/${application.id}`, { method: "PATCH", body: JSON.stringify({ statut: status, dateEntretien: dateEntretien || null, equipeEntretien: equipeEntretien || null }) }); onSaved(); onClose(); } catch (failure) { setError(failure instanceof Error ? failure.message : "Modification impossible."); } };
-  return <Modal title={`Suivi de ${application.prenom} ${application.nom}`} onClose={onClose}><form className="entity-form" onSubmit={submit}><ModalChoice label="Statut" placeholder="Sélectionner un statut" value={status} choices={["DEPOSE", "ENTRETIEN_PROGRAMME", "ENTRETIEN_REALISE", "RETENU", "REFUSE"].map((value) => ({ value, label: statusLabels[value] ?? value }))} onChange={setStatus} />{status === "ENTRETIEN_PROGRAMME" && <><label>Date et heure<input required type="datetime-local" value={dateEntretien} onChange={(event) => setDateEntretien(event.target.value)} /></label><label>Équipe d&apos;entretien<input required value={equipeEntretien} onChange={(event) => setEquipeEntretien(event.target.value)} /></label></>}{error && <p className="form-error">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Annuler</button><button className="primary-button compact">Enregistrer</button></div></form></Modal>;
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    try {
+      await apiFetch(`/candidatures-personnel/${application.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ statut: status, dateEntretien: dateEntretien || null, equipeEntretien: equipeEntretien || null, remarques: remarques || null }),
+      });
+      onSaved();
+      onClose();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Modification impossible.");
+    }
+  };
+  return (
+    <Modal title={`Suivi de ${application.prenom} ${application.nom}`} onClose={onClose}>
+      <form className="entity-form" onSubmit={submit}>
+        <ModalChoice label="Statut" placeholder="Sélectionner un statut" value={status} choices={["DEPOSE", "ENTRETIEN_PROGRAMME", "ENTRETIEN_REALISE", "RETENU", "REFUSE"].map((value) => ({ value, label: statusLabels[value] ?? value }))} onChange={setStatus} />
+        {status === "ENTRETIEN_PROGRAMME" && <><label>Date et heure<input required type="datetime-local" value={dateEntretien} onChange={(event) => setDateEntretien(event.target.value)} /></label><label>Équipe d&apos;entretien<input required value={equipeEntretien} onChange={(event) => setEquipeEntretien(event.target.value)} /></label></>}
+        {(status === "ENTRETIEN_PROGRAMME" || status === "ENTRETIEN_REALISE") && <label>Compte rendu détaillé de l&apos;entretien<textarea rows={6} value={remarques} onChange={(event) => setRemarques(event.target.value)} placeholder="Évaluation, points abordés, décision ou suivi à prévoir..." /></label>}
+        {error && <p className="form-error">{error}</p>}
+        <div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Annuler</button><button className="primary-button compact">Enregistrer</button></div>
+      </form>
+    </Modal>
+  );
 }
 
 export function PersonnelPage({ data, meta, search, onSearch, onPage, onRefresh }: { data: PersonnelApplication[]; meta: PersonnelApplicationPage["meta"]; search: string; onSearch: (value: string) => void; onPage: (page: number) => void; onRefresh: () => void }) {

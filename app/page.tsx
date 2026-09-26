@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { DashboardHome } from "@/components/dashboard-home";
+import { CertificatesPage } from "@/components/certificates-page";
 import { DashboardLayout, AppHeader } from "@/components/dashboard-layout";
 import { ProfilePage, SettingsPage } from "@/components/account-pages";
 import { LoginScreen } from "@/components/login-screen";
@@ -261,6 +262,8 @@ export default function Home() {
         <ReferencesPage onRefresh={refresh} />
       ) : view === "Rapports" ? (
         <ReportsPage />
+      ) : view === "Certificats" ? (
+        <CertificatesPage refreshSignal={refreshKey} />
       ) : (
         <OperationsPage
           view={view}

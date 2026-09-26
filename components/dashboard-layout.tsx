@@ -8,6 +8,7 @@ const navItems: { label: ViewName; icon: string }[] = [
   { label: "Vue d'ensemble", icon: "⌂" },
   { label: "Demandes de bourse", icon: "◇" },
   { label: "Inscriptions", icon: "▣" },
+  { label: "Certificats", icon: "▧" },
   { label: "Paiements", icon: "₣" },
   { label: "Prospects", icon: "○" },
   { label: "Personnes", icon: "◎" },
