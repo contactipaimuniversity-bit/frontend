@@ -14,6 +14,7 @@ const navItems: { label: ViewName; icon: string }[] = [
   { label: "Personnes", icon: "◎" },
   { label: "Recrutement", icon: "♙" },
   { label: "Référentiels", icon: "≡" },
+  { label: "Synchronisation", icon: "↻" },
   { label: "Rapports", icon: "▤" },
 ];
 

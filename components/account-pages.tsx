@@ -8,17 +8,40 @@ import { User } from "@/lib/types";
 export function ProfilePage({
   user,
   onLogout,
+  onUpdated,
 }: {
   user: User | null;
   onLogout: () => void;
+  onUpdated: (user: User) => void;
 }) {
+  const [form, setForm] = useState({ nom: user?.nom ?? "", prenom: user?.prenom ?? "", email: user?.email ?? "", ancienMotDePasse: "", nouveauMotDePasse: "", confirmationMotDePasse: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    if (form.nouveauMotDePasse && form.nouveauMotDePasse !== form.confirmationMotDePasse) {
+      setError("La confirmation du nouveau mot de passe ne correspond pas.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const updated = await apiFetch<User>("/utilisateurs/me", { method: "PATCH", body: JSON.stringify({ nom: form.nom, prenom: form.prenom, email: form.email, ancienMotDePasse: form.ancienMotDePasse || undefined, nouveauMotDePasse: form.nouveauMotDePasse || undefined }) });
+      onUpdated(updated);
+      setForm({ ...form, ancienMotDePasse: "", nouveauMotDePasse: "", confirmationMotDePasse: "" });
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Modification impossible.");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="content-scroll">
       <section className="account-hero">
         <div className="account-avatar">{user?.nom?.slice(0, 1) ?? "A"}</div>
         <div>
           <p className="eyebrow">Compte connecté</p>
-          <h2>{user?.nom ?? "Administrateur"}</h2>
+          <h2>{user ? `${user.prenom ? `${user.prenom} ` : ""}${user.nom}` : "Administrateur"}</h2>
           <p>
             {user?.role ?? "Equipe"} · {user?.email}
           </p>
@@ -32,11 +55,16 @@ export function ProfilePage({
               <h3>Votre profil</h3>
             </div>
           </div>
+          <form className="entity-form profile-form" onSubmit={submit}>
+            <div className="form-grid"><label>Nom<input required value={form.nom} onChange={(event) => setForm({ ...form, nom: event.target.value })} /></label><label>Prénom<input value={form.prenom} onChange={(event) => setForm({ ...form, prenom: event.target.value })} /></label></div>
+            <label>Adresse email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
+            <p className="eyebrow form-section-label">Changer le mot de passe</p>
+            <label>Ancien mot de passe<input type="password" value={form.ancienMotDePasse} onChange={(event) => setForm({ ...form, ancienMotDePasse: event.target.value })} /></label>
+            <div className="form-grid"><label>Nouveau mot de passe<input minLength={8} type="password" value={form.nouveauMotDePasse} onChange={(event) => setForm({ ...form, nouveauMotDePasse: event.target.value })} /></label><label>Confirmation<input minLength={8} type="password" value={form.confirmationMotDePasse} onChange={(event) => setForm({ ...form, confirmationMotDePasse: event.target.value })} /></label></div>
+            {error && <p className="form-error">{error}</p>}
+            <div className="form-actions"><button className="primary-button compact" disabled={busy}>{busy ? "Enregistrement..." : "Enregistrer les modifications"}</button></div>
+          </form>
           <dl className="profile-details">
-            <div>
-              <dt>Nom complet</dt>
-              <dd>{user?.nom}</dd>
-            </div>
             <div>
               <dt>Adresse email</dt>
               <dd>{user?.email}</dd>

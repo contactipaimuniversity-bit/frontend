@@ -1,4 +1,4 @@
-export type User = { id?: string; nom: string; email: string; role: string };
+export type User = { id?: string; nom: string; prenom?: string | null; email: string; role: string };
 export type Person = {
   id: string;
   nom: string;
@@ -21,6 +21,10 @@ export type Summary = {
   demandesEnCours: number;
   inscriptionsTotal: number;
   totalEncaisse: string;
+  resteBourses: string;
+  resteInscriptions: string;
+  totalResteARecouvrer: string;
+  tendance: Array<{ label: string; demandes: number; inscriptions: number }>;
 };
 export type Application = {
   id: string;
@@ -35,6 +39,10 @@ export type Application = {
   equipeEntretien?: string | null;
   personne?: Person;
   typeBourse?: ScholarshipType | null;
+  dossierComplet?: boolean;
+  elementsManquants?: string[];
+  obligationsImpayees?: Array<{ nom: string; reste: string }>;
+  paiementEnAttenteSync?: boolean;
 };
 export type ApplicationPage = {
   data: Application[];
@@ -50,6 +58,10 @@ export type Enrollment = {
   dateInscription: string;
   personne?: Person;
   demandeBourse?: { typeBourseId?: string | null } | null;
+  dossierComplet?: boolean;
+  elementsManquants?: string[];
+  obligationsImpayees?: Array<{ nom: string; reste: string }>;
+  paiementEnAttenteSync?: boolean;
 };
 export type EnrollmentPage = {
   data: Enrollment[];
@@ -85,6 +97,12 @@ export type UnassignedPayment = {
   dossierId: string;
   dossierType: "demande-bourse" | "inscription";
   personne?: Person;
+};
+export type PaymentTransaction = UnassignedPayment & {
+  dossier: string;
+  obligation?: string | null;
+  echeance?: string | null;
+  affecte: boolean;
 };
 export type RequiredElement = {
   id: string;
@@ -177,7 +195,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Rapports" | "Profil" | "Paramètres";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Profil" | "Paramètres";
 
 export const statusLabels: Record<string, string> = {
   EN_ATTENTE: "En attente",

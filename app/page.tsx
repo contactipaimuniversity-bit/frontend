@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { DashboardHome } from "@/components/dashboard-home";
+import { OfflineSync, OfflineSyncPage } from "@/components/offline-sync";
 import { CertificatesPage } from "@/components/certificates-page";
 import { DashboardLayout, AppHeader } from "@/components/dashboard-layout";
 import { ProfilePage, SettingsPage } from "@/components/account-pages";
@@ -14,6 +15,7 @@ import {
   ReportsPage,
 } from "@/components/additional-pages";
 import { apiFetch, notifySessionChanged } from "@/lib/api";
+import { OfflineAccount } from "@/lib/offline";
 import {
   Application,
   ApplicationPage,
@@ -53,6 +55,7 @@ const useStoredValue = (key: string) =>
 export default function Home() {
   const storedToken = useStoredValue("ipaim-token");
   const storedUser = useStoredValue("ipaim-user");
+  const storedOfflineSession = useStoredValue("ipaim-offline-session");
   const [temporaryToken, setTemporaryToken] = useState<string | null>(null);
   const [temporaryUser, setTemporaryUser] = useState<User | null>(null);
   const [view, setView] = useState<ViewName>("Vue d'ensemble");
@@ -103,13 +106,19 @@ export default function Home() {
     [],
   );
   const [loading, setLoading] = useState(false);
+  const [enteringApp, setEnteringApp] = useState(false);
   const [error, setError] = useState("");
+  const [offlineAccessWarning, setOfflineAccessWarning] = useState(false);
   const token = temporaryToken ?? storedToken;
   const user =
-    temporaryUser ?? (storedUser ? (JSON.parse(storedUser) as User) : null);
+    temporaryUser ?? (storedUser ? (JSON.parse(storedUser) as User) : null) ??
+    (storedOfflineSession ? (JSON.parse(storedOfflineSession) as OfflineAccount).user : null);
+  const offlineAccount = storedOfflineSession
+    ? JSON.parse(storedOfflineSession) as OfflineAccount
+    : null;
 
   useEffect(() => {
-    if (!token) return;
+    if (!token && !storedOfflineSession) return;
     const loadData = async () => {
       setLoading(true);
       setError("");
@@ -185,25 +194,62 @@ export default function Home() {
     personnelPage,
     personnelSearch,
     token,
+    storedOfflineSession,
     refreshKey,
   ]);
+
+  useEffect(() => {
+    if (!enteringApp) return;
+    const timeoutId = window.setTimeout(() => setEnteringApp(false), 6000);
+    return () => window.clearTimeout(timeoutId);
+  }, [enteringApp]);
+
+  useEffect(() => {
+    const refreshAfterSync = () => setRefreshKey((value) => value + 1);
+    window.addEventListener("ipaim-sync-complete", refreshAfterSync);
+    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator)
+      void navigator.serviceWorker.register("/sw.js");
+    return () => window.removeEventListener("ipaim-sync-complete", refreshAfterSync);
+  }, []);
 
   const logout = () => {
     window.sessionStorage.removeItem("ipaim-token");
     window.sessionStorage.removeItem("ipaim-user");
+    window.sessionStorage.removeItem("ipaim-offline-session");
     setTemporaryToken(null);
     setTemporaryUser(null);
     notifySessionChanged();
   };
   const refresh = () => setRefreshKey((value) => value + 1);
-  if (!token)
+  if (!token && !offlineAccount)
     return (
       <LoginScreen
-        onLoggedIn={(newToken, newUser) => {
+        onLoggedIn={(newToken, newUser, offlineReady) => {
           setTemporaryToken(newToken);
           setTemporaryUser(newUser);
+          setOfflineAccessWarning(offlineReady === false);
+          setEnteringApp(true);
         }}
       />
+    );
+
+  if (enteringApp)
+    return (
+      <main className="entry-loading" role="status" aria-live="polite">
+        <div className="entry-loading-content">
+          <div className="entry-loading-icon" aria-hidden="true">
+            <svg viewBox="0 0 64 64" fill="none">
+              <rect x="12" y="12" width="40" height="30" rx="3" />
+              <path d="M7 49h50l-4 5H11l-4-5Z" />
+              <path d="M25 49h14" />
+            </svg>
+            <span className="entry-loading-spinner" />
+          </div>
+          <p className="eyebrow">IPAIM</p>
+          <h1>Préparation de votre espace</h1>
+          <p>Pour une meilleure expérience, utilisez votre ordinateur.</p>
+        </div>
+      </main>
     );
 
   return (
@@ -217,6 +263,13 @@ export default function Home() {
       onSettings={() => setView("Paramètres")}
     >
       <AppHeader title={view} onRefresh={refresh} />
+      <OfflineSync onOpenPage={() => setView("Synchronisation")} />
+      {offlineAccessWarning && (
+        <div className="api-error">
+          L’accès hors ligne n’a pas pu être activé sur cet appareil. Vérifiez les paramètres de stockage du navigateur.
+          <button onClick={() => setOfflineAccessWarning(false)}>Fermer</button>
+        </div>
+      )}
       {error && (
         <div className="api-error">
           <strong>Erreur de chargement.</strong> {error}
@@ -228,11 +281,12 @@ export default function Home() {
           summary={summary}
           applications={applications}
           enrollments={enrollments}
+          user={user}
           loading={loading}
           onOpen={setView}
         />
       ) : view === "Profil" ? (
-        <ProfilePage user={user} onLogout={logout} />
+        <ProfilePage user={user} onLogout={logout} onUpdated={(updated) => { setTemporaryUser(updated); window.sessionStorage.setItem("ipaim-user", JSON.stringify(updated)); }} />
       ) : view === "Paramètres" ? (
         <SettingsPage currentUser={user} onRefresh={refresh} />
       ) : view === "Personnes" ? (
@@ -260,6 +314,17 @@ export default function Home() {
         />
       ) : view === "Référentiels" ? (
         <ReferencesPage onRefresh={refresh} />
+      ) : view === "Synchronisation" ? (
+        <OfflineSyncPage
+          needsOnlineAuthentication={!token && Boolean(offlineAccount)}
+          onReconnect={() => {
+            window.sessionStorage.removeItem("ipaim-offline-session");
+            window.sessionStorage.removeItem("ipaim-user");
+            setTemporaryToken(null);
+            setTemporaryUser(null);
+            notifySessionChanged();
+          }}
+        />
       ) : view === "Rapports" ? (
         <ReportsPage />
       ) : view === "Certificats" ? (
