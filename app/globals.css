@@ -105,3 +105,92 @@ body { background: var(--paper); }
 .trend-panel { margin-top: 16px; }.trend-caption { margin: 7px 0 0; color: var(--muted); font-size: 10px; }.trend-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 14px; color: var(--muted); font-size: 10px; }.trend-key::before { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; content: ""; }.applications-key::before { background: #c8941b; }.enrollments-key::before { background: #1b9ee6; }.trend-chart { position: relative; min-height: 225px; margin-top: 9px; }.trend-chart svg { display: block; width: 100%; height: 205px; overflow: visible; }.trend-chart line { stroke: #e2e8f2; stroke-width: 1; }.trend-chart text { fill: var(--muted); font-size: 10px; }.trend-chart .trend-axis-title { fill: var(--ink); font-size: 9px; font-weight: 800; }.trend-chart .trend-tick { fill: #8a96ad; font-size: 9px; }.trend-chart .trend-month { font-size: 10px; }.trend-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }.applications-line { stroke: #c8941b; }.enrollments-line { stroke: #1b9ee6; }.trend-point { stroke: #fff; stroke-width: 2; }.applications-point { fill: #c8941b; }.enrollments-point { fill: #1b9ee6; }.trend-counts { display: flex; justify-content: space-between; margin: -40px 0 0 34px; padding: 0 5px; pointer-events: none; }.trend-counts div { display: grid; gap: 2px; text-align: center; }.trend-counts strong { color: #9b7117; font-size: 10px; }.trend-counts span { color: #1b78ad; font-size: 10px; }
 @media (max-width: 900px) { .report-grid { grid-template-columns: 1fr; } }
 @media (max-width: 620px) { .report-row { grid-template-columns: 1fr; gap: 11px; padding: 14px 0; }.report-tags { padding-left: 0; }.report-amount { justify-self: start; } }
+.danger-row-action { color: #a25454; }.deletion-modal { width: min(100%, 460px); padding: 28px; }.deletion-modal > p { line-height: 1.65; }.deletion-modal .deletion-target { margin: 0 0 10px; color: var(--ink); font-size: 14px; font-weight: 700; }.deletion-info-link { margin-top: 13px; padding: 0; border: 0; color: var(--ink); background: transparent; font-size: 11px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }.deletion-error { margin: 14px 0 0 !important; }.deletion-info-page { max-width: 880px; }.deletion-info-page h3 { margin: 0 0 12px; font-size: 17px; }.deletion-info-page p, .deletion-info-page li { color: var(--muted); font-size: 12px; line-height: 1.7; }.deletion-info-page ul { margin: 8px 0 22px; padding-left: 20px; }.deletion-info-page li + li { margin-top: 5px; }.deletion-info-page .danger-solid-button { margin-top: 8px; }
+@media (max-width: 620px) { .deletion-modal { padding: 22px 18px; }.deletion-modal .form-actions { flex-wrap: wrap; }.deletion-modal .form-actions button { flex: 1 1 auto; } }
+.dossier-open-button { padding: 0; border: 0; color: var(--ink); background: transparent; font-size: inherit; font-weight: 700; text-align: left; }.dossier-open-button:hover { text-decoration: underline; text-underline-offset: 3px; }.dossier-page-intro { align-items: center; }.dossier-page-intro h2 { margin-bottom: 6px; }.dossier-detail-panel { padding-top: 21px; }.dossier-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-bottom: 20px; }.dossier-detail-heading .panel-subtitle { margin-top: 8px; }.dossier-detail-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 7px; }.dossier-detail-section { padding: 21px 0; border-top: 1px solid var(--line); }.dossier-detail-section h3 { margin: 0 0 15px; font-size: 14px; }.dossier-detail-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 22px; margin: 0; }.dossier-detail-fields > div { min-width: 0; padding: 11px 0; border-bottom: 1px solid #edf0f4; }.dossier-detail-fields dt { margin-bottom: 5px; color: var(--muted); font-size: 10px; }.dossier-detail-fields dd { margin: 0; color: var(--ink); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }.dossier-linked-records { display: grid; gap: 7px; margin-top: 15px; color: var(--muted); font-size: 11px; }.dossier-linked-records strong { color: var(--ink); }.dossier-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 15px; }.dossier-section-heading h3 { margin: 0; }.dossier-section-heading p { margin: 5px 0 0; color: var(--muted); font-size: 10px; }.dossier-item-note { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; font-weight: 400; }.dossier-finance-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 17px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }.dossier-finance-summary > div { display: grid; gap: 6px; padding: 13px 16px; border-left: 1px solid var(--line); }.dossier-finance-summary > div:first-child { padding-left: 0; border-left: 0; }.dossier-finance-summary span { color: var(--muted); font-size: 10px; }.dossier-finance-summary strong { color: var(--ink); font-size: 14px; }.dossier-subheading { margin: 20px 0 10px; font-size: 12px; }.dossier-next-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 13px; }.dossier-next-actions h3 { width: 100%; margin-bottom: 0; }.dossier-next-actions .row-action { padding: 0; }.dossier-load-error { margin-bottom: 16px; }
+@media (max-width: 720px) { .dossier-detail-heading { align-items: flex-start; flex-direction: column; }.dossier-detail-actions { justify-content: flex-start; }.dossier-detail-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }.dossier-finance-summary > div { padding: 12px 9px; }.dossier-finance-summary > div:first-child { padding-left: 0; } }
+@media (max-width: 480px) { .dossier-page-intro { align-items: flex-start; flex-direction: column; gap: 16px; }.dossier-detail-fields { grid-template-columns: 1fr; }.dossier-finance-summary { grid-template-columns: 1fr; }.dossier-finance-summary > div, .dossier-finance-summary > div:first-child { padding: 11px 0; border-left: 0; border-top: 1px solid var(--line); }.dossier-finance-summary > div:first-child { border-top: 0; } }
+
+/* IPAIM institutional palette: navy structure, gold emphasis, clear blue accents. */
+:root { --ink: #14285c; --muted: #5c6c89; --line: #d8e1ef; --paper: #edf2f9; --teal: #14285c; --orange: #c8941b; --brand-navy: #14285c; --brand-deep: #0c1b43; --brand-gold: #c8941b; --brand-blue: #1b9ee6; --surface: #f8faff; --surface-blue: #e8eef8; }
+body, .app-shell { background: var(--paper); }
+.sidebar { border-right-color: #24396a; background: var(--brand-deep); }
+.sidebar-top { border-bottom: 1px solid #ffffff1a; }
+.sidebar .brand-name { color: #fff; }
+.nav-label { color: #9caccb; }
+.nav-item { color: #d4ddef; }
+.nav-item:hover { color: #fff; background: #ffffff12; }
+.nav-item.active { color: var(--brand-deep); background: var(--brand-gold); box-shadow: inset 3px 0 #fff; }
+.nav-icon { color: var(--brand-gold); }
+.nav-item.active .nav-icon { color: var(--brand-deep); }
+.nav-count { color: #f1c75b; }
+.nav-item.active .nav-count { color: var(--brand-deep); }
+.sidebar-bottom .profile-card { border-top-color: #ffffff26; color: #fff; }
+.sidebar-bottom .profile-card:hover, .sidebar-bottom .profile-card.active { color: var(--brand-deep); background: var(--brand-gold); }
+.sidebar-bottom .profile-text small, .sidebar-bottom .logout-icon { color: #c7d2e5; }
+.sidebar-bottom .profile-card.active .profile-text small, .sidebar-bottom .profile-card.active .logout-icon { color: var(--brand-deep); }
+.logout-button { border-top-color: #ffffff26; color: #efc5bd; }
+.topbar { border-bottom-color: var(--line); background: #f8faff; }
+.topbar h1 { color: var(--brand-navy); }
+.breadcrumb { color: #697997; }
+.content-area { background: var(--paper); }
+.content-scroll { min-height: calc(100vh - 106px); background: linear-gradient(135deg, #edf2f9 0%, #e8eef7 100%); }
+.page-intro:not(.dossier-page-intro) { padding: 17px 19px; border-left: 3px solid var(--brand-gold); background: linear-gradient(105deg, #e1e9f5, #f1f5fb 76%); }
+.page-intro h2, .welcome-row h2 { color: var(--brand-navy); }
+.eyebrow { color: #7384a3; }
+.panel { border-color: #d6e0ee; background: var(--surface); box-shadow: 0 4px 16px #14285c0a; }
+.panel-heading { padding-bottom: 14px; border-bottom: 1px solid #e3eaf4; }
+.panel-heading h3 { color: var(--brand-navy); }
+.stat-card { border: 1px solid #dce5f1; background: #f8faff; }
+.stat-card.orange { color: #8b6310; background: #f7efd9; }
+.stat-card.blue { color: #176eaa; background: #e1eff9; }
+.stat-card.mint { color: #286f80; background: #e2f0f1; }
+.stat-card.violet { color: #4d5e88; background: #e8ebf5; }
+th { border-bottom: 1px solid #d5dfed; color: #526587; background: #eaf0f8; }
+tbody tr:nth-child(even) { background: #f0f4fa; }
+td { border-top-color: #e1e8f2; color: #52617d; }
+tbody tr:hover { background: #e5edf8; }
+.status { border: 1px solid transparent; }
+.status-en_attente, .status-en_cours { border-color: #ead8a8; color: #79570d; background: #f7efd9; }
+.status-acceptee, .status-complete { border-color: #b8d8e8; color: #145c83; background: #deedf5; }
+.status-en_deliberation, .status-entretien_programme { border-color: #c2cde4; color: #344c7c; background: #e5eaf4; }
+.status-refusee, .status-abandonnee { border-color: #e5c5c5; color: #8c4545; background: #f6e8e8; }
+.primary-button { color: var(--brand-deep); background: var(--brand-gold); box-shadow: 0 5px 14px #c8941b30; }
+.primary-button:hover { background: #d9a82f; }
+.outline-button { border-color: #bac9df; color: var(--brand-navy); background: #edf2f9; }
+.outline-button:hover, .secondary-button:hover { border-color: #c8941b; background: #f7efd9; }
+.secondary-button { border-color: #c6d2e3; color: var(--brand-navy); background: #f3f6fb; }
+.row-action, .text-button, .refresh-button { color: #174c83; }
+.row-action:hover, .text-button:hover { color: #a8780e; }
+.danger-row-action { color: #a14e4e; }
+.search-form input, .toolbar select, .choice-search input, .report-period-form input { border-color: #cbd7e7; color: var(--brand-navy); background: #f8faff; }
+.modal { border: 1px solid #d3deed; background: #f9fbff; }
+.entity-form input, .entity-form select, .choice-trigger { border-color: #cbd7e7; background: #f3f6fb; }
+.choice-option { border-color: #d4deeb; background: #f8faff; }
+.choice-option:hover, .choice-option.selected { border-color: #9eb7d5; background: #e8eef8; }
+.dossier-detail-panel { background: #f8faff; }
+.dossier-detail-section h3, .dossier-subheading { color: var(--brand-navy); }
+.dossier-finance-summary { border-color: #ccd8e8; background: #edf2f9; }
+.dossier-finance-summary > div { border-left-color: #ccd8e8; }
+.dossier-open-button { color: var(--brand-navy); }
+.pagination-bar { color: #536482; }
+.pagination-actions .outline-button { background: #e8eef8; }
+.offline-sync-trigger { border-color: #cbd7e7; color: var(--brand-navy); background: #f8faff; }
+.offline-sync-panel { border-color: #cbd7e7; background: #f8faff; }
+@media (max-width: 900px) { .sidebar { background: var(--brand-deep); }.nav-item.active { color: var(--brand-deep); background: var(--brand-gold); } }
+@media (max-width: 620px) { .content-scroll { background: #edf2f9; }.page-intro:not(.dossier-page-intro) { padding: 14px; }.topbar { background: #f8faff; } }
+.stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.scholarship-type-panel { margin-top: 16px; }
+.scholarship-type-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.scholarship-type-card { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; min-width: 0; min-height: 82px; padding: 14px 16px; border: 1px solid #cbd8e9; border-left: 3px solid var(--brand-gold); border-radius: 5px; color: var(--brand-navy); background: #e8eef8; text-align: left; transition: background .16s ease, border-color .16s ease; }
+.scholarship-type-card:hover { border-color: #9eb5d3; background: #dde7f4; }
+.scholarship-type-card > span:first-child { grid-column: 1; overflow: hidden; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.scholarship-type-card strong { grid-column: 2; grid-row: 1 / span 2; color: var(--brand-navy); font-size: 23px; }
+.scholarship-type-card small { grid-column: 1; color: var(--muted); font-size: 9px; }
+.scholarship-card-arrow { position: absolute; right: 8px; bottom: 5px; color: #9b7117; font-size: 11px; }
+.scholarship-type-card { padding-right: 24px; }
+.stats-grid .stat-card.violet { color: #145b8c; background: #e1edf7; }
+@media (max-width: 900px) { .scholarship-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .scholarship-type-grid { grid-template-columns: 1fr; }.stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.scholarship-type-card { min-height: 74px; } }
+.row-action.debt-action, .debt-action { color: #b4232c; font-weight: 800; }
+.dossier-section-heading .dossier-debt-alert { color: #b4232c; font-weight: 800; }

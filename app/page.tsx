@@ -7,7 +7,8 @@ import { CertificatesPage } from "@/components/certificates-page";
 import { DashboardLayout, AppHeader } from "@/components/dashboard-layout";
 import { ProfilePage, SettingsPage } from "@/components/account-pages";
 import { LoginScreen } from "@/components/login-screen";
-import { OperationsPage } from "@/components/operations-page";
+import { DossierDetailsPage, DossierReference, OperationsPage } from "@/components/operations-page";
+import { DeletionInfoPage } from "@/components/deletion-info-page";
 import { PersonnelPage } from "@/components/personnel-page";
 import {
   PeoplePage,
@@ -59,6 +60,9 @@ export default function Home() {
   const [temporaryToken, setTemporaryToken] = useState<string | null>(null);
   const [temporaryUser, setTemporaryUser] = useState<User | null>(null);
   const [view, setView] = useState<ViewName>("Vue d'ensemble");
+  const [deletionInfoReturnView, setDeletionInfoReturnView] = useState<"Demandes de bourse" | "Inscriptions">("Demandes de bourse");
+  const [dossierReference, setDossierReference] = useState<DossierReference | null>(null);
+  const [dossierReturnView, setDossierReturnView] = useState<"Demandes de bourse" | "Inscriptions">("Demandes de bourse");
   const [refreshKey, setRefreshKey] = useState(0);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -79,6 +83,7 @@ export default function Home() {
   });
   const [enrollmentSearch, setEnrollmentSearch] = useState("");
   const [enrollmentPage, setEnrollmentPage] = useState(1);
+  const [enrollmentTypeBourseId, setEnrollmentTypeBourseId] = useState("");
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [prospectMeta, setProspectMeta] = useState<ProspectPage["meta"]>({
     page: 1,
@@ -138,7 +143,7 @@ export default function Home() {
             `/demandes-bourse?page=${applicationPage}&limit=20${applicationSearch ? `&q=${encodeURIComponent(applicationSearch)}` : ""}`,
           ),
           apiFetch<EnrollmentPage>(
-            `/inscriptions?page=${enrollmentPage}&limit=20${enrollmentSearch ? `&q=${encodeURIComponent(enrollmentSearch)}` : ""}`,
+            `/inscriptions?page=${enrollmentPage}&limit=20${enrollmentSearch ? `&q=${encodeURIComponent(enrollmentSearch)}` : ""}${enrollmentTypeBourseId ? `&typeBourseId=${encodeURIComponent(enrollmentTypeBourseId)}` : ""}`,
           ),
           apiFetch<ProspectPage>(
             `/prospects?page=${prospectPage}&limit=20${prospectSearch ? `&q=${encodeURIComponent(prospectSearch)}` : ""}`,
@@ -187,6 +192,7 @@ export default function Home() {
     applicationSearch,
     enrollmentPage,
     enrollmentSearch,
+    enrollmentTypeBourseId,
     prospectPage,
     prospectSearch,
     peoplePage,
@@ -284,6 +290,13 @@ export default function Home() {
           user={user}
           loading={loading}
           onOpen={setView}
+          scholarshipTypes={scholarshipTypes}
+          onOpenScholarship={(typeBourseId) => {
+            setEnrollmentTypeBourseId(typeBourseId);
+            setEnrollmentSearch("");
+            setEnrollmentPage(1);
+            setView("Inscriptions");
+          }}
         />
       ) : view === "Profil" ? (
         <ProfilePage user={user} onLogout={logout} onUpdated={(updated) => { setTemporaryUser(updated); window.sessionStorage.setItem("ipaim-user", JSON.stringify(updated)); }} />
@@ -329,6 +342,20 @@ export default function Home() {
         <ReportsPage />
       ) : view === "Certificats" ? (
         <CertificatesPage refreshSignal={refreshKey} />
+      ) : view === "Suppression des dossiers" ? (
+        <DeletionInfoPage onBack={() => setView(deletionInfoReturnView)} />
+      ) : view === "Fiche dossier" && dossierReference ? (
+        <DossierDetailsPage
+          reference={dossierReference}
+          returnView={dossierReturnView}
+          scholarshipTypes={scholarshipTypes}
+          onBack={() => setView(dossierReturnView)}
+          onRefresh={refresh}
+          onShowDeletionInfo={(returnView) => {
+            setDeletionInfoReturnView(returnView);
+            setView("Suppression des dossiers");
+          }}
+        />
       ) : (
         <OperationsPage
           view={view}
@@ -345,6 +372,11 @@ export default function Home() {
           }}
           onApplicationPage={setApplicationPage}
           enrollmentMeta={enrollmentMeta}
+          enrollmentTypeBourseId={enrollmentTypeBourseId}
+          onEnrollmentTypeBourseChange={(typeBourseId) => {
+            setEnrollmentTypeBourseId(typeBourseId);
+            setEnrollmentPage(1);
+          }}
           onEnrollmentSearch={(value) => {
             setEnrollmentSearch(value);
             setEnrollmentPage(1);
@@ -357,6 +389,15 @@ export default function Home() {
           }}
           onProspectPage={setProspectPage}
           onRefresh={refresh}
+          onShowDeletionInfo={(returnView) => {
+            setDeletionInfoReturnView(returnView);
+            setView("Suppression des dossiers");
+          }}
+          onOpenDossier={(reference) => {
+            setDossierReference(reference);
+            setDossierReturnView(view === "Inscriptions" ? "Inscriptions" : "Demandes de bourse");
+            setView("Fiche dossier");
+          }}
         />
       )}
     </DashboardLayout>

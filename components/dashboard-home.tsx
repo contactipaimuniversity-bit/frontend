@@ -4,6 +4,7 @@ import {
   Application,
   Enrollment,
   Summary,
+  ScholarshipType,
   User,
   formatDate,
   fullName,
@@ -17,6 +18,8 @@ export function DashboardHome({
   user,
   loading,
   onOpen,
+  scholarshipTypes,
+  onOpenScholarship,
 }: {
   summary: Summary | null;
   applications: Application[];
@@ -24,6 +27,8 @@ export function DashboardHome({
   user: User | null;
   loading: boolean;
   onOpen: (view: "Demandes de bourse" | "Inscriptions" | "Paiements") => void;
+  scholarshipTypes: ScholarshipType[];
+  onOpenScholarship: (typeBourseId: string) => void;
 }) {
   const cards = [
     {
@@ -33,10 +38,22 @@ export function DashboardHome({
       tone: "orange",
     },
     {
+      label: "Demandes de bourse",
+      value: summary?.demandesTotal ?? "--",
+      detail: "Total des dossiers déposés",
+      tone: "blue",
+    },
+    {
       label: "Demandes en cours",
       value: summary?.demandesEnCours ?? "--",
-      detail: "Bourses à traiter",
-      tone: "blue",
+      detail: "À traiter ou en délibération",
+      tone: "orange",
+    },
+    {
+      label: "Effectif total",
+      value: summary?.effectifsTotal ?? "--",
+      detail: "Demandes + inscriptions",
+      tone: "violet",
     },
     {
       label: "Inscriptions",
@@ -59,6 +76,7 @@ export function DashboardHome({
       tone: "orange",
     },
   ];
+  const scholarshipCounts = summary?.inscriptionsParType ?? [];
   const trend = summary?.tendance ?? [];
   const maxTrend = Math.max(1, ...trend.flatMap((item) => [item.demandes, item.inscriptions]));
   const chartY = (value: number) => 142 - (value / maxTrend) * 118;
@@ -98,6 +116,36 @@ export function DashboardHome({
             <p>{card.detail}</p>
           </article>
         ))}
+      </section>
+      <section className="panel scholarship-type-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Répartition des étudiants</p>
+            <h3>Effectifs par type de bourse</h3>
+          </div>
+        </div>
+        {scholarshipTypes.length ? (
+          <div className="scholarship-type-grid">
+            {scholarshipTypes.map((type) => {
+              const count = scholarshipCounts.find((item) => item.typeBourseId === type.id)?.total ?? 0;
+              return (
+                <button
+                  className="scholarship-type-card"
+                  key={type.id}
+                  onClick={() => onOpenScholarship(type.id)}
+                  aria-label={`Afficher les ${count} inscriptions avec la bourse ${type.nom}`}
+                >
+                  <span>{type.nom}</span>
+                  <strong>{loading && !summary ? "..." : count}</strong>
+                  <small>{count === 1 ? "étudiant inscrit" : "étudiants inscrits"}</small>
+                  <span className="scholarship-card-arrow" aria-hidden="true">→</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="empty-state">Aucun type de bourse n&apos;est configuré dans les référentiels.</p>
+        )}
       </section>
       <section className="dashboard-grid">
         <article className="panel applications-panel">

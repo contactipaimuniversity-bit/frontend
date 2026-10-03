@@ -492,6 +492,10 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
           (firstYear ? applicableLevel === "PREMIERE_ANNEE" || applicableLevel === "TOUS" : applicableLevel === "DEUXIEME_ANNEE_PLUS" || applicableLevel === "TOUS");
       });
       const statusOperations = operations.filter((candidate) => candidate.method === "PATCH" && candidate.path.startsWith(`/${createPath.slice(1)}/${operation.temporaryId}/elements/`));
+      const preparation = asRecord(body.preparation);
+      const preparedStatuses = asRecord(preparation?.statuses) ?? {};
+      const preparationAmount = Number(String(preparation?.montant ?? "").trim().replace(",", ".") || 0);
+      const preparationElementId = String(preparation?.elementId ?? "");
       const payments = operations.filter((candidate) => {
         if (candidate.path !== "/paiements" || candidate.method !== "POST") return false;
         const paymentBody = asRecord(candidate.body);
@@ -499,17 +503,19 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
       });
       const statusFor = (catalogId: string) => {
         const update = statusOperations.find((candidate) => candidate.path.endsWith(`/elements/${catalogId}`));
-        return String(asRecord(update?.body)?.statut ?? "ATTENDU");
+        return String(asRecord(update?.body)?.statut ?? preparedStatuses[catalogId] ?? "ATTENDU");
       };
       const obligationsImpayees = dossierElements.flatMap((catalogItem) => {
         if (catalogItem.montantAttendu === null || catalogItem.montantAttendu === undefined) return [];
         const elementId = `${operation.temporaryId}:element:${catalogItem.id}`;
-        const paid = payments.filter((candidate) => asRecord(candidate.body)?.elementDossierId === elementId).reduce((sum, candidate) => sum + Number(asRecord(candidate.body)?.montant ?? 0), 0);
+        const existingPayments = payments.filter((candidate) => asRecord(candidate.body)?.elementDossierId === elementId).reduce((sum, candidate) => sum + Number(asRecord(candidate.body)?.montant ?? 0), 0);
+        const initialPayment = preparationElementId === String(catalogItem.id) ? preparationAmount : 0;
+        const paid = existingPayments + initialPayment;
         const reste = Number(catalogItem.montantAttendu) - paid;
         return reste > 0 ? [{ nom: String(catalogItem.nom), reste: reste.toFixed(2) }] : [];
       });
       const elementsManquants = dossierElements.filter((catalogItem) => !["FOURNI", "SUBSTITUE"].includes(statusFor(String(catalogItem.id)))).map((catalogItem) => String(catalogItem.nom));
-      item = { ...item, elementsManquants, obligationsImpayees, dossierComplet: elementsManquants.length === 0 && obligationsImpayees.length === 0, paiementEnAttenteSync: payments.length > 0 };
+      item = { ...item, elementsManquants, obligationsImpayees, dossierComplet: elementsManquants.length === 0 && obligationsImpayees.length === 0, paiementEnAttenteSync: payments.length > 0 || preparationAmount > 0 };
     } else {
       item = {
         ...body,

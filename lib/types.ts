@@ -19,7 +19,10 @@ export type PersonPage = {
 export type Summary = {
   prospectsActifs: number;
   demandesEnCours: number;
+  demandesTotal: number;
+  effectifsTotal: number;
   inscriptionsTotal: number;
+  inscriptionsParType: Array<{ typeBourseId: string | null; typeBourse: string; total: number }>;
   totalEncaisse: string;
   resteBourses: string;
   resteInscriptions: string;
@@ -129,6 +132,7 @@ export type CatalogElement = {
   niveauApplicable: string;
   obligatoire: boolean;
   montantAttendu?: string | number | null;
+  elementSubstitutId?: string | null;
   elementSubstitut?: { id: string; nom: string } | null;
 };
 export type ScholarshipType = {
@@ -195,7 +199,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Profil" | "Paramètres";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Suppression des dossiers" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Profil" | "Paramètres";
 
 export const statusLabels: Record<string, string> = {
   EN_ATTENTE: "En attente",

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { ModalChoice } from "@/components/modal-choice";
+import { PersonForm } from "@/components/additional-pages";
 import {
   Application,
   ApplicationPage,
@@ -67,6 +68,56 @@ function FormActions({
       <button className="primary-button compact" disabled={busy}>
         {busy ? "Enregistrement..." : "Enregistrer"}
       </button>
+    </div>
+  );
+}
+
+function DeleteConfirmation({
+  title,
+  personName,
+  busy,
+  error,
+  onClose,
+  onConfirm,
+  onLearnMore,
+}: {
+  title: string;
+  personName: string;
+  busy: boolean;
+  error: string;
+  onClose: () => void;
+  onConfirm: () => void;
+  onLearnMore: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <section
+        className="modal confirm-modal deletion-modal"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="deletion-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="confirm-icon" aria-hidden="true">!</div>
+        <h3 id="deletion-title">Supprimer {title} ?</h3>
+        <p className="deletion-target">{personName}</p>
+        <p>
+          Êtes-vous sûr de vouloir supprimer cet élément ? Cette action est définitive.
+          La suppression entraîne également celle des éléments associés.
+        </p>
+        <button className="deletion-info-link" onClick={onLearnMore} disabled={busy}>
+          En savoir plus
+        </button>
+        {error && <p className="form-error deletion-error" role="alert">{error}</p>}
+        <div className="form-actions">
+          <button className="secondary-button" onClick={onClose} disabled={busy}>
+            Annuler
+          </button>
+          <button className="danger-solid-button" onClick={onConfirm} disabled={busy}>
+            {busy ? "Suppression..." : "Supprimer définitivement"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
@@ -177,14 +228,14 @@ function DossierPreparation({
           <div className="element-row" key={element.id}>
             <div><strong>{element.nom}</strong><small>{element.obligatoire ? "Obligatoire" : "Facultatif"}</small></div>
             <select value={value.statuses[element.id] ?? "ATTENDU"} onChange={(event) => setStatus(element.id, event.target.value)}>
-              <option value="ATTENDU">Attendu</option><option value="FOURNI">Fourni</option><option value="MANQUANT">Manquant</option><option value="SUBSTITUE">Substitué</option>
+              <option value="ATTENDU">Attendu</option><option value="FOURNI">Fourni</option><option value="MANQUANT">Manquant</option><option value="SUBSTITUE" disabled={!element.elementSubstitutId}>Substitué</option>
             </select>
           </div>
         ))}
         {!catalogue.length && <p className="empty-state">{catalogueError || "Aucune pièce configurée pour ce dossier."}</p>}
       </div>
       <div className="form-grid">
-        <label>Montant du paiement (facultatif)<input type="number" min="0" step="0.01" value={value.montant} onChange={(event) => onChange({ ...value, montant: event.target.value })} /></label>
+        <label>Montant du paiement (facultatif)<input type="text" inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={value.montant} onChange={(event) => onChange({ ...value, montant: event.target.value })} /></label>
         <label>Type de paiement<select value={value.typePaiement} onChange={(event) => onChange({ ...value, typePaiement: event.target.value })}><option value="FRAIS_DEPOT">Frais de dépôt</option><option value="FRAIS_INSCRIPTION">Frais d&apos;inscription</option></select></label>
       </div>
       {value.montant && <ModalChoice required label="Affecter à l&apos;obligation financière" placeholder="Sélectionner une obligation" choices={catalogue.filter((element) => element.montantAttendu !== null && element.montantAttendu !== undefined).map((element) => ({ value: element.id, label: element.nom, detail: formatMoney(element.montantAttendu ?? 0) }))} value={value.elementId} onChange={(elementId) => onChange({ ...value, elementId })} />}
@@ -192,21 +243,14 @@ function DossierPreparation({
   );
 }
 
-async function applyDossierPreparation(resource: string, dossierId: string, preparation: DossierPreparationState) {
-  const elements = await apiFetch<RequiredElement[]>(`/${resource}/${dossierId}/elements`);
-  await Promise.all(elements.filter((element) => preparation.statuses[element.elementRequis.id] && preparation.statuses[element.elementRequis.id] !== "ATTENDU").map((element) => apiFetch(`/${resource}/${dossierId}/elements/${element.elementRequis.id}`, { method: "PATCH", body: JSON.stringify({ statut: preparation.statuses[element.elementRequis.id] }) })));
-  if (preparation.montant) {
-    const element = elements.find((item) => item.elementRequis.id === preparation.elementId);
-    if (!element) throw new Error("Sélectionnez l'obligation à laquelle affecter le paiement.");
-    await apiFetch("/paiements", { method: "POST", body: JSON.stringify({ demandeBourseId: resource === "demandes-bourse" ? dossierId : undefined, inscriptionId: resource === "inscriptions" ? dossierId : undefined, elementDossierId: element.id, montant: preparation.montant, typePaiement: preparation.typePaiement }) });
+function validateDossierPreparation(preparation: DossierPreparationState) {
+  const value = preparation.montant.trim().replace(",", ".");
+  if (!value) return "";
+  if (!/^\d+(\.\d{1,2})?$/.test(value) || !Number.isFinite(Number(value)) || Number(value) <= 0) {
+    return "Saisissez un montant positif valide, avec au maximum deux décimales.";
   }
-}
-
-function hasDossierPreparation(preparation: DossierPreparationState) {
-  return Boolean(
-    preparation.montant ||
-    Object.values(preparation.statuses).some((statut) => statut !== "ATTENDU"),
-  );
+  if (!preparation.elementId) return "Sélectionnez l'obligation à laquelle affecter le paiement.";
+  return "";
 }
 
 function CreateApplication({
@@ -235,23 +279,20 @@ function CreateApplication({
     setBusy(true);
     setError("");
     try {
-      const created = await apiFetch<{ id: string }>("/demandes-bourse", {
+      const preparationError = validateDossierPreparation(preparation);
+      if (preparationError) {
+        setError(preparationError);
+        return;
+      }
+      await apiFetch<{ id: string }>("/demandes-bourse", {
         method: "POST",
         body: JSON.stringify({
           ...form,
           personneId: createPerson ? undefined : form.personneId,
           nouvellePersonne: createPerson ? form.nouvellePersonne : undefined,
+          preparation,
         }),
       });
-      if (!created?.id) {
-        if (hasDossierPreparation(preparation)) {
-          throw new Error("La préparation des pièces et l'affectation du paiement nécessitent une connexion active. La demande a été mise en attente de synchronisation.");
-        }
-        onSaved();
-        onClose();
-        return;
-      }
-      await applyDossierPreparation("demandes-bourse", created.id, preparation);
       onSaved();
       onClose();
     } catch (failure) {
@@ -361,6 +402,11 @@ function CreateEnrollment({
     setBusy(true);
     setError("");
     try {
+      const preparationError = validateDossierPreparation(preparation);
+      if (preparationError) {
+        setError(preparationError);
+        return;
+      }
       const linkedApplication = applications.find(
         (application) => application.id === form.demandeBourseId,
       );
@@ -383,20 +429,12 @@ function CreateEnrollment({
         nouvellePersonne: createPerson ? form.nouvellePersonne : undefined,
         demandeBourseId: form.viaBourse ? form.demandeBourseId : undefined,
         confirmerDemandeEnCours,
+        preparation,
       };
-      const created = await apiFetch<{ id: string }>("/inscriptions", {
+      await apiFetch<{ id: string }>("/inscriptions", {
         method: "POST",
         body: JSON.stringify(body),
       });
-      if (!created?.id) {
-        if (hasDossierPreparation(preparation)) {
-          throw new Error("La préparation des pièces et l'affectation du paiement nécessitent une connexion active. L'inscription a été mise en attente de synchronisation.");
-        }
-        onSaved();
-        onClose();
-        return;
-      }
-      await applyDossierPreparation("inscriptions", created.id, preparation);
       onSaved();
       onClose();
     } catch (failure) {
@@ -801,6 +839,88 @@ function EditStatus({
   );
 }
 
+function EditProspectForm({
+  prospect,
+  onClose,
+  onSaved,
+}: {
+  prospect: Prospect;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const person = prospect.personne;
+  const [form, setForm] = useState({
+    nom: person?.nom ?? "",
+    prenom: person?.prenom ?? "",
+    telephone: person?.telephone ?? "",
+    quartier: person?.quartier ?? "",
+    dateNaissance: person?.dateNaissance?.slice(0, 10) ?? "",
+    lieuNaissance: person?.lieuNaissance ?? "",
+    tuteurNom: person?.tuteurNom ?? "",
+    tuteurPrenom: person?.tuteurPrenom ?? "",
+    tuteurTelephone: person?.tuteurTelephone ?? "",
+    filiereSouhaitee: prospect.filiereSouhaitee ?? "",
+    intention: prospect.intention ?? "",
+    statutRelance: prospect.statutRelance,
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await apiFetch(`/prospects/${prospect.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...form,
+          telephone: form.telephone || null,
+          quartier: form.quartier || null,
+          dateNaissance: form.dateNaissance || null,
+          lieuNaissance: form.lieuNaissance || null,
+          tuteurNom: form.tuteurNom || null,
+          tuteurPrenom: form.tuteurPrenom || null,
+          tuteurTelephone: form.tuteurTelephone || null,
+          filiereSouhaitee: form.filiereSouhaitee || null,
+          intention: form.intention || null,
+        }),
+      });
+      onSaved();
+      onClose();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Modification impossible.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title="Modifier le prospect" onClose={onClose}>
+      <form className="entity-form" onSubmit={submit}>
+        <div className="form-grid">
+          <label>Nom<input required value={form.nom} onChange={(event) => setForm({ ...form, nom: event.target.value })} /></label>
+          <label>Prénom<input required value={form.prenom} onChange={(event) => setForm({ ...form, prenom: event.target.value })} /></label>
+        </div>
+        <div className="form-grid">
+          <label>Téléphone<input value={form.telephone} onChange={(event) => setForm({ ...form, telephone: event.target.value })} /></label>
+          <label>Quartier<input value={form.quartier} onChange={(event) => setForm({ ...form, quartier: event.target.value })} /></label>
+        </div>
+        <label>Date de naissance<input type="date" value={form.dateNaissance} onChange={(event) => setForm({ ...form, dateNaissance: event.target.value })} /></label>
+        <label>Lieu de naissance<input value={form.lieuNaissance} onChange={(event) => setForm({ ...form, lieuNaissance: event.target.value })} /></label>
+        <div className="form-grid">
+          <label>Nom du tuteur<input value={form.tuteurNom} onChange={(event) => setForm({ ...form, tuteurNom: event.target.value })} /></label>
+          <label>Prénom du tuteur<input value={form.tuteurPrenom} onChange={(event) => setForm({ ...form, tuteurPrenom: event.target.value })} /></label>
+        </div>
+        <label>Téléphone du tuteur<input value={form.tuteurTelephone} onChange={(event) => setForm({ ...form, tuteurTelephone: event.target.value })} /></label>
+        <label>Filière souhaitée<input value={form.filiereSouhaitee} onChange={(event) => setForm({ ...form, filiereSouhaitee: event.target.value })} /></label>
+        <label>Intention<input value={form.intention} onChange={(event) => setForm({ ...form, intention: event.target.value })} /></label>
+        <ModalChoice label="Statut de suivi" placeholder="Sélectionner un statut" value={form.statutRelance} choices={["A_RELANCER", "RELANCE", "CONVERTI", "ABANDONNE"].map((value) => ({ value, label: statusLabels[value] ?? value }))} onChange={(statutRelance) => setForm({ ...form, statutRelance })} />
+        {error && <p className="form-error">{error}</p>}
+        <FormActions busy={busy} onCancel={onClose} />
+      </form>
+    </Modal>
+  );
+}
+
 function InterviewForm({
   application,
   onClose,
@@ -1080,6 +1200,213 @@ function DossierStatus({
   return <div className="dossier-status-cell"><button className="row-action incomplete-action" onClick={onOpen}>{documentStatus ? "Pièces complètes" : `Dossier incomplet · ${missingDocuments} pièce(s)`}</button>{remaining > 0 && <button className="row-action debt-action" onClick={onOpenFinance}>{formatMoney(remaining)} à recouvrer</button>}{item.paiementEnAttenteSync && <small className="local-payment-note">Paiement affecté localement · en attente de sync</small>}</div>;
 }
 
+export type DossierReference = { type: "demande-bourse" | "inscription"; id: string };
+
+type DossierPayment = {
+  id: string;
+  montant: string | number;
+  datePaiement: string;
+  typePaiement: string;
+  echeance?: { libelle: string } | null;
+};
+
+type DetailedApplication = Application & {
+  personne?: Person;
+  niveauDemande: string;
+  paiements?: DossierPayment[];
+  inscriptions?: Array<{ id: string; filiere: string; anneeScolaire: string }>;
+};
+
+type DetailedEnrollment = Enrollment & {
+  personne?: Person;
+  demandeBourse?: { id: string; filiereSouhaitee: string; typeBourseId?: string | null } | null;
+  paiements?: DossierPayment[];
+};
+
+function DetailField({ label, value }: { label: string; value?: React.ReactNode }) {
+  return <div><dt>{label}</dt><dd>{value ?? "-"}</dd></div>;
+}
+
+const fullDate = (value?: string | null) => value
+  ? new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: value.includes("T") ? "short" : undefined }).format(new Date(value))
+  : "-";
+
+export function DossierDetailsPage({
+  reference,
+  returnView,
+  scholarshipTypes,
+  onBack,
+  onRefresh,
+  onShowDeletionInfo,
+}: {
+  reference: DossierReference;
+  returnView: "Demandes de bourse" | "Inscriptions";
+  scholarshipTypes: ScholarshipType[];
+  onBack: () => void;
+  onRefresh: () => void;
+  onShowDeletionInfo: (returnView: "Demandes de bourse" | "Inscriptions") => void;
+}) {
+  const isApplication = reference.type === "demande-bourse";
+  const resource = isApplication ? "demandes-bourse" : "inscriptions";
+  const [record, setRecord] = useState<DetailedApplication | DetailedEnrollment | null>(null);
+  const [elements, setElements] = useState<RequiredElement[]>([]);
+  const [finance, setFinance] = useState<ApplicationFinance | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [action, setAction] = useState<"elements" | "finance" | "status" | "interview" | "delete" | "person" | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      apiFetch<DetailedApplication | DetailedEnrollment>(`/${resource}/${reference.id}`),
+      apiFetch<RequiredElement[]>(`/${resource}/${reference.id}/elements`),
+      apiFetch<ApplicationFinance>(`/${resource}/${reference.id}/finance`),
+    ])
+      .then(([dossier, dossierElements, dossierFinance]) => {
+        if (!active) return;
+        setRecord(dossier);
+        setElements(dossierElements);
+        setFinance(dossierFinance);
+      })
+      .catch((failure) => {
+        if (active) setError(failure instanceof Error ? failure.message : "Impossible de charger le dossier.");
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [reference.id, resource, reloadKey]);
+
+  const dossier = record as DetailedApplication | DetailedEnrollment | null;
+  const person = dossier?.personne;
+  const payments = dossier?.paiements ?? [];
+  const missingElements = elements.filter((element) => element.statut !== "FOURNI" && element.statut !== "SUBSTITUE");
+  const unpaidAmount = finance?.obligations.reduce((total, item) => total + Number(item.resteAPayer), 0) ?? 0;
+  const refreshDetails = () => {
+    setLoading(true);
+    setError("");
+    setReloadKey((current) => current + 1);
+  };
+  const saveAction = () => { setAction(null); refreshDetails(); onRefresh(); };
+  const deleteDossier = async () => {
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await apiFetch(`/${resource}/${reference.id}`, { method: "DELETE" });
+      onRefresh();
+      onBack();
+    } catch (failure) {
+      setDeleteError(failure instanceof Error ? failure.message : "La suppression a échoué.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  return (
+    <div className="content-scroll">
+      <div className="page-intro dossier-page-intro">
+        <div>
+          <p className="eyebrow">{isApplication ? "Demande de bourse" : "Inscription"}</p>
+          <h2>{person ? fullName(person) : "Fiche du dossier"}</h2>
+          <p>{isApplication ? (dossier as DetailedApplication | null)?.filiereSouhaitee : (dossier as DetailedEnrollment | null)?.filiere}</p>
+        </div>
+        <button className="secondary-button" onClick={onBack}>Retour à la liste</button>
+      </div>
+      {loading && <p className="empty-state">Chargement des informations du dossier...</p>}
+      {error && <p className="form-error dossier-load-error" role="alert">{error}</p>}
+      {dossier && (
+        <section className="panel full-panel dossier-detail-panel">
+          <div className="dossier-detail-heading">
+            <div>
+              <span className={`status status-${dossier.statut.toLowerCase()}`}>{statusLabels[dossier.statut] ?? dossier.statut}</span>
+              <p className="panel-subtitle">Créé le {fullDate(isApplication ? (dossier as DetailedApplication).dateDepot : (dossier as DetailedEnrollment).dateInscription)}</p>
+            </div>
+            <div className="dossier-detail-actions">
+              {isApplication ? <>
+                <button className="outline-button small" onClick={() => setAction("status")}>Décider</button>
+                <button className="outline-button small" onClick={() => setAction("interview")}>Entretien</button>
+              </> : <button className="outline-button small" onClick={() => setAction("status")}>Modifier</button>}
+              <button className="outline-button small" onClick={() => setAction("elements")}>Pièces</button>
+              <button className="outline-button small" onClick={() => setAction("finance")}>Finance</button>
+              <button className="row-action danger-row-action" onClick={() => { setDeleteError(""); setAction("delete"); }}>Supprimer</button>
+            </div>
+          </div>
+
+          <section className="dossier-detail-section">
+            <div className="dossier-section-heading"><h3>Personne</h3><button className="row-action" onClick={() => setAction("person")}>Modifier les informations</button></div>
+            <dl className="dossier-detail-fields">
+              <DetailField label="Nom complet" value={fullName(person)} />
+              <DetailField label="Téléphone" value={person?.telephone} />
+              <DetailField label="Quartier" value={person?.quartier} />
+              <DetailField label="Date de naissance" value={fullDate(person?.dateNaissance)} />
+              <DetailField label="Lieu de naissance" value={person?.lieuNaissance} />
+              <DetailField label="Tuteur" value={[person?.tuteurPrenom, person?.tuteurNom].filter(Boolean).join(" ")} />
+              <DetailField label="Téléphone du tuteur" value={person?.tuteurTelephone} />
+            </dl>
+          </section>
+
+          <section className="dossier-detail-section">
+            <h3>Informations du dossier</h3>
+            {isApplication ? <dl className="dossier-detail-fields">
+              <DetailField label="Niveau demandé" value={(dossier as DetailedApplication).niveauDemande} />
+              <DetailField label="Filière souhaitée" value={(dossier as DetailedApplication).filiereSouhaitee} />
+              <DetailField label="Deuxième choix" value={(dossier as DetailedApplication).filiereSecondaireSouhaitee} />
+              <DetailField label="École d'origine" value={(dossier as DetailedApplication).ecoleOrigine} />
+              <DetailField label="Décision le" value={fullDate((dossier as DetailedApplication).dateDecision)} />
+              <DetailField label="Entretien prévu" value={fullDate((dossier as DetailedApplication).dateEntretien)} />
+              <DetailField label="Équipe d'entretien" value={(dossier as DetailedApplication).equipeEntretien} />
+              <DetailField label="Type de bourse" value={(dossier as DetailedApplication).typeBourse?.nom} />
+              <DetailField label="Frais d'inscription" value={(dossier as DetailedApplication).typeBourse ? formatMoney((dossier as DetailedApplication).typeBourse!.fraisInscription) : undefined} />
+              <DetailField label="Taux de réduction" value={(dossier as DetailedApplication).typeBourse?.tauxReduction != null ? `${(dossier as DetailedApplication).typeBourse!.tauxReduction}%` : undefined} />
+            </dl> : <dl className="dossier-detail-fields">
+              <DetailField label="Filière" value={(dossier as DetailedEnrollment).filiere} />
+              <DetailField label="Niveau" value={(dossier as DetailedEnrollment).niveau} />
+              <DetailField label="Année scolaire" value={(dossier as DetailedEnrollment).anneeScolaire} />
+              <DetailField label="Date d'inscription" value={fullDate((dossier as DetailedEnrollment).dateInscription)} />
+              <DetailField label="Inscription via bourse" value={(dossier as DetailedEnrollment).viaBourse ? "Oui" : "Non"} />
+              <DetailField label="Filière de la demande liée" value={(dossier as DetailedEnrollment).demandeBourse?.filiereSouhaitee} />
+              <DetailField label="Type de bourse lié" value={scholarshipTypes.find((type) => type.id === (dossier as DetailedEnrollment).demandeBourse?.typeBourseId)?.nom} />
+            </dl>}
+            {isApplication && (dossier as DetailedApplication).inscriptions?.length ? <div className="dossier-linked-records"><strong>Inscriptions liées</strong>{(dossier as DetailedApplication).inscriptions?.map((item) => <span key={item.id}>{item.filiere} · {item.anneeScolaire}</span>)}</div> : null}
+          </section>
+
+          <section className="dossier-detail-section">
+            <div className="dossier-section-heading"><div><h3>Pièces du dossier</h3><p>{missingElements.length ? `${missingElements.length} pièce(s) à compléter` : "Toutes les pièces sont complètes"}</p></div><button className="row-action" onClick={() => setAction("elements")}>Gérer les pièces</button></div>
+            <div className="table-wrap"><table><thead><tr><th>Élément requis</th><th>Statut</th><th>Attendu</th><th>Payé</th><th>Reste</th></tr></thead><tbody>{elements.map((element) => {
+              const obligation = finance?.obligations.find((item) => item.id === element.id);
+              return <tr key={element.id}><td className="strong-cell">{element.elementRequis.nom}<small className="dossier-item-note">{element.elementRequis.obligatoire ? "Obligatoire" : "Facultatif"}</small></td><td>{statusLabels[element.statut] ?? element.statut}</td><td>{formatMoney(element.montantAttendu ?? 0)}</td><td>{formatMoney(obligation?.montantPaye ?? 0)}</td><td>{formatMoney(obligation?.resteAPayer ?? 0)}</td></tr>;
+            })}{!elements.length && <tr><td colSpan={5} className="empty-state">Aucun élément requis.</td></tr>}</tbody></table></div>
+          </section>
+
+          <section className="dossier-detail-section">
+            <div className="dossier-section-heading"><div><h3>Situation financière</h3><p className={unpaidAmount > 0 ? "dossier-debt-alert" : undefined}>{unpaidAmount > 0 ? `${formatMoney(unpaidAmount)} restent à recouvrer` : "Aucun solde restant sur les obligations"}</p></div><button className="row-action" onClick={() => setAction("finance")}>Voir le détail financier</button></div>
+            <div className="dossier-finance-summary"><div><span>Total attendu</span><strong>{formatMoney(finance?.totalAttendu ?? 0)}</strong></div><div><span>Total payé</span><strong>{formatMoney(finance?.totalPaye ?? 0)}</strong></div><div><span>Paiements non affectés</span><strong>{formatMoney(finance?.montantPayeNonAffecte ?? 0)}</strong></div></div>
+            <h4 className="dossier-subheading">Paiements enregistrés</h4>
+            {payments.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Échéance</th><th>Montant</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{fullDate(payment.datePaiement)}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{payment.echeance?.libelle ?? "-"}</td><td>{formatMoney(payment.montant)}</td></tr>)}</tbody></table></div> : <p className="panel-subtitle">Aucun paiement enregistré pour ce dossier.</p>}
+          </section>
+
+          <section className="dossier-detail-section dossier-next-actions"><h3>À faire</h3>
+            {missingElements.length > 0 && <button className="row-action" onClick={() => setAction("elements")}>Compléter les pièces manquantes ({missingElements.length})</button>}
+            {unpaidAmount > 0 && <button className="row-action debt-action" onClick={() => setAction("finance")}>Suivre les paiements en attente ({formatMoney(unpaidAmount)})</button>}
+            {isApplication && !(dossier as DetailedApplication).dateEntretien && !["ACCEPTEE", "REFUSEE"].includes(dossier.statut) && <button className="row-action" onClick={() => setAction("interview")}>Planifier un entretien</button>}
+            {isApplication && !["ACCEPTEE", "REFUSEE"].includes(dossier.statut) && <button className="row-action" onClick={() => setAction("status")}>Prendre une décision</button>}
+            {!missingElements.length && unpaidAmount <= 0 && (!isApplication || Boolean((dossier as DetailedApplication).dateEntretien) || ["ACCEPTEE", "REFUSEE"].includes(dossier.statut)) && (isApplication ? ["ACCEPTEE", "REFUSEE"].includes(dossier.statut) : dossier.statut === "COMPLETE") && <p className="panel-subtitle">Aucune action en attente n&apos;a été détectée.</p>}
+          </section>
+        </section>
+      )}
+
+      {action === "elements" && <ElementsModal dossierType={reference.type} dossierId={reference.id} onClose={() => setAction(null)} onCompletenessChange={() => refreshDetails()} />}
+      {action === "finance" && <FinanceModal dossierType={reference.type} dossierId={reference.id} onClose={() => setAction(null)} />}
+      {action === "person" && person && <PersonForm person={person} onClose={() => setAction(null)} onSaved={saveAction} />}
+      {action === "status" && isApplication && dossier && <EditStatus title="Décision de la demande" endpoint={`/demandes-bourse/${reference.id}/decision`} field="statut" initial={dossier.statut} options={["EN_DELIBERATION", "ACCEPTEE", "REFUSEE"]} scholarshipTypes={scholarshipTypes} onClose={() => setAction(null)} onSaved={saveAction} />}
+      {action === "status" && !isApplication && dossier && <EditStatus title="Modifier l'inscription" endpoint={`/inscriptions/${reference.id}`} field="statut" initial={dossier.statut} options={["EN_COURS", "COMPLETE", "ABANDONNEE"]} onClose={() => setAction(null)} onSaved={saveAction} />}
+      {action === "interview" && isApplication && dossier && <InterviewForm application={dossier as DetailedApplication} onClose={() => setAction(null)} onSaved={saveAction} />}
+      {action === "delete" && dossier && <DeleteConfirmation title={isApplication ? "la demande de bourse" : "l'inscription"} personName={fullName(person)} busy={deleteBusy} error={deleteError} onClose={() => setAction(null)} onConfirm={() => void deleteDossier()} onLearnMore={() => { setAction(null); onShowDeletionInfo(returnView); }} />}
+    </div>
+  );
+}
+
 export function OperationsPage({
   view,
   applications,
@@ -1092,12 +1419,16 @@ export function OperationsPage({
   onApplicationSearch,
   onApplicationPage,
   enrollmentMeta,
+  enrollmentTypeBourseId,
+  onEnrollmentTypeBourseChange,
   onEnrollmentSearch,
   onEnrollmentPage,
   prospectMeta,
   onProspectSearch,
   onProspectPage,
   onRefresh,
+  onShowDeletionInfo,
+  onOpenDossier,
 }: {
   view: Exclude<ViewName, "Vue d'ensemble">;
   applications: Application[];
@@ -1110,12 +1441,16 @@ export function OperationsPage({
   onApplicationSearch: (value: string) => void;
   onApplicationPage: (page: number) => void;
   enrollmentMeta: { page: number; total: number; totalPages: number };
+  enrollmentTypeBourseId: string;
+  onEnrollmentTypeBourseChange: (typeBourseId: string) => void;
   onEnrollmentSearch: (value: string) => void;
   onEnrollmentPage: (page: number) => void;
   prospectMeta: { page: number; total: number; totalPages: number };
   onProspectSearch: (value: string) => void;
   onProspectPage: (page: number) => void;
   onRefresh: () => void;
+  onShowDeletionInfo: (returnView: "Demandes de bourse" | "Inscriptions") => void;
+  onOpenDossier: (reference: DossierReference) => void;
 }) {
   const [filter, setFilter] = useState("ALL");
   const [searchDraft, setSearchDraft] = useState("");
@@ -1129,9 +1464,14 @@ export function OperationsPage({
     | "interview"
     | "finance"
     | "elements"
+    | "deleteApplication"
+    | "deleteEnrollment"
+    | "person"
     | null
   >(null);
   const [selectedId, setSelectedId] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [completeness, setCompleteness] = useState<Record<string, { complete: boolean; missing: number }>>({});
   const filteredApplications =
     filter === "ALL"
@@ -1156,8 +1496,24 @@ export function OperationsPage({
   const selectedEnrollment = enrollments.find((item) => item.id === selectedId);
   const selectedProspect = prospects.find((item) => item.id === selectedId);
   const open = (kind: typeof modal, id = "") => {
+    setDeleteError("");
     setSelectedId(id);
     setModal(kind);
+  };
+  const confirmDelete = async () => {
+    const resource = modal === "deleteApplication" ? "demandes-bourse" : "inscriptions";
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await apiFetch(`/${resource}/${selectedId}`, { method: "DELETE" });
+      setModal(null);
+      setCompleteness({});
+      onRefresh();
+    } catch (failure) {
+      setDeleteError(failure instanceof Error ? failure.message : "La suppression a échoué.");
+    } finally {
+      setDeleteBusy(false);
+    }
   };
   const updateCompleteness = (id: string, complete: boolean, missing: number) =>
     setCompleteness((current) => {
@@ -1252,6 +1608,16 @@ export function OperationsPage({
                 <button className="outline-button small">Rechercher</button>
               </form>
             )}
+            {view === "Inscriptions" && (
+              <select
+                aria-label="Filtrer par type de bourse"
+                value={enrollmentTypeBourseId}
+                onChange={(event) => onEnrollmentTypeBourseChange(event.target.value)}
+              >
+                <option value="">Tous les types de bourse</option>
+                {scholarshipTypes.map((type) => <option key={type.id} value={type.id}>{type.nom}</option>)}
+              </select>
+            )}
             {view === "Prospects" && (
               <form
                 className="search-form"
@@ -1319,7 +1685,9 @@ export function OperationsPage({
                         <span className="person-avatar">
                           {fullName(item.personne).slice(0, 1)}
                         </span>
-                        {fullName(item.personne)}
+                        <button className="dossier-open-button" onClick={() => onOpenDossier({ type: "demande-bourse", id: item.id })}>
+                          {fullName(item.personne)}
+                        </button>
                       </div>
                     </td>
                     <td>{item.filiereSouhaitee}</td>
@@ -1356,11 +1724,14 @@ export function OperationsPage({
                       >
                         Entretien
                       </button>
+                      <button className="row-action" onClick={() => open("person", item.id)}>
+                        Étudiant
+                      </button>
                       <button
-                        className="row-action"
-                        onClick={() => open("finance", item.id)}
+                        className="row-action danger-row-action"
+                        onClick={() => open("deleteApplication", item.id)}
                       >
-                        Finance
+                        Supprimer
                       </button>
                     </td>
                   </tr>
@@ -1398,7 +1769,9 @@ export function OperationsPage({
                         <span className="person-avatar">
                           {fullName(item.personne).slice(0, 1)}
                         </span>
-                        {fullName(item.personne)}
+                        <button className="dossier-open-button" onClick={() => onOpenDossier({ type: "inscription", id: item.id })}>
+                          {fullName(item.personne)}
+                        </button>
                       </div>
                     </td>
                     <td>{item.filiere}</td>
@@ -1426,6 +1799,15 @@ export function OperationsPage({
                         onClick={() => open("elements", item.id)}
                       >
                         Pièces
+                      </button>
+                      <button className="row-action" onClick={() => open("person", item.id)}>
+                        Étudiant
+                      </button>
+                      <button
+                        className="row-action danger-row-action"
+                        onClick={() => open("deleteEnrollment", item.id)}
+                      >
+                        Supprimer
                       </button>
                     </td>
                   </tr>
@@ -1655,6 +2037,22 @@ export function OperationsPage({
           onCompletenessChange={updateCompleteness}
         />
       )}
+      {(modal === "deleteApplication" || modal === "deleteEnrollment") && selectedId && (
+        <DeleteConfirmation
+          title={modal === "deleteApplication" ? "la demande de bourse" : "l'inscription"}
+          personName={fullName(
+            modal === "deleteApplication" ? selectedApplication?.personne : selectedEnrollment?.personne,
+          )}
+          busy={deleteBusy}
+          error={deleteError}
+          onClose={() => setModal(null)}
+          onConfirm={() => void confirmDelete()}
+          onLearnMore={() => {
+            setModal(null);
+            onShowDeletionInfo(view === "Inscriptions" ? "Inscriptions" : "Demandes de bourse");
+          }}
+        />
+      )}
       {modal === "interview" && selectedApplication && (
         <InterviewForm
           application={selectedApplication}
@@ -1700,12 +2098,11 @@ export function OperationsPage({
         />
       )}
       {modal === "status" && selectedProspect && (
-        <EditStatus
-          title="Modifier le suivi"
-          endpoint={`/prospects/${selectedId}`}
-          field="statutRelance"
-          initial={selectedProspect.statutRelance}
-          options={["A_RELANCER", "RELANCE", "CONVERTI", "ABANDONNE"]}
+        <EditProspectForm prospect={selectedProspect} onClose={() => setModal(null)} onSaved={onRefresh} />
+      )}
+      {modal === "person" && selectedId && (selectedApplication?.personne || selectedEnrollment?.personne) && (
+        <PersonForm
+          person={selectedApplication?.personne ?? selectedEnrollment?.personne}
           onClose={() => setModal(null)}
           onSaved={onRefresh}
         />

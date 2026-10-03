@@ -46,7 +46,7 @@ function ErrorMessage({ error }: { error: string }) {
   return error ? <p className="form-error">{error}</p> : null;
 }
 
-function PersonForm({
+export function PersonForm({
   person,
   onClose,
   onSaved,

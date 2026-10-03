@@ -78,6 +78,43 @@ async function getOfflineFinance(path: string, token: string | null) {
 }
 
 async function getCachedGet<T>(path: string, token: string | null) {
+  const query = new URLSearchParams(path.split("?", 2)[1] ?? "");
+  const typeBourseId = query.get("typeBourseId");
+  if (path.startsWith("/inscriptions?") && typeBourseId) {
+    const all: Array<Record<string, unknown>> = [];
+    const firstPage = await readCachedResponse<{
+      data: Array<Record<string, unknown>>;
+      meta?: { totalPages?: number };
+    }>(responseCacheKey(`${API_URL}/inscriptions?page=1&limit=100`, token));
+    if (firstPage) {
+      all.push(...firstPage.data);
+      for (let page = 2; page <= (firstPage.meta?.totalPages ?? 1); page += 1) {
+        const cachedPage = await readCachedResponse<{ data: Array<Record<string, unknown>> }>(
+          responseCacheKey(`${API_URL}/inscriptions?page=${page}&limit=100`, token),
+        );
+        if (cachedPage) all.push(...cachedPage.data);
+      }
+      const search = query.get("q")?.trim().toLocaleLowerCase();
+      const filtered = all.filter((item) => {
+        const application = item.demandeBourse as Record<string, unknown> | null;
+        if (application?.typeBourseId !== typeBourseId) return false;
+        if (!search) return true;
+        const person = item.personne as Record<string, unknown> | undefined;
+        return [person?.nom, person?.prenom, person?.telephone, item.filiere, item.niveau, item.anneeScolaire]
+          .filter((value): value is string => typeof value === "string")
+          .join(" ")
+          .toLocaleLowerCase()
+          .includes(search);
+      });
+      const page = Number(query.get("page") ?? 1);
+      const limit = Number(query.get("limit") ?? 20);
+      const start = (page - 1) * limit;
+      return {
+        data: filtered.slice(start, start + limit),
+        meta: { page, limit, total: filtered.length, totalPages: Math.ceil(filtered.length / limit) },
+      } as T;
+    }
+  }
   const offlineFinance = await getOfflineFinance(path, token);
   if (offlineFinance !== undefined) return offlineFinance as T;
   if (path.startsWith("/elements-requis?")) {
@@ -255,9 +292,12 @@ export async function downloadOfflineReferenceData() {
   const applicationIds = applications.status === "fulfilled" ? applications.value : [];
   const enrollmentIds = enrollments.status === "fulfilled" ? enrollments.value : [];
   const detailPaths = [
+    ...applicationIds.map((id) => `/demandes-bourse/${id}`),
     ...applicationIds.map((id) => `/demandes-bourse/${id}/elements`),
     ...applicationIds.map((id) => `/demandes-bourse/${id}/finance`),
+    ...enrollmentIds.map((id) => `/inscriptions/${id}`),
     ...enrollmentIds.map((id) => `/inscriptions/${id}/elements`),
+    ...enrollmentIds.map((id) => `/inscriptions/${id}/finance`),
   ];
 
   for (let index = 0; index < detailPaths.length; index += 20) {
