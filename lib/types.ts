@@ -1,4 +1,5 @@
-export type User = { id?: string; nom: string; prenom?: string | null; email: string; role: string };
+export type User = { id?: string; nom: string; prenom?: string | null; email: string; role: string; posteId?: string | null; poste?: { id: string; nom: string } | null; permissions?: string[] };
+export type JobPosition = { id: string; nom: string; permissions: string[]; _count?: { utilisateurs: number } };
 export type Person = {
   id: string;
   nom: string;
@@ -199,7 +200,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Suppression des dossiers" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Profil" | "Paramètres";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Suppression des dossiers" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Profil" | "Paramètres" | "À propos du SGI";
 
 export const statusLabels: Record<string, string> = {
   EN_ATTENTE: "En attente",

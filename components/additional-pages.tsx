@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { ModalChoice } from "@/components/modal-choice";
+import { COLOR_PRESETS, readColorPreset } from "@/lib/theme";
 import {
   CatalogElement,
   Echeance,
@@ -307,17 +308,41 @@ export function PeoplePage({
   onPeoplePage: (page: number) => void;
   onRefresh: () => void;
 }) {
-  const [modal, setModal] = useState<"create" | "edit" | "history" | null>(
+  const [modal, setModal] = useState<"create" | "edit" | "history" | "delete" | null>(
     null,
   );
   const [selected, setSelected] = useState<Person>();
   const [searchDraft, setSearchDraft] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const open = (next: typeof modal, person?: Person) => {
     setSelected(person);
+    setDeleteError("");
     setModal(next);
   };
+  const removePerson = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selected) return;
+    const formData = new FormData(event.currentTarget);
+    const motif = String(formData.get("motif") ?? "").trim();
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await apiFetch(`/personnes/${selected.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({ motif }),
+      });
+      setModal(null);
+      setSelected(undefined);
+      onRefresh();
+    } catch (failure) {
+      setDeleteError(failure instanceof Error ? failure.message : "Mise en corbeille impossible.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
   return (
-    <div className="content-scroll">
+    <section className="report-operational-section">
       <div className="page-intro">
         <div>
           <p className="eyebrow">Répertoire</p>
@@ -396,6 +421,12 @@ export function PeoplePage({
                     >
                       Modifier
                     </button>
+                    <button
+                      className="row-action danger-row-action"
+                      onClick={() => open("delete", person)}
+                    >
+                      Supprimer
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -447,7 +478,23 @@ export function PeoplePage({
       {modal === "history" && selected && (
         <PersonHistory person={selected} onClose={() => setModal(null)} />
       )}
-    </div>
+      {modal === "delete" && selected && (
+        <Modal title="Déplacer la personne vers la corbeille" onClose={() => setModal(null)}>
+          <form className="entity-form" onSubmit={(event) => void removePerson(event)}>
+            <p className="deletion-target">{fullName(selected)}</p>
+            <p>La personne, ses prospects, demandes, inscriptions, pièces et paiements associés seront retirés des listes actives et archivés ensemble.</p>
+            <label>Motif de suppression
+              <textarea name="motif" required minLength={5} maxLength={500} className="deletion-reason-input" placeholder="Expliquez la raison (5 caractères minimum)" />
+            </label>
+            {deleteError && <p className="form-error" role="alert">{deleteError}</p>}
+            <div className="form-actions">
+              <button type="button" className="secondary-button" onClick={() => setModal(null)} disabled={deleteBusy}>Annuler</button>
+              <button className="danger-solid-button" disabled={deleteBusy}>{deleteBusy ? "Archivage..." : "Déplacer vers la corbeille"}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </section>
   );
 }
 
@@ -1134,19 +1181,9 @@ function PeriodicReport() {
       setBusy(false);
     }
   };
-  const download = () => {
+  const download = async () => {
     if (!report) return;
-    const rows: Array<Array<string | number>> = [
-      [
-        "Activité",
-        "Date",
-        "Personne",
-        "Téléphone",
-        "Détail",
-        "Statut",
-        "Montant",
-      ],
-    ];
+    const rows: Array<Array<string | number>> = [];
     for (const item of report.paiements)
       rows.push([
         "Paiement",
@@ -1155,7 +1192,7 @@ function PeriodicReport() {
         item.personne.telephone ?? "",
         `${item.dossier} · ${item.type}`,
         "",
-        item.montant,
+        formatMoney(item.montant),
       ]);
     for (const item of report.demandes)
       rows.push([
@@ -1187,21 +1224,110 @@ function PeriodicReport() {
         item.statut,
         "",
       ]);
-    const csv = rows
-      .map((row) =>
-        row
-          .map((value) => `"${String(value).replaceAll('"', '""')}"`)
-          .join(";"),
-      )
-      .join("\r\n");
-    const url = URL.createObjectURL(
-      new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }),
-    );
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `rapport-ipaim-${dateDebut}-${dateFin}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const preset = COLOR_PRESETS.find((item) => item.id === readColorPreset()) ?? COLOR_PRESETS[0];
+      const toRgb = (hex: string): [number, number, number] => {
+        const value = hex.replace("#", "");
+        return [0, 2, 4].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16)) as [number, number, number];
+      };
+      const width = pdf.internal.pageSize.getWidth();
+      const height = pdf.internal.pageSize.getHeight();
+      const margin = 14;
+      const columnWidths = [28, 20, 44, 30, 81, 35, 29];
+      const columnLabels = ["Activité", "Date", "Personne", "Téléphone", "Détail", "Statut", "Montant"];
+      const drawTableHeader = (y: number) => {
+        pdf.setFillColor(...toRgb(preset.variables.deep));
+        pdf.roundedRect(margin, y, width - margin * 2, 9, 1.5, 1.5, "F");
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(8);
+        pdf.setTextColor(255, 255, 255);
+        let x = margin + 3;
+        columnLabels.forEach((label, index) => {
+          pdf.text(label, x, y + 5.8);
+          x += columnWidths[index];
+        });
+        pdf.setTextColor(35, 48, 56);
+        pdf.setFont("helvetica", "normal");
+      };
+      pdf.setFillColor(...toRgb(preset.variables.deep));
+      pdf.rect(0, 0, width, 30, "F");
+      pdf.setFillColor(...toRgb(preset.variables.gold));
+      pdf.rect(0, 30, width, 1.4, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(17);
+      pdf.text("IPAIM  |  Rapport d'activité", margin, 13);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.text(`Période : ${formatDate(dateDebut)} - ${formatDate(dateFin)}`, margin, 21);
+      pdf.setTextColor(45, 57, 63);
+
+      const summary = [
+        ["Paiements", String(report.synthese.nombrePaiements)],
+        ["Montant encaissé", formatMoney(report.synthese.montantEncaisse)],
+        ["Demandes", String(report.synthese.nouvellesDemandes)],
+        ["Inscriptions", String(report.synthese.nouvellesInscriptions)],
+        ["Prospects", String(report.synthese.nouveauxProspects)],
+      ];
+      const summaryY = 39;
+      const summaryGap = 4;
+      const summaryWidth = (width - margin * 2 - summaryGap * (summary.length - 1)) / summary.length;
+      summary.forEach(([label, value], index) => {
+        const x = margin + index * (summaryWidth + summaryGap);
+        const tint = toRgb(preset.variables.blue).map((channel) => Math.round(channel * 0.12 + 255 * 0.88)) as [number, number, number];
+        pdf.setFillColor(...tint);
+        pdf.roundedRect(x, summaryY, summaryWidth, 19, 1.5, 1.5, "F");
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(90, 103, 108);
+        pdf.text(label, x + 3, summaryY + 6);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(10);
+        pdf.setTextColor(...toRgb(preset.variables.deep));
+        pdf.text(value, x + 3, summaryY + 14);
+      });
+
+      let y = 66;
+      drawTableHeader(y);
+      y += 10;
+      rows.forEach((row, rowIndex) => {
+        const cellLines = row.map((value, index) => pdf.splitTextToSize(String(value), columnWidths[index] - 5));
+        const rowHeight = Math.max(10, ...cellLines.map((lines) => lines.length * 3.8 + 4));
+        if (y + rowHeight > height - 14) {
+          pdf.addPage();
+          y = 15;
+          drawTableHeader(y);
+          y += 10;
+        }
+        if (rowIndex % 2 === 1) {
+          pdf.setFillColor(244, 247, 249);
+          pdf.rect(margin, y, width - margin * 2, rowHeight, "F");
+        }
+        let x = margin + 3;
+        cellLines.forEach((lines, index) => {
+          pdf.setFont("helvetica", index === 0 ? "bold" : "normal");
+          pdf.setFontSize(7.5);
+          pdf.text(lines, x, y + 5);
+          x += columnWidths[index];
+        });
+        pdf.setDrawColor(222, 229, 232);
+        pdf.line(margin, y + rowHeight, width - margin, y + rowHeight);
+        y += rowHeight;
+      });
+      const pageCount = pdf.getNumberOfPages();
+      for (let page = 1; page <= pageCount; page++) {
+        pdf.setPage(page);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(110, 120, 126);
+        pdf.text(`IPAIM  |  ${page}/${pageCount}`, width - margin, height - 6, { align: "right" });
+      }
+      pdf.save(`rapport-ipaim-${dateDebut}-${dateFin}.pdf`);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Impossible de générer le PDF.");
+    }
   };
   return (
     <section className="panel full-panel">
@@ -1212,7 +1338,7 @@ function PeriodicReport() {
         </div>
         {report && (
           <button className="outline-button small" onClick={download}>
-            Télécharger CSV
+            Télécharger PDF
           </button>
         )}
       </div>
@@ -1266,11 +1392,9 @@ function PeriodicReport() {
 
 export function ReportsPage() {
   return (
-    <>
-      <div className="content-scroll">
+      <div className="content-scroll reports-page-stack">
         <PeriodicReport />
+        <OperationalReportsPage />
       </div>
-      <OperationalReportsPage />
-    </>
   );
 }

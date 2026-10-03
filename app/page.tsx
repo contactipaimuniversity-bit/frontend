@@ -9,14 +9,18 @@ import { ProfilePage, SettingsPage } from "@/components/account-pages";
 import { LoginScreen } from "@/components/login-screen";
 import { DossierDetailsPage, DossierReference, OperationsPage } from "@/components/operations-page";
 import { DeletionInfoPage } from "@/components/deletion-info-page";
+import { TrashPage } from "@/components/trash-page";
 import { PersonnelPage } from "@/components/personnel-page";
+import { AboutSgiPage } from "@/components/about-sgi-page";
 import {
   PeoplePage,
   ReferencesPage,
   ReportsPage,
 } from "@/components/additional-pages";
 import { apiFetch, notifySessionChanged } from "@/lib/api";
+import { applyColorMode, applyColorPreset, readColorMode, readColorPreset } from "@/lib/theme";
 import { OfflineAccount } from "@/lib/offline";
+import { hasAccess, VIEW_ACCESS } from "@/lib/access";
 import {
   Application,
   ApplicationPage,
@@ -43,6 +47,15 @@ const subscribeToSession = (onChange: () => void) => {
     window.removeEventListener("storage", onChange);
     window.removeEventListener("ipaim-session", onChange);
     window.removeEventListener("ipaim-session-expired", onChange);
+  };
+};
+
+const subscribeToStableNotice = (onChange: () => void) => {
+  window.addEventListener("storage", onChange);
+  window.addEventListener("ipaim-stable-notice-change", onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener("ipaim-stable-notice-change", onChange);
   };
 };
 
@@ -73,7 +86,9 @@ export default function Home() {
     totalPages: 1,
   });
   const [applicationSearch, setApplicationSearch] = useState("");
+  const [applicationStatus, setApplicationStatus] = useState("");
   const [applicationPage, setApplicationPage] = useState(1);
+  const [loadedApplicationRequest, setLoadedApplicationRequest] = useState("");
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [enrollmentMeta, setEnrollmentMeta] = useState<EnrollmentPage["meta"]>({
     page: 1,
@@ -82,7 +97,9 @@ export default function Home() {
     totalPages: 1,
   });
   const [enrollmentSearch, setEnrollmentSearch] = useState("");
+  const [enrollmentStatus, setEnrollmentStatus] = useState("");
   const [enrollmentPage, setEnrollmentPage] = useState(1);
+  const [loadedEnrollmentRequest, setLoadedEnrollmentRequest] = useState("");
   const [enrollmentTypeBourseId, setEnrollmentTypeBourseId] = useState("");
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [prospectMeta, setProspectMeta] = useState<ProspectPage["meta"]>({
@@ -113,14 +130,60 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [enteringApp, setEnteringApp] = useState(false);
   const [error, setError] = useState("");
+  const [dismissedNoticeKey, setDismissedNoticeKey] = useState<string | null>(null);
   const [offlineAccessWarning, setOfflineAccessWarning] = useState(false);
   const token = temporaryToken ?? storedToken;
   const user =
     temporaryUser ?? (storedUser ? (JSON.parse(storedUser) as User) : null) ??
     (storedOfflineSession ? (JSON.parse(storedOfflineSession) as OfflineAccount).user : null);
+  const canViewDashboard = hasAccess(user, "dashboard");
+  const canViewScholarships = hasAccess(user, "scholarships");
+  const canViewEnrollments = hasAccess(user, "enrollments");
+  const canViewProspects = hasAccess(user, "prospects");
+  const canViewPeople = hasAccess(user, "people");
+  const canViewRecruiting = hasAccess(user, "recruiting");
+  const canViewReports = hasAccess(user, "reports");
+  const canViewReferences = hasAccess(user, "references");
   const offlineAccount = storedOfflineSession
     ? JSON.parse(storedOfflineSession) as OfflineAccount
     : null;
+  const applicationEndpoint = `/demandes-bourse?page=${applicationPage}&limit=20${applicationSearch ? `&q=${encodeURIComponent(applicationSearch)}` : ""}${applicationStatus ? `&statut=${encodeURIComponent(applicationStatus)}` : ""}`;
+  const enrollmentEndpoint = `/inscriptions?page=${enrollmentPage}&limit=20${enrollmentSearch ? `&q=${encodeURIComponent(enrollmentSearch)}` : ""}${enrollmentTypeBourseId ? `&typeBourseId=${encodeURIComponent(enrollmentTypeBourseId)}` : ""}${enrollmentStatus ? `&statut=${encodeURIComponent(enrollmentStatus)}` : ""}`;
+  const applicationRequestKey = `${applicationEndpoint}|refresh:${refreshKey}`;
+  const enrollmentRequestKey = `${enrollmentEndpoint}|refresh:${refreshKey}`;
+  const applicationLoading = Boolean((token || storedOfflineSession) && canViewScholarships && loadedApplicationRequest !== applicationRequestKey);
+  const enrollmentLoading = Boolean((token || storedOfflineSession) && canViewEnrollments && loadedEnrollmentRequest !== enrollmentRequestKey);
+  const stableNoticeKey = user?.id ? `ipaim-stable-notice:${user.id}` : null;
+  const stableNoticeOpen = useSyncExternalStore(
+    subscribeToStableNotice,
+    () => {
+      if (!token || !stableNoticeKey || dismissedNoticeKey === stableNoticeKey) return false;
+      try { return window.localStorage.getItem(stableNoticeKey) !== "seen"; } catch { return true; }
+    },
+    () => false,
+  );
+  const activeView = VIEW_ACCESS[view] && !hasAccess(user, VIEW_ACCESS[view]!) ? "Profil" : view;
+
+  useEffect(() => {
+    const syncColorPreset = () => applyColorPreset(readColorPreset(), false);
+    const syncColorMode = () => applyColorMode(readColorMode(), false);
+    syncColorPreset();
+    syncColorMode();
+    window.addEventListener("storage", syncColorPreset);
+    window.addEventListener("storage", syncColorMode);
+    return () => {
+      window.removeEventListener("storage", syncColorPreset);
+      window.removeEventListener("storage", syncColorMode);
+    };
+  }, []);
+
+  const dismissStableNotice = () => {
+    if (stableNoticeKey) {
+      setDismissedNoticeKey(stableNoticeKey);
+      try { window.localStorage.setItem(stableNoticeKey, "seen"); } catch { /* Storage may be unavailable. */ }
+      window.dispatchEvent(new Event("ipaim-stable-notice-change"));
+    }
+  };
 
   useEffect(() => {
     if (!token && !storedOfflineSession) return;
@@ -130,52 +193,40 @@ export default function Home() {
       try {
         const [
           summaryData,
-          applicationData,
-          enrollmentData,
           prospectData,
           personData,
           personnelData,
           paymentData,
           typeData,
         ] = await Promise.all([
-          apiFetch<Summary>("/rapports/synthese"),
-          apiFetch<ApplicationPage>(
-            `/demandes-bourse?page=${applicationPage}&limit=20${applicationSearch ? `&q=${encodeURIComponent(applicationSearch)}` : ""}`,
-          ),
-          apiFetch<EnrollmentPage>(
-            `/inscriptions?page=${enrollmentPage}&limit=20${enrollmentSearch ? `&q=${encodeURIComponent(enrollmentSearch)}` : ""}${enrollmentTypeBourseId ? `&typeBourseId=${encodeURIComponent(enrollmentTypeBourseId)}` : ""}`,
-          ),
-          apiFetch<ProspectPage>(
+          canViewDashboard ? apiFetch<Summary>("/rapports/synthese") : Promise.resolve(null),
+          canViewProspects ? apiFetch<ProspectPage>(
             `/prospects?page=${prospectPage}&limit=20${prospectSearch ? `&q=${encodeURIComponent(prospectSearch)}` : ""}`,
-          ),
-          apiFetch<PersonPage>(
+          ) : Promise.resolve(null),
+          canViewPeople ? apiFetch<PersonPage>(
             `/personnes?page=${peoplePage}&limit=20${
               peopleSearch
                 ? `&q=${encodeURIComponent(peopleSearch)}`
                 : ""
             }`,
-          ),
-          apiFetch<PersonnelApplicationPage>(
+          ) : Promise.resolve(null),
+          canViewRecruiting ? apiFetch<PersonnelApplicationPage>(
             `/candidatures-personnel?page=${personnelPage}&limit=20${personnelSearch ? `&q=${encodeURIComponent(personnelSearch)}` : ""}`,
-          ),
-          apiFetch<{ echeances: LatePayment[] }>(
+          ) : Promise.resolve(null),
+          canViewReports ? apiFetch<{ echeances: LatePayment[] }>(
             "/rapports/paiements-en-retard",
-          ),
-          apiFetch<ScholarshipType[]>("/types-bourse"),
+          ) : Promise.resolve(null),
+          canViewReferences ? apiFetch<ScholarshipType[]>("/types-bourse") : Promise.resolve(null),
         ]);
-        setSummary(summaryData);
-        setApplications(applicationData.data);
-        setApplicationMeta(applicationData.meta);
-        setEnrollments(enrollmentData.data);
-        setEnrollmentMeta(enrollmentData.meta);
-        setProspects(prospectData.data);
-        setProspectMeta(prospectData.meta);
-        setPeople(personData.data);
-        setPeopleMeta(personData.meta);
-        setPersonnelApplications(personnelData.data);
-        setPersonnelMeta(personnelData.meta);
-        setLatePayments(paymentData.echeances);
-        setScholarshipTypes(typeData);
+        if (summaryData) setSummary(summaryData);
+        setProspects(prospectData?.data ?? []);
+        if (prospectData) setProspectMeta(prospectData.meta);
+        setPeople(personData?.data ?? []);
+        if (personData) setPeopleMeta(personData.meta);
+        setPersonnelApplications(personnelData?.data ?? []);
+        if (personnelData) setPersonnelMeta(personnelData.meta);
+        setLatePayments(paymentData?.echeances ?? []);
+        setScholarshipTypes(typeData ?? []);
       } catch (failure) {
         setError(
           failure instanceof Error
@@ -188,21 +239,70 @@ export default function Home() {
     };
     void loadData();
   }, [
-    applicationPage,
-    applicationSearch,
-    enrollmentPage,
-    enrollmentSearch,
-    enrollmentTypeBourseId,
     prospectPage,
     prospectSearch,
     peoplePage,
     peopleSearch,
     personnelPage,
     personnelSearch,
+    canViewDashboard,
+    canViewPeople,
+    canViewProspects,
+    canViewRecruiting,
+    canViewReferences,
+    canViewReports,
     token,
     storedOfflineSession,
     refreshKey,
   ]);
+
+  useEffect(() => {
+    if (!token && !storedOfflineSession) return;
+    if (!canViewScholarships) return;
+    let active = true;
+    void apiFetch<ApplicationPage>(
+      applicationEndpoint,
+    )
+      .then((result) => {
+        if (active) {
+          setApplications(result.data);
+          setApplicationMeta(result.meta);
+          setLoadedApplicationRequest(applicationRequestKey);
+        }
+      })
+      .catch((failure) => {
+        if (active) {
+          setError(failure instanceof Error ? failure.message : "Demandes indisponibles.");
+          setLoadedApplicationRequest(applicationRequestKey);
+        }
+      })
+      ;
+    return () => { active = false; };
+  }, [applicationEndpoint, applicationRequestKey, canViewScholarships, storedOfflineSession, token]);
+
+  useEffect(() => {
+    if (!token && !storedOfflineSession) return;
+    if (!canViewEnrollments) return;
+    let active = true;
+    void apiFetch<EnrollmentPage>(
+      enrollmentEndpoint,
+    )
+      .then((result) => {
+        if (active) {
+          setEnrollments(result.data);
+          setEnrollmentMeta(result.meta);
+          setLoadedEnrollmentRequest(enrollmentRequestKey);
+        }
+      })
+      .catch((failure) => {
+        if (active) {
+          setError(failure instanceof Error ? failure.message : "Inscriptions indisponibles.");
+          setLoadedEnrollmentRequest(enrollmentRequestKey);
+        }
+      })
+      ;
+    return () => { active = false; };
+  }, [canViewEnrollments, enrollmentEndpoint, enrollmentRequestKey, storedOfflineSession, token]);
 
   useEffect(() => {
     if (!enteringApp) return;
@@ -260,7 +360,7 @@ export default function Home() {
 
   return (
     <DashboardLayout
-      activeView={view}
+      activeView={activeView}
       setActiveView={setView}
       user={user}
       summary={summary}
@@ -268,7 +368,7 @@ export default function Home() {
       onProfile={() => setView("Profil")}
       onSettings={() => setView("Paramètres")}
     >
-      <AppHeader title={view} onRefresh={refresh} />
+      <AppHeader title={activeView} onRefresh={refresh} />
       <OfflineSync onOpenPage={() => setView("Synchronisation")} />
       {offlineAccessWarning && (
         <div className="api-error">
@@ -282,7 +382,7 @@ export default function Home() {
           <button onClick={refresh}>Réessayer</button>
         </div>
       )}
-      {view === "Vue d'ensemble" ? (
+      {activeView === "Vue d'ensemble" ? (
         <DashboardHome
           summary={summary}
           applications={applications}
@@ -298,11 +398,13 @@ export default function Home() {
             setView("Inscriptions");
           }}
         />
-      ) : view === "Profil" ? (
+      ) : activeView === "Profil" ? (
         <ProfilePage user={user} onLogout={logout} onUpdated={(updated) => { setTemporaryUser(updated); window.sessionStorage.setItem("ipaim-user", JSON.stringify(updated)); }} />
-      ) : view === "Paramètres" ? (
+      ) : activeView === "Paramètres" ? (
         <SettingsPage currentUser={user} onRefresh={refresh} />
-      ) : view === "Personnes" ? (
+      ) : activeView === "À propos du SGI" ? (
+        <AboutSgiPage onBack={() => setView("Vue d'ensemble")} />
+      ) : activeView === "Personnes" ? (
         <PeoplePage
           people={people}
           peopleMeta={peopleMeta}
@@ -313,7 +415,7 @@ export default function Home() {
           onPeoplePage={setPeoplePage}
           onRefresh={refresh}
         />
-      ) : view === "Recrutement" ? (
+      ) : activeView === "Recrutement" ? (
         <PersonnelPage
           data={personnelApplications}
           meta={personnelMeta}
@@ -324,10 +426,13 @@ export default function Home() {
           }}
           onPage={setPersonnelPage}
           onRefresh={refresh}
+          canEdit={hasAccess(user, "recruiting", "edit")}
         />
-      ) : view === "Référentiels" ? (
+      ) : activeView === "Référentiels" ? (
         <ReferencesPage onRefresh={refresh} />
-      ) : view === "Synchronisation" ? (
+      ) : activeView === "Corbeille" ? (
+        <TrashPage />
+      ) : activeView === "Synchronisation" ? (
         <OfflineSyncPage
           needsOnlineAuthentication={!token && Boolean(offlineAccount)}
           onReconnect={() => {
@@ -338,13 +443,13 @@ export default function Home() {
             notifySessionChanged();
           }}
         />
-      ) : view === "Rapports" ? (
+      ) : activeView === "Rapports" ? (
         <ReportsPage />
-      ) : view === "Certificats" ? (
+      ) : activeView === "Certificats" ? (
         <CertificatesPage refreshSignal={refreshKey} />
-      ) : view === "Suppression des dossiers" ? (
+      ) : activeView === "Suppression des dossiers" ? (
         <DeletionInfoPage onBack={() => setView(deletionInfoReturnView)} />
-      ) : view === "Fiche dossier" && dossierReference ? (
+      ) : activeView === "Fiche dossier" && dossierReference ? (
         <DossierDetailsPage
           reference={dossierReference}
           returnView={dossierReturnView}
@@ -358,7 +463,7 @@ export default function Home() {
         />
       ) : (
         <OperationsPage
-          view={view}
+          view={activeView}
           applications={applications}
           enrollments={enrollments}
           prospects={prospects}
@@ -366,12 +471,18 @@ export default function Home() {
           latePayments={latePayments}
           scholarshipTypes={scholarshipTypes}
           applicationMeta={applicationMeta}
+          applicationStatus={applicationStatus || "ALL"}
+          applicationsLoading={applicationLoading}
+          onApplicationStatusChange={(value) => { setApplicationStatus(value === "ALL" ? "" : value); setApplicationPage(1); }}
           onApplicationSearch={(value) => {
             setApplicationSearch(value);
             setApplicationPage(1);
           }}
           onApplicationPage={setApplicationPage}
           enrollmentMeta={enrollmentMeta}
+          enrollmentStatus={enrollmentStatus || "ALL"}
+          enrollmentsLoading={enrollmentLoading}
+          onEnrollmentStatusChange={(value) => { setEnrollmentStatus(value === "ALL" ? "" : value); setEnrollmentPage(1); }}
           enrollmentTypeBourseId={enrollmentTypeBourseId}
           onEnrollmentTypeBourseChange={(typeBourseId) => {
             setEnrollmentTypeBourseId(typeBourseId);
@@ -399,6 +510,20 @@ export default function Home() {
             setView("Fiche dossier");
           }}
         />
+      )}
+      {stableNoticeOpen && (
+        <div className="modal-backdrop stable-notice-backdrop" onMouseDown={dismissStableNotice}>
+          <section className="modal stable-notice-modal" role="dialog" aria-modal="true" aria-labelledby="stable-notice-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="stable-notice-mark" aria-hidden="true">✓</div>
+            <p className="eyebrow">IPAIM · Système de gestion intégré</p>
+            <h2 id="stable-notice-title">Votre espace est à jour.</h2>
+            <p>Vous utilisez la dernière version stable du SGI IPAIM, conçue pour rendre le suivi de vos activités plus clair et plus maîtrisé.</p>
+            <div className="stable-notice-actions">
+              <button className="text-button" onClick={() => { dismissStableNotice(); setView("À propos du SGI"); }}>En savoir plus <span>→</span></button>
+              <button className="primary-button compact" onClick={dismissStableNotice}>Continuer</button>
+            </div>
+          </section>
+        </div>
       )}
     </DashboardLayout>
   );

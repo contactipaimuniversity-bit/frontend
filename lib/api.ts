@@ -268,13 +268,13 @@ export async function downloadOfflineReferenceData() {
     data: Array<{ id: string }>;
     meta: { totalPages: number };
   };
-  const loadDossierIds = async (resource: string) => {
+  const loadDossierIds = async (resource: string, filters = "") => {
     const ids: string[] = [];
     let page = 1;
     let totalPages = 1;
     do {
       const result = await apiFetch<DossierPage>(
-        `/${resource}?page=${page}&limit=100`,
+        `/${resource}?${filters ? `${filters}&` : ""}page=${page}&limit=100`,
       );
       ids.push(...result.data.map((dossier) => dossier.id));
       totalPages = result.meta.totalPages;
@@ -288,7 +288,10 @@ export async function downloadOfflineReferenceData() {
     apiFetch<unknown[]>("/types-bourse"),
     loadDossierIds("demandes-bourse"),
     loadDossierIds("inscriptions"),
+    loadDossierIds("demandes-bourse", "statut=ACCEPTEE"),
+    apiFetch<unknown>("/paiements"),
   ]);
+  await import("jspdf").catch(() => undefined);
   const applicationIds = applications.status === "fulfilled" ? applications.value : [];
   const enrollmentIds = enrollments.status === "fulfilled" ? enrollments.value : [];
   const detailPaths = [

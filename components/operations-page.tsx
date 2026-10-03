@@ -1,9 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiFetch } from "@/lib/api";
 import { ModalChoice } from "@/components/modal-choice";
 import { PersonForm } from "@/components/additional-pages";
+import { BrandLogo } from "@/components/brand-logo";
+import { getAcceptedApplicationsForEnrollment } from "@/lib/enrollment-eligibility";
 import {
   Application,
   ApplicationPage,
@@ -86,9 +89,10 @@ function DeleteConfirmation({
   busy: boolean;
   error: string;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (reason: string) => void;
   onLearnMore: () => void;
 }) {
+  const [reason, setReason] = useState("");
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <section
@@ -102,9 +106,11 @@ function DeleteConfirmation({
         <h3 id="deletion-title">Supprimer {title} ?</h3>
         <p className="deletion-target">{personName}</p>
         <p>
-          Êtes-vous sûr de vouloir supprimer cet élément ? Cette action est définitive.
-          La suppression entraîne également celle des éléments associés.
+          Êtes-vous sûr de vouloir déplacer cet élément et les dossiers associés vers la corbeille ?
         </p>
+        <label className="deletion-reason-label">Motif de suppression
+          <textarea className="deletion-reason-input" minLength={5} maxLength={500} required value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Expliquez la raison de cette suppression (5 caractères minimum)" />
+        </label>
         <button className="deletion-info-link" onClick={onLearnMore} disabled={busy}>
           En savoir plus
         </button>
@@ -113,8 +119,8 @@ function DeleteConfirmation({
           <button className="secondary-button" onClick={onClose} disabled={busy}>
             Annuler
           </button>
-          <button className="danger-solid-button" onClick={onConfirm} disabled={busy}>
-            {busy ? "Suppression..." : "Supprimer définitivement"}
+          <button className="danger-solid-button" onClick={() => onConfirm(reason.trim())} disabled={busy || reason.trim().length < 5}>
+            {busy ? "Archivage..." : "Déplacer vers la corbeille"}
           </button>
         </div>
       </section>
@@ -384,6 +390,7 @@ function CreateEnrollment({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const acceptedApplications = getAcceptedApplicationsForEnrollment(applications);
   const [form, setForm] = useState({
     personneId: "",
     anneeScolaire: "2026-2027",
@@ -519,12 +526,12 @@ function CreateEnrollment({
           <ModalChoice
             required
             label="Demande liée"
-            placeholder="Sélectionner une demande"
+            placeholder="Sélectionner une demande acceptée"
             value={form.demandeBourseId}
-            choices={applications.map((application) => ({ value: application.id, label: fullName(application.personne), detail: application.filiereSouhaitee }))}
+            choices={acceptedApplications.map((application) => ({ value: application.id, label: fullName(application.personne), detail: application.filiereSouhaitee }))}
             loadChoices={async (query, page) => {
               const result = await apiFetch<ApplicationPage>(
-                `/demandes-bourse?page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+                `/demandes-bourse?statut=ACCEPTEE&page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
               );
               return { choices: result.data.map((application) => ({ value: application.id, label: fullName(application.personne), detail: application.filiereSouhaitee })), hasMore: result.meta.page < result.meta.totalPages };
             }}
@@ -1166,10 +1173,226 @@ function UnassignedPaymentsPanel({ onRefresh }: { onRefresh: () => void }) {
   return <><section className="panel full-panel"><div className="panel-heading"><div><p className="eyebrow">Affectation</p><h3>{payments.length} paiement(s) à affecter</h3></div><button className="outline-button small" onClick={() => void load()}>Actualiser</button></div>{error && <p className="form-error">{error}</p>}{loading && <p className="empty-state">Chargement...</p>}{!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Personne</th><th>Dossier</th><th>Type</th><th>Montant</th><th /></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}</td><td>{payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{formatMoney(payment.montant)}</td><td><button className="row-action" onClick={() => setSelected(payment)}>Affecter</button></td></tr>)}{!payments.length && <tr><td colSpan={6} className="empty-state">Tous les paiements sont affectés.</td></tr>}</tbody></table></div>}</section>{selected && <AssignPaymentModal payment={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); void load(); onRefresh(); }} />}</>;
 }
 
+const paymentLabels: Record<string, string> = {
+  FRAIS_DEPOT: "Frais de dépôt",
+  FRAIS_INSCRIPTION: "Frais d’inscription",
+  ECHEANCE_BOURSE: "Échéance de bourse",
+};
+
+function paymentDate(value: string) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function receiptFileName(payment: PaymentTransaction) {
+  const person = fullName(payment.personne)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
+  return `recu-ipaim-${person}-${payment.id.slice(0, 8)}.pdf`;
+}
+
+async function loadReceiptLogo() {
+  const image = new Image();
+  image.src = "/WhatsApp%20Image%202026-07-17%20at%2018.26.50.jpeg";
+  await image.decode();
+  return image;
+}
+
+async function downloadPaymentReceiptPdf(payment: PaymentTransaction) {
+  const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadReceiptLogo()]);
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const name = fullName(payment.personne);
+  const receiptReference = `IPAIM-${payment.id.slice(0, 8).toUpperCase()}`;
+
+  pdf.setFillColor(20, 40, 92);
+  pdf.rect(0, 0, pageWidth, 54, "F");
+  pdf.setFillColor(200, 148, 27);
+  pdf.rect(0, 53, pageWidth, 2, "F");
+  pdf.setFillColor(255, 255, 255);
+  pdf.roundedRect(18, 11, 30, 30, 2, 2, "F");
+  pdf.addImage(logo, "JPEG", 19, 12, 28, 28);
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(17);
+  pdf.text("IPAIM UNIVERSITY", 58, 23);
+  pdf.setTextColor(222, 232, 247);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.text("INNOVER · FORMER · TRANSFORMER", 58, 31);
+  pdf.setTextColor(228, 177, 59);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(10);
+  pdf.text("REÇU DE PAIEMENT", 58, 41);
+
+  pdf.setFillColor(242, 245, 250);
+  pdf.roundedRect(18, 63, 174, 19, 2, 2, "F");
+  pdf.setTextColor(102, 114, 140);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7);
+  pdf.text("RÉFÉRENCE DU REÇU", 22, 70);
+  pdf.text("DATE DU PAIEMENT", 116, 70);
+  pdf.setTextColor(20, 40, 92);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9);
+  pdf.text(receiptReference, 22, 77);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.text(paymentDate(payment.datePaiement), 116, 77);
+
+  pdf.setTextColor(102, 114, 140);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.text("REÇU DE LA PART DE", 18, 96);
+  pdf.setTextColor(20, 40, 92);
+  pdf.setFont("helvetica", "bold");
+  const nameLines = pdf.splitTextToSize(name, 174);
+  pdf.setFontSize(nameLines.length > 1 ? 17 : 21);
+  pdf.text(nameLines, 18, 106);
+  let rowY = 112 + nameLines.length * 6;
+  if (payment.personne?.telephone) {
+    pdf.setTextColor(102, 114, 140);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    pdf.text(`Téléphone : ${payment.personne.telephone}`, 18, rowY);
+    rowY += 8;
+  } else {
+    rowY += 2;
+  }
+
+  const addRow = (label: string, value: string) => {
+    const lines = pdf.splitTextToSize(value || "-", 112);
+    const height = Math.max(14, 7 + lines.length * 4.5);
+    pdf.setDrawColor(226, 232, 242);
+    pdf.line(18, rowY + height, 192, rowY + height);
+    pdf.setTextColor(102, 114, 140);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.text(label.toUpperCase(), 20, rowY + height / 2 + 1);
+    pdf.setTextColor(36, 51, 76);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.text(lines, 76, rowY + 5);
+    rowY += height;
+  };
+
+  addRow("Dossier concerné", payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription");
+  addRow("Filière / dossier", payment.dossier);
+  addRow("Référence du dossier", payment.dossierId);
+  addRow("Nature du paiement", paymentLabels[payment.typePaiement] ?? payment.typePaiement);
+  addRow("Obligation / échéance", payment.obligation ?? payment.echeance ?? "Paiement non affecté");
+  addRow("État d’affectation", payment.affecte ? "Affecté au dossier" : "En attente d’affectation");
+
+  const amountY = Math.max(rowY + 5, 211);
+  pdf.setFillColor(247, 239, 217);
+  pdf.roundedRect(18, amountY, 174, 25, 2, 2, "F");
+  pdf.setFillColor(200, 148, 27);
+  pdf.rect(18, amountY, 3, 25, "F");
+  pdf.setTextColor(102, 114, 140);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8);
+  pdf.text("MONTANT REÇU", 25, amountY + 15);
+  pdf.setTextColor(20, 40, 92);
+  pdf.setFontSize(17);
+  pdf.text(formatMoney(payment.montant), 185, amountY + 16, { align: "right" });
+
+  const signatureY = amountY + 43;
+  pdf.setDrawColor(155, 168, 187);
+  pdf.line(18, signatureY + 13, 88, signatureY + 13);
+  pdf.line(122, signatureY + 13, 192, signatureY + 13);
+  pdf.setTextColor(102, 114, 140);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7.5);
+  pdf.text("Le service de comptabilité", 18, signatureY + 19);
+  pdf.text("Cachet de l’établissement", 122, signatureY + 19);
+  pdf.setDrawColor(200, 148, 27);
+  pdf.line(18, 287, 192, 287);
+  pdf.setTextColor(102, 114, 140);
+  pdf.setFontSize(7);
+  pdf.text(`Référence de transaction : ${payment.id}`, 18, 293);
+  pdf.text("IPAIM UNIVERSITY", 192, 293, { align: "right" });
+  pdf.save(receiptFileName(payment));
+}
+
+function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onClose: () => void }) {
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+  const createPdf = async () => {
+    setPdfBusy(true);
+    setPdfError("");
+    try {
+      await downloadPaymentReceiptPdf(payment);
+    } catch (failure) {
+      setPdfError(failure instanceof Error ? failure.message : "Impossible de générer le PDF.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+  return createPortal((
+    <div className="modal-backdrop receipt-backdrop" onMouseDown={onClose}>
+      <section className="modal payment-receipt-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="modal-header receipt-modal-header">
+          <h3>Aperçu du reçu</h3>
+          <button className="modal-close" onClick={onClose} aria-label="Fermer l’aperçu">×</button>
+        </div>
+        <article className="payment-receipt-print">
+          <header className="receipt-brand-header">
+            <BrandLogo compact />
+            <div>
+              <strong>IPAIM UNIVERSITY</strong>
+              <span>INNOVER · FORMER · TRANSFORMER</span>
+            </div>
+            <p>REÇU DE PAIEMENT</p>
+          </header>
+          <div className="receipt-reference">
+            <div><span>Référence du reçu</span><strong>IPAIM-{payment.id.slice(0, 8).toUpperCase()}</strong></div>
+            <div><span>Date du paiement</span><strong>{paymentDate(payment.datePaiement)}</strong></div>
+          </div>
+          <p className="receipt-intro">Reçu de la part de</p>
+          <h2 className="receipt-student-name">{fullName(payment.personne)}</h2>
+          {payment.personne?.telephone && <p className="receipt-contact">Téléphone : {payment.personne.telephone}</p>}
+          <section className="receipt-detail-list">
+            <div><span>Dossier concerné</span><strong>{payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</strong></div>
+            <div><span>Filière / référence</span><strong>{payment.dossier}</strong></div>
+            <div><span>Référence du dossier</span><strong className="receipt-id">{payment.dossierId}</strong></div>
+            <div><span>Nature du paiement</span><strong>{paymentLabels[payment.typePaiement] ?? payment.typePaiement}</strong></div>
+            <div><span>Obligation / échéance</span><strong>{payment.obligation ?? payment.echeance ?? "Paiement non affecté"}</strong></div>
+            <div><span>État d’affectation</span><strong>{payment.affecte ? "Affecté au dossier" : "En attente d’affectation"}</strong></div>
+          </section>
+          <div className="receipt-amount"><span>Montant reçu</span><strong>{formatMoney(payment.montant)}</strong></div>
+          <p className="receipt-thanks">Nous vous remercions pour votre paiement.</p>
+          <footer className="receipt-signature">
+            <div><span>Le service de comptabilité</span><i /></div>
+            <div><span>Cachet de l’établissement</span><i /></div>
+          </footer>
+          <div className="receipt-footer">IPAIM UNIVERSITY · Référence de transaction : {payment.id}</div>
+        </article>
+        {pdfError && <p className="form-error receipt-pdf-error" role="alert">{pdfError}</p>}
+        <div className="receipt-print-actions">
+          <button className="secondary-button" onClick={onClose}>Fermer</button>
+          <button className="outline-button" onClick={() => void createPdf()} disabled={pdfBusy}>{pdfBusy ? "Génération..." : "Télécharger le PDF"}</button>
+          <button className="primary-button compact" onClick={() => window.print()}>Imprimer le reçu</button>
+        </div>
+      </section>
+    </div>
+  ), document.body);
+}
+
 function PaymentHistory({ refreshKey }: { refreshKey: number }) {
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [dossierFilter, setDossierFilter] = useState("");
+  const [selectedReceipt, setSelectedReceipt] = useState<PaymentTransaction | null>(null);
   useEffect(() => {
     let active = true;
     void apiFetch<PaymentTransaction[]>("/paiements")
@@ -1179,7 +1402,50 @@ function PaymentHistory({ refreshKey }: { refreshKey: number }) {
     return () => { active = false; };
   }, [refreshKey]);
   const total = payments.reduce((sum, payment) => sum + Number(payment.montant), 0);
-  return <section className="panel full-panel payment-history-panel"><div className="panel-heading"><div><p className="eyebrow">Journal des encaissements</p><h3>{payments.length} transaction(s)</h3></div><div className="payment-history-total">Total encaissé <strong>{formatMoney(total)}</strong></div></div>{error && <p className="form-error">{error}</p>}{loading && <p className="empty-state">Chargement de l&apos;historique...</p>}{!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Payeur</th><th>Dossier</th><th>Obligation / échéance</th><th>Type</th><th>Montant</th><th>État</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td><span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span></td></tr>)}{!payments.length && <tr><td colSpan={7} className="empty-state">Aucune transaction enregistrée.</td></tr>}</tbody></table></div>}</section>;
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const filteredPayments = payments.filter((payment) => {
+    if (dossierFilter && payment.dossierType !== dossierFilter) return false;
+    if (!normalizedSearch) return true;
+    const searchable = [
+      fullName(payment.personne),
+      payment.personne?.telephone,
+      payment.dossier,
+      payment.dossierId,
+      payment.id,
+      payment.obligation,
+      payment.echeance,
+      paymentLabels[payment.typePaiement] ?? payment.typePaiement,
+    ].filter(Boolean).join(" ").toLocaleLowerCase();
+    return searchable.includes(normalizedSearch);
+  });
+  return <>
+    <section className="panel full-panel payment-history-panel">
+      <div className="panel-heading">
+        <div><p className="eyebrow">Journal des encaissements</p><h3>{filteredPayments.length} transaction(s) affichée(s)</h3></div>
+        <div className="payment-history-total">Total encaissé <strong>{formatMoney(total)}</strong></div>
+      </div>
+      <div className="payment-search-toolbar">
+        <label className="payment-search-field">Rechercher une transaction
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nom, prénom, téléphone, dossier ou référence..." />
+        </label>
+        <label className="payment-filter-field">Type de dossier
+          <select value={dossierFilter} onChange={(event) => setDossierFilter(event.target.value)}>
+            <option value="">Tous les dossiers</option>
+            <option value="demande-bourse">Demandes de bourse</option>
+            <option value="inscription">Inscriptions</option>
+          </select>
+        </label>
+        {(search || dossierFilter) && <button className="text-button payment-clear-filter" onClick={() => { setSearch(""); setDossierFilter(""); }}>Effacer</button>}
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      {loading && <p className="empty-state">Chargement de l&apos;historique...</p>}
+      {!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Payeur</th><th>Dossier</th><th>Obligation / échéance</th><th>Type</th><th>Montant</th><th>État</th><th>Reçu</th></tr></thead><tbody>
+        {filteredPayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td><span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span></td><td><button className="row-action" onClick={() => setSelectedReceipt(payment)}>Imprimer</button></td></tr>)}
+        {!filteredPayments.length && <tr><td colSpan={8} className="empty-state">{payments.length ? "Aucune transaction ne correspond à cette recherche." : "Aucune transaction enregistrée."}</td></tr>}
+      </tbody></table></div>}
+    </section>
+    {selectedReceipt && <PaymentReceipt payment={selectedReceipt} onClose={() => setSelectedReceipt(null)} />}
+  </>;
 }
 
 function DossierStatus({
@@ -1289,11 +1555,14 @@ export function DossierDetailsPage({
     setReloadKey((current) => current + 1);
   };
   const saveAction = () => { setAction(null); refreshDetails(); onRefresh(); };
-  const deleteDossier = async () => {
+  const deleteDossier = async (reason: string) => {
     setDeleteBusy(true);
     setDeleteError("");
     try {
-      await apiFetch(`/${resource}/${reference.id}`, { method: "DELETE" });
+      await apiFetch(`/${resource}/${reference.id}`, {
+        method: "DELETE",
+        body: JSON.stringify({ motif: reason }),
+      });
       onRefresh();
       onBack();
     } catch (failure) {
@@ -1402,7 +1671,7 @@ export function DossierDetailsPage({
       {action === "status" && isApplication && dossier && <EditStatus title="Décision de la demande" endpoint={`/demandes-bourse/${reference.id}/decision`} field="statut" initial={dossier.statut} options={["EN_DELIBERATION", "ACCEPTEE", "REFUSEE"]} scholarshipTypes={scholarshipTypes} onClose={() => setAction(null)} onSaved={saveAction} />}
       {action === "status" && !isApplication && dossier && <EditStatus title="Modifier l'inscription" endpoint={`/inscriptions/${reference.id}`} field="statut" initial={dossier.statut} options={["EN_COURS", "COMPLETE", "ABANDONNEE"]} onClose={() => setAction(null)} onSaved={saveAction} />}
       {action === "interview" && isApplication && dossier && <InterviewForm application={dossier as DetailedApplication} onClose={() => setAction(null)} onSaved={saveAction} />}
-      {action === "delete" && dossier && <DeleteConfirmation title={isApplication ? "la demande de bourse" : "l'inscription"} personName={fullName(person)} busy={deleteBusy} error={deleteError} onClose={() => setAction(null)} onConfirm={() => void deleteDossier()} onLearnMore={() => { setAction(null); onShowDeletionInfo(returnView); }} />}
+      {action === "delete" && dossier && <DeleteConfirmation title={isApplication ? "la demande de bourse" : "l'inscription"} personName={fullName(person)} busy={deleteBusy} error={deleteError} onClose={() => setAction(null)} onConfirm={(reason) => void deleteDossier(reason)} onLearnMore={() => { setAction(null); onShowDeletionInfo(returnView); }} />}
     </div>
   );
 }
@@ -1416,9 +1685,15 @@ export function OperationsPage({
   latePayments,
   scholarshipTypes,
   applicationMeta,
+  applicationStatus,
+  applicationsLoading,
+  onApplicationStatusChange,
   onApplicationSearch,
   onApplicationPage,
   enrollmentMeta,
+  enrollmentStatus,
+  enrollmentsLoading,
+  onEnrollmentStatusChange,
   enrollmentTypeBourseId,
   onEnrollmentTypeBourseChange,
   onEnrollmentSearch,
@@ -1438,9 +1713,15 @@ export function OperationsPage({
   latePayments: LatePayment[];
   scholarshipTypes: ScholarshipType[];
   applicationMeta: { page: number; total: number; totalPages: number };
+  applicationStatus: string;
+  applicationsLoading: boolean;
+  onApplicationStatusChange: (value: string) => void;
   onApplicationSearch: (value: string) => void;
   onApplicationPage: (page: number) => void;
   enrollmentMeta: { page: number; total: number; totalPages: number };
+  enrollmentStatus: string;
+  enrollmentsLoading: boolean;
+  onEnrollmentStatusChange: (value: string) => void;
   enrollmentTypeBourseId: string;
   onEnrollmentTypeBourseChange: (typeBourseId: string) => void;
   onEnrollmentSearch: (value: string) => void;
@@ -1473,14 +1754,15 @@ export function OperationsPage({
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [completeness, setCompleteness] = useState<Record<string, { complete: boolean; missing: number }>>({});
-  const filteredApplications =
-    filter === "ALL"
-      ? applications
-      : applications.filter((item) => item.statut === filter);
-  const filteredEnrollments =
-    filter === "ALL"
-      ? enrollments
-      : enrollments.filter((item) => item.statut === filter);
+  const selectedStatus = view === "Demandes de bourse"
+    ? applicationStatus
+    : view === "Inscriptions"
+      ? enrollmentStatus
+      : filter;
+  const filteredApplications = applications;
+  const filteredEnrollments = enrollments;
+  const visibleApplications = applicationsLoading ? [] : filteredApplications;
+  const visibleEnrollments = enrollmentsLoading ? [] : filteredEnrollments;
   const filteredProspects =
     filter === "ALL"
       ? prospects
@@ -1500,12 +1782,15 @@ export function OperationsPage({
     setSelectedId(id);
     setModal(kind);
   };
-  const confirmDelete = async () => {
+  const confirmDelete = async (reason: string) => {
     const resource = modal === "deleteApplication" ? "demandes-bourse" : "inscriptions";
     setDeleteBusy(true);
     setDeleteError("");
     try {
-      await apiFetch(`/${resource}/${selectedId}`, { method: "DELETE" });
+      await apiFetch(`/${resource}/${selectedId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ motif: reason }),
+      });
       setModal(null);
       setCompleteness({});
       onRefresh();
@@ -1637,8 +1922,12 @@ export function OperationsPage({
             )}
             {view !== "Paiements" && (
               <select
-                value={filter}
-                onChange={(event) => setFilter(event.target.value)}
+                value={selectedStatus}
+                onChange={(event) => {
+                  if (view === "Demandes de bourse") onApplicationStatusChange(event.target.value);
+                  else if (view === "Inscriptions") onEnrollmentStatusChange(event.target.value);
+                  else setFilter(event.target.value);
+                }}
               >
                 <option value="ALL">Tous les statuts</option>
                 {(view === "Demandes de bourse"
@@ -1678,7 +1967,8 @@ export function OperationsPage({
                 </tr>
               </thead>
               <tbody>
-                {filteredApplications.map((item) => (
+                {applicationsLoading && <tr><td colSpan={6} className="empty-state">Chargement des demandes...</td></tr>}
+                {visibleApplications.map((item) => (
                   <tr key={item.id}>
                     <td>
                       <div className="person-cell">
@@ -1736,7 +2026,7 @@ export function OperationsPage({
                     </td>
                   </tr>
                 ))}
-                {!filteredApplications.length && (
+                {!applicationsLoading && !filteredApplications.length && (
                   <tr>
                     <td colSpan={6} className="empty-state">
                       Aucune demande.
@@ -1762,7 +2052,8 @@ export function OperationsPage({
                 </tr>
               </thead>
               <tbody>
-                {filteredEnrollments.map((item) => (
+                {enrollmentsLoading && <tr><td colSpan={7} className="empty-state">Chargement des inscriptions...</td></tr>}
+                {visibleEnrollments.map((item) => (
                   <tr key={item.id}>
                     <td>
                       <div className="person-cell">
@@ -1812,7 +2103,7 @@ export function OperationsPage({
                     </td>
                   </tr>
                 ))}
-                {!filteredEnrollments.length && (
+                {!enrollmentsLoading && !filteredEnrollments.length && (
                   <tr>
                     <td colSpan={7} className="empty-state">
                       Aucune inscription.
@@ -1932,7 +2223,7 @@ export function OperationsPage({
             <UnassignedPaymentsPanel key={paymentsRefreshKey} onRefresh={onRefresh} />
           </>
         )}
-        {view === "Demandes de bourse" && applicationMeta.totalPages > 1 && (
+        {view === "Demandes de bourse" && !applicationsLoading && applicationMeta.totalPages > 1 && (
           <div className="pagination-bar">
             <span>
               Page {applicationMeta.page} sur {applicationMeta.totalPages} · {applicationMeta.total} demande(s)
@@ -1955,7 +2246,7 @@ export function OperationsPage({
             </div>
           </div>
         )}
-        {view === "Inscriptions" && enrollmentMeta.totalPages > 1 && (
+        {view === "Inscriptions" && !enrollmentsLoading && enrollmentMeta.totalPages > 1 && (
           <div className="pagination-bar">
             <span>
               Page {enrollmentMeta.page} sur {enrollmentMeta.totalPages} · {enrollmentMeta.total} inscription(s)
@@ -2046,7 +2337,7 @@ export function OperationsPage({
           busy={deleteBusy}
           error={deleteError}
           onClose={() => setModal(null)}
-          onConfirm={() => void confirmDelete()}
+          onConfirm={(reason) => void confirmDelete(reason)}
           onLearnMore={() => {
             setModal(null);
             onShowDeletionInfo(view === "Inscriptions" ? "Inscriptions" : "Demandes de bourse");

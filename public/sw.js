@@ -32,7 +32,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/_next/static/") || url.pathname === "/sw.js") {
+  if (
+    url.pathname.startsWith("/_next/static/") ||
+    url.pathname === "/sw.js" ||
+    /\.(?:jpe?g|png|webp)$/i.test(url.pathname)
+  ) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const update = fetch(request).then((response) => {

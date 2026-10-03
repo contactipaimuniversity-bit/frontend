@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { Application, Enrollment, formatDate, formatMoney, fullName } from "@/lib/types";
+import { Application, ApplicationFinance, Enrollment, formatDate, formatMoney, fullName } from "@/lib/types";
 
 type Paginated<T> = { data: T[]; meta: { totalPages: number } };
 type Balance = {
@@ -29,6 +29,15 @@ async function fetchAllPages<T>(resource: string): Promise<T[]> {
 
 function isPaid(balance: Balance) {
   return Number(balance.montantAttenduCumule) > 0 && Number(balance.resteAPayer) <= 0;
+}
+
+async function loadEnrollmentBalance(enrollmentId: string): Promise<Balance> {
+  const finance = await apiFetch<ApplicationFinance>(`/inscriptions/${enrollmentId}/finance`);
+  return {
+    montantAttenduCumule: finance.totalAttendu,
+    montantPayeCumule: finance.totalPaye,
+    resteAPayer: (Number(finance.totalAttendu) - Number(finance.totalPaye)).toFixed(2),
+  };
 }
 
 function displayDate(date?: string | null) {
@@ -143,7 +152,39 @@ function addStudentDetails(
   addField(pdf, 108, 242, 84, "Téléphone du tuteur", person?.tuteurTelephone ?? "-");
 }
 
-async function downloadScholarshipCertificate(application: Application) {
+function deliverCertificate(pdf: import("jspdf").jsPDF, fileName: string, shouldPrint = false) {
+  if (!shouldPrint) {
+    pdf.save(fileName);
+    return;
+  }
+  pdf.autoPrint();
+  const objectUrl = URL.createObjectURL(pdf.output("blob"));
+  const printFrame = document.createElement("iframe");
+  printFrame.title = "Certificat à imprimer";
+  printFrame.setAttribute("aria-hidden", "true");
+  printFrame.style.position = "fixed";
+  printFrame.style.inset = "0";
+  printFrame.style.width = "100vw";
+  printFrame.style.height = "100vh";
+  printFrame.style.opacity = "0";
+  printFrame.style.pointerEvents = "none";
+  printFrame.style.zIndex = "-1";
+  printFrame.style.border = "0";
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    window.clearTimeout(fallbackTimeout);
+    printFrame.remove();
+    URL.revokeObjectURL(objectUrl);
+  };
+  const fallbackTimeout = window.setTimeout(cleanup, 300_000);
+  printFrame.onerror = cleanup;
+  printFrame.src = objectUrl;
+  document.body.appendChild(printFrame);
+}
+
+async function downloadScholarshipCertificate(application: Application, shouldPrint = false) {
   const current = await apiFetch<Application>(`/demandes-bourse/${application.id}`);
   if (current.statut !== "ACCEPTEE" || !current.typeBourse) {
     throw new Error("Ce dossier n’est plus éligible à un certificat de bourse.");
@@ -187,12 +228,12 @@ async function downloadScholarshipCertificate(application: Application) {
     { align: "center" },
   );
   addCertificateFooter(pdf, current.id);
-  pdf.save(`certificat-bourse-${safeFileName(fullName(current.personne))}.pdf`);
+  deliverCertificate(pdf, `certificat-bourse-${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
 }
 
-async function downloadEnrollmentCertificate(item: PaidEnrollment) {
+async function downloadEnrollmentCertificate(item: PaidEnrollment, shouldPrint = false) {
   const current = await apiFetch<Enrollment>(`/inscriptions/${item.enrollment.id}`);
-  const balance = await apiFetch<Balance>(`/paiements/solde/inscription/${current.id}`);
+  const balance = await loadEnrollmentBalance(current.id);
   if (current.statut === "ABANDONNEE" || !isPaid(balance)) {
     throw new Error("Le paiement complet de cette inscription n’est pas confirmé.");
   }
@@ -240,7 +281,7 @@ async function downloadEnrollmentCertificate(item: PaidEnrollment) {
     { align: "center" },
   );
   addCertificateFooter(pdf, current.id);
-  pdf.save(`certificat-inscription-${safeFileName(fullName(current.personne))}.pdf`);
+  deliverCertificate(pdf, `certificat-inscription-${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
 }
 
 export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
@@ -251,6 +292,7 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
   const [verificationErrors, setVerificationErrors] = useState(0);
   const [error, setError] = useState("");
   const [downloadingId, setDownloadingId] = useState("");
+  const [generatingAction, setGeneratingAction] = useState<"download" | "print">("download");
 
   useEffect(() => {
     let active = true;
@@ -269,7 +311,7 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
           const results = await Promise.all(
             candidates.slice(index, index + 8).map(async (enrollment) => {
               try {
-                const balance = await apiFetch<Balance>(`/paiements/solde/inscription/${enrollment.id}`);
+                const balance = await loadEnrollmentBalance(enrollment.id);
                 return isPaid(balance) ? { enrollment, balance } : null;
               } catch {
                 failedChecks += 1;
@@ -294,11 +336,12 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
     return () => { active = false; };
   }, [refreshSignal]);
 
-  const generate = async (id: string, action: () => Promise<void>) => {
+  const generate = async (id: string, mode: "download" | "print", action: (shouldPrint: boolean) => Promise<void>) => {
     setDownloadingId(id);
+    setGeneratingAction(mode);
     setError("");
     try {
-      await action();
+      await action(mode === "print");
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Le certificat n’a pas pu être généré.");
     } finally {
@@ -347,9 +390,14 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
                   <span>{item.niveauDemande.replaceAll("_", " ")}</span>
                   <span>Décision · {formatDate(item.dateDecision ?? undefined)}</span>
                 </div>
-                <button className="outline-button small certificate-download" disabled={downloadingId === item.id} onClick={() => void generate(item.id, () => downloadScholarshipCertificate(item))}>
-                  {downloadingId === item.id ? "Génération…" : "↓ PDF"}
-                </button>
+                <div className="certificate-actions">
+                  <button className="outline-button small certificate-download" disabled={downloadingId === item.id} onClick={() => void generate(item.id, "download", (printWindow) => downloadScholarshipCertificate(item, printWindow))}>
+                    {downloadingId === item.id && generatingAction === "download" ? "Génération…" : "↓ PDF"}
+                  </button>
+                  <button className="outline-button small certificate-print" disabled={downloadingId === item.id} onClick={() => void generate(item.id, "print", (printWindow) => downloadScholarshipCertificate(item, printWindow))}>
+                    {downloadingId === item.id && generatingAction === "print" ? "Préparation…" : "Imprimer"}
+                  </button>
+                </div>
               </article>
             ))}
             {!applications.length && <p className="empty-state">Aucune demande avec bourse attribuée.</p>}
@@ -366,9 +414,14 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
                   <span>{item.enrollment.niveau}</span>
                   <span>Réglé · {formatMoney(item.balance.montantPayeCumule)}</span>
                 </div>
-                <button className="outline-button small certificate-download" disabled={downloadingId === item.enrollment.id} onClick={() => void generate(item.enrollment.id, () => downloadEnrollmentCertificate(item))}>
-                  {downloadingId === item.enrollment.id ? "Génération…" : "↓ PDF"}
-                </button>
+                <div className="certificate-actions">
+                  <button className="outline-button small certificate-download" disabled={downloadingId === item.enrollment.id} onClick={() => void generate(item.enrollment.id, "download", (printWindow) => downloadEnrollmentCertificate(item, printWindow))}>
+                    {downloadingId === item.enrollment.id && generatingAction === "download" ? "Génération…" : "↓ PDF"}
+                  </button>
+                  <button className="outline-button small certificate-print" disabled={downloadingId === item.enrollment.id} onClick={() => void generate(item.enrollment.id, "print", (printWindow) => downloadEnrollmentCertificate(item, printWindow))}>
+                    {downloadingId === item.enrollment.id && generatingAction === "print" ? "Préparation…" : "Imprimer"}
+                  </button>
+                </div>
               </article>
             ))}
             {!paidEnrollments.length && <p className="empty-state">Aucune inscription entièrement réglée.</p>}
