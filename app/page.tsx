@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { DashboardHome } from "@/components/dashboard-home";
+import { DailySummaryPage } from "@/components/daily-summary-page";
 import { OfflineSync, OfflineSyncPage } from "@/components/offline-sync";
 import { CertificatesPage } from "@/components/certificates-page";
 import { DashboardLayout, AppHeader } from "@/components/dashboard-layout";
@@ -390,6 +391,7 @@ export default function Home() {
           user={user}
           loading={loading}
           onOpen={setView}
+          onOpenDaily={() => setView("Résumé de la journée")}
           scholarshipTypes={scholarshipTypes}
           onOpenScholarship={(typeBourseId) => {
             setEnrollmentTypeBourseId(typeBourseId);
@@ -404,6 +406,8 @@ export default function Home() {
         <SettingsPage currentUser={user} onRefresh={refresh} />
       ) : activeView === "À propos du SGI" ? (
         <AboutSgiPage onBack={() => setView("Vue d'ensemble")} />
+      ) : activeView === "Résumé de la journée" ? (
+        <DailySummaryPage onBack={() => setView("Vue d'ensemble")} />
       ) : activeView === "Personnes" ? (
         <PeoplePage
           people={people}

@@ -18,6 +18,7 @@ export function DashboardHome({
   user,
   loading,
   onOpen,
+  onOpenDaily,
   scholarshipTypes,
   onOpenScholarship,
 }: {
@@ -27,6 +28,7 @@ export function DashboardHome({
   user: User | null;
   loading: boolean;
   onOpen: (view: "Demandes de bourse" | "Inscriptions" | "Paiements") => void;
+  onOpenDaily: () => void;
   scholarshipTypes: ScholarshipType[];
   onOpenScholarship: (typeBourseId: string) => void;
 }) {
@@ -77,6 +79,9 @@ export function DashboardHome({
     },
   ];
   const scholarshipCounts = summary?.inscriptionsParType ?? [];
+    const displayedScholarshipTypes = scholarshipTypes.length
+      ? scholarshipTypes
+      : scholarshipCounts.flatMap((item) => item.typeBourseId ? [{ id: item.typeBourseId, nom: item.typeBourse }] : []);
   const trend = summary?.tendance ?? [];
   const maxTrend = Math.max(1, ...trend.flatMap((item) => [item.demandes, item.inscriptions]));
   const chartY = (value: number) => 142 - (value / maxTrend) * 118;
@@ -91,12 +96,10 @@ export function DashboardHome({
             Voici ce qui se passe dans votre établissement aujourd&apos;hui.
           </p>
         </div>
-        <button
-          className="primary-button compact"
-          onClick={() => onOpen("Demandes de bourse")}
-        >
-          + Nouvelle demande
-        </button>
+        <div className="welcome-actions">
+          <button className="daily-summary-trigger" onClick={onOpenDaily}>Voir le récapitulatif de la journée <span>→</span></button>
+          <button className="primary-button compact" onClick={() => onOpen("Demandes de bourse")}>+ Nouvelle demande</button>
+        </div>
       </section>
       <section className="panel trend-panel">
         <div className="panel-heading">
@@ -124,20 +127,24 @@ export function DashboardHome({
             <h3>Effectifs par type de bourse</h3>
           </div>
         </div>
-        {scholarshipTypes.length ? (
+          {displayedScholarshipTypes.length ? (
           <div className="scholarship-type-grid">
-            {scholarshipTypes.map((type) => {
-              const count = scholarshipCounts.find((item) => item.typeBourseId === type.id)?.total ?? 0;
+              {displayedScholarshipTypes.map((type) => {
+              const count = scholarshipCounts.find((item) => item.typeBourseId === type.id);
+              const inscrits = count?.inscrits ?? count?.total ?? 0;
+              const acceptesEnAttente = count?.acceptesEnAttente ?? 0;
               return (
                 <button
                   className="scholarship-type-card"
                   key={type.id}
                   onClick={() => onOpenScholarship(type.id)}
-                  aria-label={`Afficher les ${count} inscriptions avec la bourse ${type.nom}`}
+                  aria-label={`${type.nom} : ${inscrits} inscrit(s), ${acceptesEnAttente} accepté(s) en attente d'inscription`}
                 >
                   <span>{type.nom}</span>
-                  <strong>{loading && !summary ? "..." : count}</strong>
-                  <small>{count === 1 ? "étudiant inscrit" : "étudiants inscrits"}</small>
+                  <div className="scholarship-type-metrics">
+                    <div><strong>{loading && !summary ? "..." : inscrits}</strong><small>{inscrits === 1 ? "inscrit" : "inscrits"}</small></div>
+                    <div><strong>{loading && !summary ? "..." : acceptesEnAttente}</strong><small>acceptés · en attente d’inscription</small></div>
+                  </div>
                   <span className="scholarship-card-arrow" aria-hidden="true">→</span>
                 </button>
               );

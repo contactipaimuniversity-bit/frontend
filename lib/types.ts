@@ -23,7 +23,7 @@ export type Summary = {
   demandesTotal: number;
   effectifsTotal: number;
   inscriptionsTotal: number;
-  inscriptionsParType: Array<{ typeBourseId: string | null; typeBourse: string; total: number }>;
+  inscriptionsParType: Array<{ typeBourseId: string | null; typeBourse: string; total: number; inscrits: number; acceptesEnAttente: number }>;
   totalEncaisse: string;
   resteBourses: string;
   resteInscriptions: string;
@@ -200,7 +200,22 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Suppression des dossiers" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Profil" | "Paramètres" | "À propos du SGI";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Profil" | "Paramètres" | "À propos du SGI";
+
+export type DailyActivityReport = {
+  date: string;
+  total: number;
+  parCategorie: Record<string, number>;
+  activites: Array<{
+    id: string;
+    date: string;
+    action: string;
+    detail: string;
+    utilisateur: string | null;
+    categorie: string;
+    montant?: string;
+  }>;
+};
 
 export const statusLabels: Record<string, string> = {
   EN_ATTENTE: "En attente",
