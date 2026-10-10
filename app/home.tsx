@@ -34,7 +34,7 @@ import {
   ReportsPage,
 } from "@/components/additional-pages";
 import { apiFetch, notifySessionChanged } from "@/lib/api";
-import { applyColorMode, applyColorPreset, applyFont, applyTextSize, readColorMode, readColorPreset, readFont, readTextSize } from "@/lib/theme";
+import { applyColorMode, applyColorPreset, applyFont, applyTextSize, applyUiStyle, readColorMode, readColorPreset, readFont, readTextSize, readUiStyle } from "@/lib/theme";
 import { OfflineAccount } from "@/lib/offline";
 import { forgetDataKey } from "@/lib/local-crypto";
 import { canAccessView, hasAccess } from "@/lib/access";
@@ -213,15 +213,19 @@ export default function Home() {
   useEffect(() => {
     const syncColorPreset = () => applyColorPreset(readColorPreset(), false);
     const syncColorMode = () => applyColorMode(readColorMode(), false);
+    const syncUiStyle = () => applyUiStyle(readUiStyle(), false);
     syncColorPreset();
     syncColorMode();
+    syncUiStyle();
     applyFont(readFont(), false);
     applyTextSize(readTextSize(), false);
     window.addEventListener("storage", syncColorPreset);
     window.addEventListener("storage", syncColorMode);
+    window.addEventListener("storage", syncUiStyle);
     return () => {
       window.removeEventListener("storage", syncColorPreset);
       window.removeEventListener("storage", syncColorMode);
+      window.removeEventListener("storage", syncUiStyle);
     };
   }, []);
 

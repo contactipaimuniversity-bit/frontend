@@ -34,6 +34,9 @@ const DOCUMENT_LABELS: Record<string, string> = {
   PV_DELIBERATION: "Procès-verbal de délibération",
   BULLETIN_PAIE: "Bulletin de paie",
   CARTE_ETUDIANT: "Carte d'étudiant",
+  RELEVE_NOTES: "Relevé de notes annuel",
+  ATTESTATION_REUSSITE: "Attestation de réussite",
+  DIPLOME: "Diplôme",
 };
 const DOSSIER_LABELS: Record<string, string> = {
   "demande-bourse": "Demande de bourse",

@@ -1,10 +1,14 @@
 "use client";
 
-import { generatedByLine } from "@/lib/session";
+import { currentUser, generatedByLine } from "@/lib/session";
+import { hasAccess } from "@/lib/access";
 import { ActionIcon } from "@/components/action-icon";
-import { askConfirm } from "@/components/feedback";
+import { PaymentModeSelect } from "@/components/payment-mode";
+import { askConfirm, askReason, toast } from "@/components/feedback";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { CalendarClock, Link2, ScrollText, Wallet } from "lucide-react";
+import { HubBack, HubCard, HubCards } from "@/components/ui-kit";
 import { createPortal } from "react-dom";
 import { apiFetch } from "@/lib/api";
 import { confirmNewPerson } from "@/lib/duplicates";
@@ -38,6 +42,7 @@ import {
   ViewName,
   formatDate,
   formatMoney,
+  paymentModeLabel,
   pdfSafe,
   fullName,
   statusLabels,
@@ -204,6 +209,7 @@ type DossierPreparationState = {
   statuses: Record<string, string>;
   montant: string;
   typePaiement: string;
+  modePaiement: string;
   elementId: string;
 };
 
@@ -211,6 +217,7 @@ const EMPTY_PREPARATION: DossierPreparationState = {
   statuses: {},
   montant: "",
   typePaiement: "FRAIS_DEPOT",
+  modePaiement: "ESPECES",
   elementId: "",
 };
 
@@ -270,6 +277,7 @@ function DossierPreparation({
           />
         </label>
       </div>
+      {value.montant && <PaymentModeSelect value={value.modePaiement} onChange={(modePaiement) => onChange({ ...value, modePaiement })} />}
       {value.montant && <ModalChoice required label="Affecter à l&apos;obligation financière" placeholder="Sélectionner une obligation" choices={catalogue.filter((element) => element.montantAttendu !== null && element.montantAttendu !== undefined).map((element) => ({ value: element.id, label: element.nom, detail: formatMoney(element.montantAttendu ?? 0) }))} value={value.elementId} onChange={(elementId) => onChange({ ...value, elementId })} />}
     </section>
   );
@@ -434,6 +442,16 @@ function CreateEnrollment({
     ...EMPTY_PREPARATION,
     typePaiement: "FRAIS_INSCRIPTION",
   });
+  // Niveaux et filières du référentiel : le choix se fait dans la liste, sans rien retaper.
+  const [levels, setLevels] = useState<EnrollmentLevel[]>(DEFAULT_LEVELS);
+  const [programs, setPrograms] = useState<Array<{ id: string; code: string; nom: string; actif: boolean }>>([]);
+  useEffect(() => {
+    void apiFetch<EnrollmentLevel[]>("/academique/niveaux").then((list) => { if (list.length) setLevels(list); }).catch(() => undefined);
+    void apiFetch<Array<{ id: string; code: string; nom: string; actif: boolean }>>("/academique/filieres").then(setPrograms).catch(() => undefined);
+  }, []);
+  const openPrograms = programs.filter((program) => program.actif);
+  const program = programs.find((item) => item.nom === form.filiere);
+  const level = levels.find((item) => item.code === form.niveau);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const selectBourse = async (demandeBourseId: string) => {
@@ -461,7 +479,7 @@ function CreateEnrollment({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.niveau) {
-      setError("Sélectionnez le niveau L1 ou L2.");
+      setError("Sélectionnez le niveau.");
       return;
     }
     if (form.viaBourse && !form.demandeBourseId) {
@@ -496,6 +514,7 @@ function CreateEnrollment({
       }
       const body = {
         ...form,
+        filiereId: program?.id,
         personneId: form.viaBourse ? selectedBourse?.personne?.id : undefined,
         nouvellePersonne: form.viaBourse ? undefined : form.nouvellePersonne,
         demandeBourseId: form.viaBourse ? form.demandeBourseId : undefined,
@@ -585,27 +604,42 @@ function CreateEnrollment({
           label="Niveau"
           placeholder="Sélectionner un niveau"
           value={form.niveau}
-          choices={[{ value: "L1", label: "L1 · Première année" }, { value: "L2", label: "L2 · Deuxième année" }]}
+          choices={levels.filter((item) => item.actif !== false).map((item) => ({ value: item.code, label: `${item.code} · ${item.libelle}`, detail: item.cycle }))}
           onChange={(niveau) => {
             setForm({ ...form, niveau });
             setPreparation((current) => ({ ...current, elementId: "" }));
           }}
         />
-        <label>
-          Filière
-          <input
+        {openPrograms.length ? (
+          <ModalChoice
             required
-            list="filieres-referentiel"
+            label="Filière"
+            placeholder="Sélectionner une filière"
             value={form.filiere}
-            onChange={(event) =>
-              setForm({ ...form, filiere: event.target.value })
-            }
+            choices={[
+              // Filière reprise d'un dossier de bourse et absente du référentiel : elle reste proposée.
+              ...(form.filiere && !openPrograms.some((item) => item.nom === form.filiere) ? [{ value: form.filiere, label: form.filiere, detail: "Hors référentiel" }] : []),
+              ...openPrograms.map((item) => ({ value: item.nom, label: item.nom, detail: item.code })),
+            ]}
+            onChange={(filiere) => setForm({ ...form, filiere })}
           />
-        </label>
+        ) : (
+          <label>
+            Filière
+            <input
+              required
+              list="filieres-referentiel"
+              value={form.filiere}
+              onChange={(event) =>
+                setForm({ ...form, filiere: event.target.value })
+              }
+            />
+          </label>
+        )}
         {form.niveau ? (
           <DossierPreparation
             contexte="INSCRIPTION_DIRECTE"
-            niveauApplicable={form.niveau === "L1" ? "PREMIERE_ANNEE" : "DEUXIEME_ANNEE"}
+            niveauApplicable={!level || level.rang <= 1 ? "PREMIERE_ANNEE" : level.rang === 2 ? "DEUXIEME_ANNEE" : "DEUXIEME_ANNEE_PLUS"}
             value={preparation}
             onChange={setPreparation}
           />
@@ -724,6 +758,13 @@ function CreateProspect({
 }
 
 // Filières du référentiel académique, proposées à la saisie pour que l'inscription se rattache ensuite à sa classe.
+type EnrollmentLevel = { code: string; libelle: string; cycle: string; rang: number; actif?: boolean };
+// Utilisés tant que le référentiel n'a pas répondu (hors ligne, par exemple).
+const DEFAULT_LEVELS: EnrollmentLevel[] = [
+  { code: "L1", libelle: "Première année", cycle: "Licence", rang: 1 },
+  { code: "L2", libelle: "Deuxième année", cycle: "Licence", rang: 2 },
+];
+
 function ProgramSuggestions() {
   const [programs, setPrograms] = useState<Array<{ id: string; nom: string; actif: boolean }>>([]);
   useEffect(() => {
@@ -765,6 +806,7 @@ function CreatePayment({
     dossierId: "",
     montant: "",
     typePaiement: "FRAIS_DEPOT",
+    modePaiement: "ESPECES",
     echeanceId: "",
   });
   const [matchingApplications, setMatchingApplications] = useState(applications);
@@ -803,6 +845,7 @@ function CreatePayment({
           [form.dossierType]: form.dossierId,
           montant: form.montant,
           typePaiement: form.typePaiement,
+          modePaiement: form.modePaiement,
           echeanceId: form.echeanceId || undefined,
         }),
       });
@@ -881,6 +924,7 @@ function CreatePayment({
             onChange={(value) => setForm({ ...form, echeanceId: value })}
           />
         )}
+        <PaymentModeSelect value={form.modePaiement} onChange={(modePaiement) => setForm({ ...form, modePaiement })} />
         {error && <p className="form-error">{error}</p>}
         <FormActions busy={busy} onCancel={onClose} />
       </form>
@@ -1303,6 +1347,7 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
   const [reloadKey, setReloadKey] = useState(0);
   const [collectId, setCollectId] = useState("");
   const [montant, setMontant] = useState("");
+  const [modePaiement, setModePaiement] = useState("ESPECES");
   const [busy, setBusy] = useState(false);
   const [collectError, setCollectError] = useState("");
   const resource = dossierType === "demande-bourse" ? "demandes-bourse" : "inscriptions";
@@ -1342,6 +1387,7 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
           [dossierType === "demande-bourse" ? "demandeBourseId" : "inscriptionId"]: dossierId,
           elementDossierId: target.id,
           montant: String(value),
+          modePaiement,
           // Les frais de dépôt ne concernent que les demandes de bourse.
           typePaiement: dossierType === "demande-bourse" && /d[ée]p[oô]t/i.test(target.nom) ? "FRAIS_DEPOT" : "FRAIS_INSCRIPTION",
         }),
@@ -1389,6 +1435,7 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
                 <input required autoFocus type="number" min="0.01" max={maximum} step="0.01" value={montant} onChange={(event) => setMontant(event.target.value)} />
               </label>
               <p className="panel-subtitle">Maximum : {formatMoney(maximum)} (reste à payer)</p>
+              <PaymentModeSelect value={modePaiement} onChange={setModePaiement} />
               {collectError && <p className="form-error">{collectError}</p>}
               <FormActions busy={busy} onCancel={() => setCollectId("")} />
             </form>
@@ -1495,7 +1542,14 @@ const paymentLabels: Record<string, string> = {
   ECHEANCE_BOURSE: "Échéance de bourse",
   REMBOURSEMENT: "Remboursement",
   REPORT: "Report de trop-perçu",
+  ANNULATION: "Annulation",
 };
+
+// Seul un encaissement s'annule ; les régularisations restent telles quelles.
+const cancellablePaymentTypes = ["FRAIS_DEPOT", "FRAIS_INSCRIPTION", "ECHEANCE_BOURSE"];
+
+// Numéro de reçu suivi ; une saisie hors ligne garde sa référence provisoire jusqu'à l'envoi.
+const receiptNumber = (payment: PaymentTransaction) => payment.numeroRecu ?? `IPAIM-${payment.id.slice(0, 8).toUpperCase()}`;
 
 function paymentDate(value: string) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -1561,7 +1615,7 @@ async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation:
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const name = fullName(payment.personne);
-  const receiptReference = `IPAIM-${payment.id.slice(0, 8).toUpperCase()}`;
+  const receiptReference = receiptNumber(payment);
 
   pdf.setFillColor(20, 40, 92);
   pdf.rect(0, 0, pageWidth, 54, "F");
@@ -1652,6 +1706,10 @@ async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation:
   addPair([
     ["Obligation / échéance", payment.obligation ?? payment.echeance ?? "Paiement non affecté"],
     ["État d’affectation", payment.affecte ? "Affecté au dossier" : "En attente d’affectation"],
+  ]);
+  addPair([
+    ["Mode de paiement", paymentModeLabel(payment.modePaiement)],
+    ["Encaissé par", payment.saisiParNom ?? "-"],
   ]);
 
   const amountY = rowY + 6;
@@ -1821,7 +1879,7 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
           </header>
           {payment._offline && <p className="receipt-provisional">Reçu provisoire · paiement enregistré hors ligne, en attente de confirmation par le serveur</p>}
           <div className="receipt-reference">
-            <div><span>Référence du reçu</span><strong>IPAIM-{payment.id.slice(0, 8).toUpperCase()}</strong></div>
+            <div><span>Reçu n°</span><strong>{receiptNumber(payment)}</strong></div>
             <div><span>Date du paiement</span><strong>{paymentDate(payment.datePaiement)}</strong></div>
           </div>
           <p className="receipt-intro">Reçu de la part de</p>
@@ -1834,6 +1892,8 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
             <div><span>Nature du paiement</span><strong>{paymentLabels[payment.typePaiement] ?? payment.typePaiement}</strong></div>
             <div><span>Obligation / échéance</span><strong>{payment.obligation ?? payment.echeance ?? "Paiement non affecté"}</strong></div>
             <div><span>État d’affectation</span><strong>{payment.affecte ? "Affecté au dossier" : "En attente d’affectation"}</strong></div>
+            <div><span>Mode de paiement</span><strong>{paymentModeLabel(payment.modePaiement)}</strong></div>
+            <div><span>Encaissé par</span><strong>{payment.saisiParNom ?? "-"}</strong></div>
           </section>
           <div className="receipt-amount"><span>Montant reçu</span><strong>{formatMoney(payment.montant)}</strong></div>
           <section className="receipt-situation" aria-label="Situation du dossier">
@@ -1885,13 +1945,35 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
   ), document.body);
 }
 
-function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange }: { refreshKey: number; dateOrder: DateOrder; onDateOrderChange: (value: DateOrder) => void }) {
+function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange, onChanged }: { refreshKey: number; dateOrder: DateOrder; onDateOrderChange: (value: DateOrder) => void; onChanged: () => void }) {
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dossierFilter, setDossierFilter] = useState("");
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentTransaction | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [page, setPage] = useState(1);
+  const [canCancel] = useState(() => hasAccess(currentUser(), "payment-cancellation", "edit"));
+  // Un paiement saisi par erreur ne s'efface pas : une ligne inverse, motivée, le neutralise.
+  const cancel = async (payment: PaymentTransaction) => {
+    const motif = await askReason({
+      title: `Annuler le paiement de ${formatMoney(payment.montant)}`,
+      message: `${fullName(payment.personne)} · ${payment.obligation ?? payment.echeance ?? "non affecté"}. Une ligne inverse sera ajoutée au journal : rien ne s'efface. Si de l'argent a réellement été reçu, rendez-le au payeur.`,
+      confirmLabel: "Annuler le paiement",
+      danger: true,
+      reason: { label: "Motif de l'annulation", minLength: 5, placeholder: "Ex. : saisi sur le mauvais étudiant" },
+    });
+    if (!motif) return;
+    try {
+      await apiFetch(`/paiements/${payment.id}/annulation`, { method: "POST", silent: true, body: JSON.stringify({ motif }) });
+      toast("Paiement annulé. Ressaisissez le bon paiement si nécessaire.");
+      setReloadKey((current) => current + 1);
+      onChanged();
+    } catch (failure) {
+      toast(failure instanceof Error ? failure.message : "L'annulation n'a pas pu être enregistrée.", "error");
+    }
+  };
   useEffect(() => {
     let active = true;
     void apiFetch<PaymentTransaction[]>(`/paiements?ordreDate=${dateOrder}`)
@@ -1899,7 +1981,7 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange }: { refreshK
       .catch((failure) => { if (active) setError(failure instanceof Error ? failure.message : "Historique indisponible."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [refreshKey, dateOrder]);
+  }, [refreshKey, dateOrder, reloadKey]);
   const total = payments.reduce((sum, payment) => sum + Number(payment.montant), 0);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredPayments = payments.filter((payment) => {
@@ -1914,22 +1996,29 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange }: { refreshK
       payment.obligation,
       payment.echeance,
       payment.motif,
+      payment.numeroRecu,
+      payment.saisiParNom,
+      paymentModeLabel(payment.modePaiement),
       paymentLabels[payment.typePaiement] ?? payment.typePaiement,
     ].filter(Boolean).join(" ").toLocaleLowerCase();
     return searchable.includes(normalizedSearch);
   });
+  const pageSize = 20;
+  const pageCount = Math.max(1, Math.ceil(filteredPayments.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagePayments = filteredPayments.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   return <>
     <section className="panel full-panel payment-history-panel">
       <div className="panel-heading">
         <div><p className="eyebrow">Journal des encaissements</p><h3>{filteredPayments.length} transaction(s) affichée(s)</h3></div>
-        <div className="payment-history-total">Total encaissé (remboursements déduits) <strong>{formatMoney(total)}</strong></div>
+        <div className="payment-history-total">Total encaissé (remboursements et annulations déduits) <strong>{formatMoney(total)}</strong></div>
       </div>
         <div className="payment-search-toolbar">
         <label className="payment-search-field">Rechercher une transaction
-          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nom, prénom, téléphone, dossier ou référence..." />
+          <input type="search" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Nom, prénom, téléphone, dossier ou référence..." />
         </label>
         <label className="payment-filter-field">Type de dossier
-          <select value={dossierFilter} onChange={(event) => setDossierFilter(event.target.value)}>
+          <select value={dossierFilter} onChange={(event) => { setDossierFilter(event.target.value); setPage(1); }}>
             <option value="">Tous les dossiers</option>
             <option value="demande-bourse">Demandes de bourse</option>
             <option value="inscription">Inscriptions</option>
@@ -1940,10 +2029,19 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange }: { refreshK
       </div>
       {error && <p className="form-error">{error}</p>}
       {loading && <p className="empty-state">Chargement de l&apos;historique...</p>}
-      {!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Payeur</th><th>Dossier</th><th>Obligation / échéance</th><th>Type</th><th>Montant</th><th>État</th><th>Reçu</th></tr></thead><tbody>
-        {filteredPayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td>{payment.typePaiement === "REMBOURSEMENT" ? <span className="status status-refusee">Remboursé</span> : payment.typePaiement === "REPORT" ? <span className="status status-neutre">Report</span> : <span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span>}{payment._offline && <small className="local-payment-note">En attente de synchronisation</small>}</td><td>{payment.typePaiement !== "REPORT" && <button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label={payment.typePaiement === "REMBOURSEMENT" ? "Imprimer le reçu de remboursement" : "Imprimer le reçu"}><ActionIcon name="print" /></button>}</td></tr>)}
-        {!filteredPayments.length && <tr><td colSpan={8} className="empty-state">{payments.length ? "Aucune transaction ne correspond à cette recherche." : "Aucune transaction enregistrée."}</td></tr>}
+      {!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Payeur</th><th>Dossier</th><th>Obligation / échéance</th><th>Type</th><th>Montant</th><th>Mode</th><th>Encaissé par</th><th>État</th><th>Actions</th></tr></thead><tbody>
+        {pagePayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td>{payment.typePaiement === "REPORT" ? "—" : paymentModeLabel(payment.modePaiement)}</td><td>{payment.saisiParNom ?? "—"}</td><td>{payment.typePaiement === "REMBOURSEMENT" ? <span className="status status-refusee">Remboursé</span> : payment.typePaiement === "REPORT" ? <span className="status status-neutre">Report</span> : payment.typePaiement === "ANNULATION" ? <span className="status status-neutre" title={payment.motif ?? undefined}>Annulation</span> : payment.annule ? <span className="status status-refusee">Annulé</span> : <span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span>}{payment._offline && <small className="local-payment-note">En attente de synchronisation</small>}</td><td>{payment.typePaiement !== "REPORT" && payment.typePaiement !== "ANNULATION" && !payment.annule && <button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label={payment.typePaiement === "REMBOURSEMENT" ? "Imprimer le reçu de remboursement" : "Imprimer le reçu"}><ActionIcon name="print" /></button>}{canCancel && !payment.annule && !payment._offline && cancellablePaymentTypes.includes(payment.typePaiement) && <button className="row-action icon-action" onClick={() => void cancel(payment)} aria-label="Annuler ce paiement saisi par erreur"><ActionIcon name="cancel" /></button>}</td></tr>)}
+        {!filteredPayments.length && <tr><td colSpan={10} className="empty-state">{payments.length ? "Aucune transaction ne correspond à cette recherche." : "Aucune transaction enregistrée."}</td></tr>}
       </tbody></table></div>}
+      {!loading && pageCount > 1 && (
+        <div className="pagination-bar">
+          <span>Page {currentPage} sur {pageCount} · {filteredPayments.length} transaction(s)</span>
+          <div className="pagination-actions">
+            <button className="outline-button small" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Précédente</button>
+            <button className="outline-button small" disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Suivante</button>
+          </div>
+        </div>
+      )}
     </section>
     {selectedReceipt && (selectedReceipt.typePaiement === "REMBOURSEMENT"
       ? <RefundReceipt refund={selectedReceipt} onClose={() => setSelectedReceipt(null)} />
@@ -2191,6 +2289,104 @@ export function DossierDetailsPage({
   );
 }
 
+const localDay = (value: string | Date) => new Date(value).toLocaleDateString("fr-CA");
+
+// Contrôle de caisse : ce que chaque personne a encaissé sur une période, par mode de paiement.
+function CashControl({ payments }: { payments: PaymentTransaction[] }) {
+  const today = localDay(new Date());
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(today);
+  const rows = new Map<string, { cashier: string; mode: string; count: number; total: number }>();
+  for (const payment of payments) {
+    // Un report déplace un versement entre deux obligations : il ne touche pas la caisse.
+    if (payment.typePaiement === "REPORT") continue;
+    const day = localDay(payment.datePaiement);
+    if (day < from || day > to) continue;
+    const cashier = payment.saisiParNom ?? "Non renseigné";
+    const mode = paymentModeLabel(payment.modePaiement);
+    const row = rows.get(`${cashier}|${mode}`) ?? { cashier, mode, count: 0, total: 0 };
+    row.count += 1;
+    row.total += Number(payment.montant);
+    rows.set(`${cashier}|${mode}`, row);
+  }
+  const lines = [...rows.values()].sort((a, b) => a.cashier.localeCompare(b.cashier) || a.mode.localeCompare(b.mode));
+  const total = lines.reduce((sum, line) => sum + line.total, 0);
+  return (
+    <section className="panel full-panel">
+      <div className="panel-heading">
+        <div><p className="eyebrow">Contrôle de caisse</p><h3>Encaissé par caissier et par mode</h3><p className="panel-subtitle">Remboursements et annulations déduits. Comparez la ligne « Espèces » de chaque caissier à l&apos;argent qu&apos;il remet.</p></div>
+        <div className="payment-history-total">Total de la période <strong>{formatMoney(total)}</strong></div>
+      </div>
+      <div className="payment-search-toolbar hub-period">
+        <label>Du<input type="date" value={from} max={to} onChange={(event) => setFrom(event.target.value || today)} /></label>
+        <label>Au<input type="date" value={to} min={from} max={today} onChange={(event) => setTo(event.target.value || today)} /></label>
+      </div>
+      <div className="table-wrap"><table><thead><tr><th>Caissier</th><th>Mode</th><th>Opérations</th><th>Total</th></tr></thead><tbody>
+        {lines.map((line) => <tr key={`${line.cashier}|${line.mode}`}><td className="strong-cell">{line.cashier}</td><td>{line.mode}</td><td>{line.count}</td><td className="strong-cell">{formatMoney(line.total)}</td></tr>)}
+        {!lines.length && <tr><td colSpan={4} className="empty-state">Aucun encaissement sur cette période.</td></tr>}
+      </tbody></table></div>
+    </section>
+  );
+}
+
+function LatePaymentsPanel({ latePayments }: { latePayments: LatePayment[] }) {
+  return (
+    <section className="panel full-panel">
+      <div className="panel-heading">
+        <div><p className="eyebrow">Recouvrement</p><h3>{latePayments.length} échéance(s) en retard</h3></div>
+        <div className="payment-history-total">Reste à payer <strong>{formatMoney(latePayments.reduce((total, item) => total + Number(item.resteAPayer), 0))}</strong></div>
+      </div>
+      <div className="table-wrap"><table><thead><tr><th>Échéance</th><th>Type</th><th>Date limite</th><th>Attendu</th><th>Payé</th><th>Reste</th></tr></thead><tbody>
+        {latePayments.map((item, index) => (
+          <tr key={`${item.echeance.libelle}-${index}`}>
+            <td className="strong-cell">{item.echeance.libelle}</td>
+            <td>{item.echeance.typeBourse?.nom ?? "-"}</td>
+            <td>{formatDate(item.echeance.dateEcheance)}</td>
+            <td>{formatMoney(item.montantAttendu)}</td>
+            <td>{formatMoney(item.montantPaye)}</td>
+            <td><span className="status status-refusee">{formatMoney(item.resteAPayer)}</span></td>
+          </tr>
+        ))}
+        {!latePayments.length && <tr><td colSpan={6} className="empty-state">Aucun paiement en retard.</td></tr>}
+      </tbody></table></div>
+    </section>
+  );
+}
+
+type PaymentsSection = "journal" | "retards" | "affectation" | "caisse";
+
+// Accueil de la page Paiements : une carte par tâche, chacune ouvre son écran.
+function PaymentsHub({ latePayments, refreshKey, dateOrder, onDateOrderChange, onChanged, onRefresh }: { latePayments: LatePayment[]; refreshKey: number; dateOrder: DateOrder; onDateOrderChange: (value: DateOrder) => void; onChanged: () => void; onRefresh: () => void }) {
+  const [section, setSection] = useState<PaymentsSection | null>(null);
+  const [payments, setPayments] = useState<PaymentTransaction[]>([]);
+  const [unassigned, setUnassigned] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    void apiFetch<PaymentTransaction[]>("/paiements?ordreDate=desc").then((result) => { if (active) setPayments(result); }).catch(() => undefined);
+    void apiFetch<UnassignedPayment[]>("/paiements/non-affectes").then((result) => { if (active) setUnassigned(result.length); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [refreshKey, section]);
+  const today = localDay(new Date());
+  const collectedToday = payments.filter((payment) => payment.typePaiement !== "REPORT" && localDay(payment.datePaiement) === today).reduce((sum, payment) => sum + Number(payment.montant), 0);
+  const lateRemaining = latePayments.reduce((total, item) => total + Number(item.resteAPayer), 0);
+  const cards: HubCard<PaymentsSection>[] = [
+    { key: "journal", icon: ScrollText, title: "Journal des encaissements", value: `${payments.length}`, detail: `transaction(s) · ${formatMoney(payments.reduce((sum, payment) => sum + Number(payment.montant), 0))} encaissés`, info: "Toutes les opérations, de la plus récente à la plus ancienne : encaissements, remboursements, reports et annulations. Recherchez une transaction, réimprimez un reçu ou annulez un paiement saisi par erreur." },
+    { key: "retards", icon: CalendarClock, title: "Échéances en retard", value: `${latePayments.length}`, detail: latePayments.length ? `${formatMoney(lateRemaining)} restent à recouvrer` : "Aucun retard de paiement", tone: latePayments.length ? "alert" : undefined, info: "Les échéances de bourse dont la date limite est passée et qui ne sont pas soldées, avec le montant attendu, payé et restant. C'est la liste des relances à faire." },
+    { key: "affectation", icon: Link2, title: "Paiements à affecter", value: unassigned === null ? "…" : `${unassigned}`, detail: unassigned ? "versement(s) sans obligation" : "Tous les paiements sont affectés", tone: unassigned ? "warn" : undefined, info: "Les versements enregistrés sans préciser ce qu'ils règlent. Rattachez chacun à une obligation du dossier pour que le reste à payer soit juste." },
+    { key: "caisse", icon: Wallet, title: "Contrôle de caisse", value: formatMoney(collectedToday), detail: "encaissés aujourd'hui", info: "Le total encaissé par caissier et par mode de paiement sur une période. En fin de journée, comparez la ligne « Espèces » de chaque caissier à l'argent qu'il remet." },
+  ];
+  if (!section) return <HubCards cards={cards} onOpen={setSection} />;
+  return (
+    <>
+      <HubBack label="Paiements" onBack={() => setSection(null)} />
+      {section === "journal" && <PaymentHistory refreshKey={refreshKey} dateOrder={dateOrder} onDateOrderChange={onDateOrderChange} onChanged={onChanged} />}
+      {section === "retards" && <LatePaymentsPanel latePayments={latePayments} />}
+      {section === "affectation" && <UnassignedPaymentsPanel key={refreshKey} onRefresh={onRefresh} />}
+      {section === "caisse" && <CashControl payments={payments} />}
+    </>
+  );
+}
+
 export function OperationsPage({
   view,
   dateOrder,
@@ -2380,14 +2576,15 @@ export function OperationsPage({
         </div>
         {addButton}
       </div>
+      {view === "Paiements" ? (
+        <PaymentsHub latePayments={latePayments} refreshKey={paymentsRefreshKey} dateOrder={dateOrder} onDateOrderChange={onDateOrderChange} onChanged={() => { setPaymentsRefreshKey((current) => current + 1); onRefresh(); }} onRefresh={onRefresh} />
+      ) : (
       <section className="panel full-panel">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Registre</p>
             <h3>
-              {view === "Paiements"
-                ? "Échéances en retard"
-                : `Liste des ${view.toLowerCase()}`}
+              {`Liste des ${view.toLowerCase()}`}
             </h3>
           </div>
           <div className="toolbar">
@@ -2452,7 +2649,7 @@ export function OperationsPage({
                 <button className="outline-button small">Rechercher</button>
               </form>
             )}
-            {view !== "Paiements" && (
+            {(
               <select
                 value={selectedStatus}
                 onChange={(event) => {
@@ -2480,9 +2677,7 @@ export function OperationsPage({
                 ))}
               </select>
             )}
-            {view !== "Paiements" && (
-              <DateOrderControl value={dateOrder} onChange={onDateOrderChange} />
-            )}
+            <DateOrderControl value={dateOrder} onChange={onDateOrderChange} />
             <button className="outline-button small" onClick={onRefresh}>
               Actualiser
             </button>
@@ -2679,62 +2874,6 @@ export function OperationsPage({
             </table>
           </div>
         )}
-        {view === "Paiements" && (
-          <>
-            <PaymentHistory refreshKey={paymentsRefreshKey} dateOrder={dateOrder} onDateOrderChange={onDateOrderChange} />
-            <div className="payment-summary">
-              <strong>{latePayments.length}</strong>
-              <span>échéance(s) en retard</span>
-              <strong>
-                {formatMoney(
-                  latePayments.reduce(
-                    (total, item) => total + Number(item.resteAPayer),
-                    0,
-                  ),
-                )}
-              </strong>
-              <span>reste à payer</span>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Échéance</th>
-                    <th>Type</th>
-                    <th>Date limite</th>
-                    <th>Attendu</th>
-                    <th>Payé</th>
-                    <th>Reste</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {latePayments.map((item, index) => (
-                    <tr key={`${item.echeance.libelle}-${index}`}>
-                      <td className="strong-cell">{item.echeance.libelle}</td>
-                      <td>{item.echeance.typeBourse?.nom ?? "-"}</td>
-                      <td>{formatDate(item.echeance.dateEcheance)}</td>
-                      <td>{formatMoney(item.montantAttendu)}</td>
-                      <td>{formatMoney(item.montantPaye)}</td>
-                      <td>
-                        <span className="status status-refusee">
-                          {formatMoney(item.resteAPayer)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {!latePayments.length && (
-                    <tr>
-                      <td colSpan={6} className="empty-state">
-                        Aucun paiement en retard.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <UnassignedPaymentsPanel key={paymentsRefreshKey} onRefresh={onRefresh} />
-          </>
-        )}
         {view === "Demandes de bourse" && !applicationsLoading && applicationMeta.totalPages > 1 && (
           <div className="pagination-bar">
             <span>
@@ -2805,6 +2944,7 @@ export function OperationsPage({
           </div>
         )}
       </section>
+      )}
       {modal === "application" && (
         <CreateApplication
           people={people}

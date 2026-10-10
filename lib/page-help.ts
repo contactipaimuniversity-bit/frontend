@@ -78,7 +78,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
     ],
     steps: [
       { title: "Choisir le type", detail: "« Nouvelle inscription », puis « Inscription directe » (nouvelle personne) ou « Inscription via une bourse » (vous choisissez alors le dossier de bourse accepté : le niveau et la filière sont repris)." },
-      { title: "Renseigner l'inscription", detail: "Saisissez l'année scolaire, le niveau (L1 ou L2) et la filière. Les pièces et frais applicables s'affichent dès que le niveau est choisi." },
+      { title: "Renseigner l'inscription", detail: "Saisissez l'année scolaire, puis choisissez le niveau et la filière dans les listes du référentiel. Les pièces et frais applicables s'affichent dès que le niveau est choisi." },
       { title: "Ajouter la photo (facultatif)", detail: "Prenez la photo avec la caméra ou choisissez une image dans la galerie. Vous pouvez enregistrer sans photo et la joindre plus tard." },
       { title: "Préparer le dossier", detail: "Marquez les pièces déjà fournies et saisissez le premier versement s'il a lieu à l'inscription." },
       { title: "Suivre et clôturer", detail: "Cliquez sur le nom de l'étudiant pour ouvrir sa fiche, ou utilisez « Pièces » et « Finance » sur la ligne. « Modifier » change le statut : En cours, Complète ou Abandonnée." },
@@ -173,10 +173,13 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       "Consulter l'historique des transactions, éditer un reçu et suivre les échéances en retard.",
     ],
     steps: [
-      { title: "Enregistrer un paiement", detail: "Ouvrez le formulaire de paiement, choisissez le type de dossier puis le dossier, saisissez le montant et l'obligation ou l'échéance concernée." },
+      { title: "Enregistrer un paiement", detail: "Ouvrez le formulaire de paiement, choisissez le type de dossier puis le dossier, saisissez le montant, l'obligation ou l'échéance concernée et le mode de paiement (espèces, mobile money, virement ou chèque)." },
+      { title: "Se repérer", detail: "La page s'ouvre sur quatre cartes : Journal des encaissements, Échéances en retard, Paiements à affecter et Contrôle de caisse. Chaque carte affiche son chiffre clé ; cliquez dessus pour ouvrir l'écran, et passez la souris sur le « i » pour lire à quoi elle sert." },
+      { title: "Contrôler la caisse", detail: "La carte « Contrôle de caisse » donne, pour la période choisie, le total encaissé par caissier et par mode de paiement. Le journal indique aussi le mode et la personne qui a encaissé sur chaque ligne." },
       { title: "Affecter un versement", detail: "Les paiements non affectés sont listés à part : « Affecter » les rattache à une obligation du même dossier, dans la limite du reste à payer." },
       { title: "Éditer un reçu", detail: "Dans l'historique, ouvrez la transaction pour afficher l'aperçu du reçu, puis téléchargez le PDF ou imprimez-le." },
       { title: "Suivre les retards", detail: "La liste des échéances en retard indique le montant attendu, payé et restant par échéance de bourse." },
+      { title: "Annuler un paiement saisi par erreur", detail: "Dans le journal des encaissements, l'icône d'annulation de la ligne demande un motif puis ajoute une ligne inverse « Annulation » : le paiement d'origine reste visible, marqué « Annulé », et le reste à payer est recalculé. Ressaisissez ensuite le bon paiement. Cette action demande le droit « Paiements · annulation d'un encaissement »." },
       { title: "Régulariser un trop-perçu", detail: "Quand un étudiant a payé plus que le montant d'une obligation, la fenêtre « Finance » de son dossier l'affiche dans un encadré. Deux boutons : « Reporter sur une autre obligation » (l'argent reste en caisse) ou « Rembourser l'étudiant » (l'argent sort de la caisse, avec un motif et un reçu à faire signer)." },
     ],
     tips: ["Un paiement peut être partiel : le reste à payer est recalculé automatiquement."],
@@ -184,8 +187,11 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { question: "Un étudiant a trop payé, que faire ?", answer: "Ouvrez son dossier puis « Finance ». L'encadré « Trop-perçu » propose de reporter la somme sur une autre obligation du dossier ou de la rembourser. Décidez avec l'étudiant ou son parent. On peut faire les deux : reporter une partie et rembourser le reste." },
       { question: "Comment réimprimer un reçu de remboursement ?", answer: "Dans le journal des encaissements, la ligne « Remboursement » (montant négatif) a une icône d'impression : elle rouvre le reçu. Imprimez-le en deux exemplaires, signés par l'étudiant ou son parent." },
       { question: "Que signifient les lignes « Report de trop-perçu » ?", answer: "Un report crée deux lignes : une négative sur l'obligation trop payée, une positive sur celle qui reçoit la somme. Leur total est nul : la caisse ne change pas." },
-      { question: "Je me suis trompé d'obligation, comment corriger ?", answer: "Tant que le paiement est non affecté, utilisez « Affecter ». Sinon, signalez l'erreur à un administrateur : chaque correction est tracée dans l'audit." },
+      { question: "Je me suis trompé d'obligation, comment corriger ?", answer: "Tant que le paiement est non affecté, utilisez « Affecter ». Sinon, annulez le paiement depuis le journal des encaissements (avec un motif), puis ressaisissez-le sur la bonne obligation. Si vous n'avez pas le droit d'annuler, demandez à un responsable : chaque annulation est signée et tracée." },
+      { question: "J'ai saisi un paiement par erreur (mauvais étudiant, mauvais montant), que faire ?", answer: "Annulez-le depuis le journal des encaissements : rien n'est effacé, une ligne négative neutralise la saisie et la comptabilité passe l'écriture inverse. Un paiement ne s'annule qu'une fois, et plus du tout si une partie a déjà été reportée ou remboursée. Si de l'argent a réellement été reçu, rendez-le au payeur." },
       { question: "Pourquoi l'échéance est-elle demandée ?", answer: "Pour un paiement d'échéance de bourse, l'échéance doit appartenir au type de bourse du dossier ; le serveur le vérifie." },
+      { question: "Comment sont numérotés les reçus ?", answer: "Chaque encaissement et chaque remboursement reçoit un numéro qui se suit sans trou dans l'année (RC-2026-000001, 000002…). Un reçu saisi hors ligne porte une référence provisoire jusqu'à son envoi au serveur." },
+      { question: "Pourquoi indiquer le mode de paiement ?", answer: "La comptabilité l'inscrit sur le bon compte : caisse pour les espèces, banque pour un virement ou un chèque, mobile money à part. Le solde de caisse correspond ainsi à l'argent réellement présent." },
       { question: "Le reçu mentionne-t-il la situation du dossier ?", answer: "Oui : il rappelle ce qui reste à payer et à fournir à la date du reçu." },
       OFFLINE_FAQ,
     ],
@@ -236,6 +242,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       "Garantir que commande, livraison et facture concordent avant de payer.",
     ],
     steps: [
+      { title: "Se repérer", detail: "La page s'ouvre sur quatre cartes : À réceptionner, À facturer, À payer et Payées. Chaque carte affiche le nombre de dépenses et le montant concerné ; cliquez dessus pour ouvrir sa liste (20 par page), et passez la souris sur le « i » pour lire à quoi elle sert." },
       { title: "Réceptionner", detail: "Enregistrez le bon de livraison et indiquez si la livraison est conforme (catégories avec livraison)." },
       { title: "Facturer", detail: "Saisissez le numéro, la date et le montant de la facture, et joignez-la." },
       { title: "Payer", detail: "Enregistrez le décaissement : montant, mode (espèces, mobile money, virement, chèque), référence et date. Les paiements partiels sont possibles." },
@@ -271,6 +278,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       "Gérer les catégories de dépense, les fournisseurs et les exercices budgétaires.",
     ],
     steps: [
+      { title: "Se repérer", detail: "La page s'ouvre sur quatre cartes : Règles, Catégories, Fournisseurs et Exercices. Chaque carte affiche son chiffre clé ; cliquez dessus pour ouvrir l'écran, et passez la souris sur le « i » pour lire à quoi elle sert. Le lien « ‹ Paramètres finances » ramène aux cartes." },
       { title: "Régler les règles", detail: "Modifiez le seuil et les options, puis « Enregistrer les règles ». Elles s'appliquent ensuite à toutes les dépenses." },
       { title: "Gérer les catégories", detail: "Ajoutez une catégorie et précisez si une livraison est exigée avant la facture." },
       { title: "Gérer les fournisseurs", detail: "« + Nouveau fournisseur » : nom, contacts et identifiant fiscal." },
@@ -343,6 +351,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       "Définir les types de bourse, leurs frais d'inscription, leur taux de réduction et leurs échéances.",
     ],
     steps: [
+      { title: "Se repérer", detail: "La page s'ouvre sur deux cartes : Types de bourse et Dossiers. Chaque carte affiche son chiffre clé ; cliquez dessus pour ouvrir sa liste, et passez la souris sur le « i » pour lire à quoi elle sert. Les boutons « + Élément » et « + Type de bourse » restent en haut de la page." },
       { title: "Ajouter un élément requis", detail: "Nom, catégorie (document, fourniture, frais), contexte, niveau, caractère obligatoire et montant attendu pour un frais." },
       { title: "Prévoir un substitut", detail: "Un élément peut en accepter un autre à sa place (statut « Substitué » dans les dossiers)." },
       { title: "Créer un type de bourse", detail: "Nom, frais d'inscription, taux de réduction, puis ses échéances (libellé, date, montant)." },
@@ -378,15 +387,16 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
     purpose: [
       "Lister les dossiers incomplets avec leurs pièces manquantes.",
       "Suivre les échéances en retard et les montants à recouvrer.",
-      "Extraire l'activité d'une période pour l'analyser dans Excel.",
+      "Éditer le rapport d'activité d'une période en PDF.",
     ],
     steps: [
-      { title: "Dossiers incomplets", detail: "Filtrez par type de dossier, ouvrez les pièces manquantes ou le dossier lui-même." },
+      { title: "Se repérer", detail: "La page s'ouvre sur trois cartes : Pièces manquantes, Recouvrement et Activité sur une période. Chacune a son écran, sa recherche et son export PDF ; le « i » de la carte explique à quoi elle sert." },
+      { title: "Dossiers incomplets", detail: "Carte « Pièces manquantes » : une bulle par dossier, trois par ligne. Rouge = pièce manquante, orange = pièce attendue. Cliquez sur une bulle pour ouvrir le dossier ; survolez « + N autre(s) » pour lire la suite." },
       { title: "Paiements en retard", detail: "Chaque échéance indique l'attendu, le payé, le reste et les dossiers concernés." },
-      { title: "Activité sur une période", detail: "Choisissez les dates puis exportez les paiements, demandes, inscriptions et prospects en CSV." },
+      { title: "Activité sur une période", detail: "Choisissez les dates puis générez le rapport PDF des paiements, demandes, inscriptions et prospects de la période." },
     ],
     faq: [
-      { question: "Comment ouvrir l'export dans Excel ?", answer: "Le fichier CSV s'ouvre directement dans Excel ; les colonnes sont séparées par des points-virgules." },
+      { question: "Dans quel format sortent les exports ?", answer: "Tous les exports de l'application sont des PDF. Pour un gros volume, réduisez d'abord la période affichée : seul ce qui est affiché est exporté." },
       { question: "Un dossier reste « incomplet » alors que tout est fourni ?", answer: "Vérifiez que chaque pièce obligatoire est bien au statut Fourni ou Substitué, puis actualisez." },
       REFRESH_FAQ,
     ],
@@ -432,6 +442,8 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       "Fixer les règles : poids du contrôle continu, moyenne de validation, compensation, crédits de passage.",
     ],
     steps: [
+      { title: "Se repérer", detail: "La page s'ouvre sur six cartes : Pôles, Années, Filières, Maquettes, Salles et Règles. Chaque carte affiche son chiffre clé ; cliquez dessus pour ouvrir l'écran, et passez la souris sur le « i » pour lire à quoi elle sert. Le lien « ‹ Structure académique » ramène aux cartes." },
+      { title: "Organiser les pôles", detail: "Carte « Pôles » : ajoutez un pôle, modifiez son nom et sa vocation, désactivez-le. « Charger l'organisation IPAIM » crée d'un coup les quatre pôles et leurs 33 filières, sans toucher à ce qui existe déjà. Dans la carte « Filières », une liste sur chaque ligne change le pôle d'une filière. Chaque modification est tracée dans l'audit, avec l'ancienne et la nouvelle valeur." },
       { title: "Ouvrir l'année", detail: "Créez l'année avec le même libellé que l'année scolaire des inscriptions (ex. 2026-2027)." },
       { title: "Créer filières et salles", detail: "Ajoutez chaque filière (code et nom) et les salles disponibles." },
       { title: "Bâtir la maquette", detail: "Par filière et niveau, ajoutez les unités d'enseignement par semestre, puis leurs matières avec coefficient et volume horaire." },
@@ -526,7 +538,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
     steps: [
       { title: "Choisir l'année", detail: "Sélectionnez l'année académique à analyser." },
       { title: "Lire les tableaux", detail: "Répartition des étudiants, résultats par classe, inscriptions par année." },
-      { title: "Exporter", detail: "« Exporter (Excel) » télécharge les chiffres." },
+      { title: "Exporter", detail: "« Exporter en PDF » télécharge le tableau de réussite par classe." },
     ],
     faq: [
       { question: "Pourquoi les taux de réussite sont-ils vides ?", answer: "Ils sont calculés à partir des délibérations clôturées uniquement." },
@@ -562,7 +574,8 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       "Régler les rubriques de paie : gains, retenues et charges patronales.",
     ],
     steps: [
-      { title: "Ouvrir le mois", detail: "Onglet « Paies mensuelles » : créez la période ; les bulletins sont calculés automatiquement." },
+      { title: "Se repérer", detail: "La page s'ouvre sur trois cartes : Paies mensuelles, Rubriques de paie et Réglages. Chaque carte affiche son chiffre clé ; cliquez dessus pour ouvrir l'écran, et passez la souris sur le « i » pour lire à quoi elle sert. Le lien « ‹ Paie » ramène aux cartes." },
+      { title: "Ouvrir le mois", detail: "Carte « Paies mensuelles » : créez la période ; les bulletins sont calculés automatiquement." },
       { title: "Vérifier et ajuster", detail: "Contrôlez chaque bulletin et saisissez les montants des rubriques variables." },
       { title: "Valider", detail: "Une autre personne que le préparateur valide la paie." },
       { title: "Enregistrer le versement", detail: "Indiquez la date et le mode de paiement, puis éditez les bulletins." },
@@ -581,10 +594,11 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       "Produire la balance et les états financiers.",
     ],
     steps: [
-      { title: "Consulter le journal", detail: "Onglet « Journal » : recherchez et filtrez les écritures." },
+      { title: "Se repérer", detail: "La page s'ouvre sur cinq cartes : Journal, Balance, Grand livre, États financiers et Plan comptable. Chaque carte affiche son chiffre clé ; cliquez dessus pour ouvrir l'écran, et passez la souris sur le « i » pour lire à quoi elle sert. Le lien « ‹ Comptabilité » ramène aux cartes." },
+      { title: "Consulter le journal", detail: "Carte « Journal » : recherchez et filtrez les écritures." },
       { title: "Saisir une écriture", detail: "« + Nouvelle écriture » : journal, date, libellé et lignes dont le débit égale le crédit." },
       { title: "Analyser", detail: "« Balance », « Grand livre » et « États financiers » présentent les soldes par compte et par période." },
-      { title: "Tenir le plan comptable", detail: "Onglet « Plan comptable » : ajoutez les comptes nécessaires." },
+      { title: "Tenir le plan comptable", detail: "Carte « Plan comptable » : ajoutez les comptes nécessaires." },
     ],
     faq: [
       { question: "Dois-je saisir les encaissements des étudiants ?", answer: "Non, chaque paiement enregistré génère automatiquement son écriture." },
@@ -623,7 +637,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { title: "Filtrer", detail: "Par utilisateur, rubrique ou type d'action." },
       { title: "Ouvrir un événement", detail: "Affichez les valeurs saisies, les modifications ou l'enregistrement supprimé." },
       { title: "Voir un utilisateur", detail: "Son profil d'activité détaille son parcours récent et ses écrans." },
-      { title: "Exporter", detail: "Téléchargez les événements au format CSV." },
+      { title: "Exporter", detail: "« Exporter en PDF » télécharge les événements de la période affichée." },
     ],
     faq: [
       { question: "Comment est mesuré le temps actif ?", answer: "Onglet visible, avec arrêt du décompte après 5 minutes sans interaction." },
@@ -657,7 +671,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       "Créer et gérer les comptes des utilisateurs.",
     ],
     steps: [
-      { title: "Apparence", detail: "Choisissez les couleurs de l'interface, la police et la taille du texte : le réglage est mémorisé sur cet appareil." },
+      { title: "Apparence", detail: "Choisissez le style d'interface (« Classique » ou « Aéré »), les couleurs, la police et la taille du texte : le réglage est mémorisé sur cet appareil et se change à tout moment." },
       { title: "Postes et accès", detail: "Créez un poste et cochez, rubrique par rubrique, la lecture et la modification." },
       { title: "Utilisateurs", detail: "Créez un compte, attribuez-lui un poste, ou retirez un utilisateur." },
     ],

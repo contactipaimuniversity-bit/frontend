@@ -5,6 +5,7 @@ import {
   Activity, ArrowLeft, ChevronDown, Clock, Download, Eye, LogIn, MousePointerClick, Pause, PencilLine, Play, Search, ShieldAlert, Users, X,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { tablePdf } from "@/lib/pdf-docs";
 import { navigateTo, pathForAuditUser, pathForDossier } from "@/lib/routes";
 import { toast } from "@/components/feedback";
 import { AuditChange, ChangesTable, ValuesList, auditDateTime, flattenValues, summarizeChanges } from "@/components/audit-values";
@@ -180,6 +181,62 @@ function TimelineChart({ timeline }: { timeline: Timeline }) {
   );
 }
 
+type PickableUser = { id: string; nom: string; detail: string };
+
+// Filtre par utilisateur : on tape quelques lettres, la liste se réduit aux
+// correspondances. Pas de liste déroulante complète, qui deviendrait interminable.
+function UserPicker({ users, value, onChange }: { users: PickableUser[]; value: string; onChange: (id: string) => void }) {
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
+  const [cursor, setCursor] = useState(0);
+  const selected = users.find((user) => user.id === value);
+  const needle = text.trim().toLocaleLowerCase();
+  const matches = users.filter((user) => !needle || `${user.nom} ${user.detail}`.toLocaleLowerCase().includes(needle));
+  const shown = matches.slice(0, 8);
+  const choose = (id: string) => { onChange(id); setText(""); setOpen(false); };
+  if (selected)
+    return (
+      <span className="audit-user-filter chosen">
+        <Users size={14} aria-hidden="true" />
+        <strong>{selected.nom}</strong>
+        <button type="button" onClick={() => onChange("")} aria-label={`Retirer le filtre sur ${selected.nom}`}><X size={14} aria-hidden="true" /></button>
+      </span>
+    );
+  return (
+    <span className="audit-user-filter">
+      <Search size={14} aria-hidden="true" />
+      <input
+        role="combobox"
+        aria-expanded={open}
+        aria-controls="audit-user-options"
+        aria-label="Filtrer par utilisateur"
+        placeholder="Filtrer par utilisateur…"
+        value={text}
+        onChange={(event) => { setText(event.target.value); setOpen(true); setCursor(0); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setCursor((current) => Math.min(current + 1, shown.length - 1)); }
+          else if (event.key === "ArrowUp") { event.preventDefault(); setCursor((current) => Math.max(current - 1, 0)); }
+          else if (event.key === "Enter" && open && shown[cursor]) { event.preventDefault(); choose(shown[cursor].id); }
+          else if (event.key === "Escape") setOpen(false);
+        }}
+      />
+      {open && (
+        <span className="audit-user-options" id="audit-user-options" role="listbox">
+          {shown.map((user, index) => (
+            <button type="button" role="option" aria-selected={index === cursor} key={user.id} className={index === cursor ? "active" : ""} onMouseDown={(event) => event.preventDefault()} onMouseEnter={() => setCursor(index)} onClick={() => choose(user.id)}>
+              <strong>{user.nom}</strong><small>{user.detail}</small>
+            </button>
+          ))}
+          {!shown.length && <em>Aucun utilisateur ne correspond.</em>}
+          {matches.length > shown.length && <em>{matches.length - shown.length} autre(s) : précisez votre recherche.</em>}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: number; focusUserId?: string | null }) {
   const today = useMemo(() => isoDay(new Date()), []);
   const [period, setPeriod] = useState<Period>("today");
@@ -194,6 +251,9 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
   const [resource, setResource] = useState("");
   const [method, setMethod] = useState("");
   const [screen, setScreen] = useState("");
+  // Filtre du flux sur un utilisateur, sans quitter la vue d'ensemble.
+  const [feedUserId, setFeedUserId] = useState("");
+  const [accounts, setAccounts] = useState<Array<{ id?: string; nom: string; prenom?: string | null; poste?: { nom: string } | null; role: string }>>([]);
   const [live, setLive] = useState(true);
   const [tick, setTick] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -220,13 +280,19 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
   const scopeQuery = `${rangeQuery}${userId ? `&utilisateurId=${encodeURIComponent(userId)}` : ""}`;
   const feedQuery = useMemo(() => {
     const params = new URLSearchParams(scopeQuery);
+    if (!userId && feedUserId) params.set("utilisateurId", feedUserId);
     if (debouncedQuery) params.set("q", debouncedQuery);
     if (genres.length) params.set("types", genres.join(","));
     if (resource) params.set("ressource", resource);
     if (method) params.set("methode", method);
     if (screen) params.set("page_", screen);
     return params.toString();
-  }, [debouncedQuery, genres, method, resource, scopeQuery, screen]);
+  }, [debouncedQuery, feedUserId, genres, method, resource, scopeQuery, screen, userId]);
+
+  // Tous les comptes, y compris ceux sans activité sur la période.
+  useEffect(() => {
+    void apiFetch<typeof accounts>("/utilisateurs", { skipCache: true }).then(setAccounts).catch(() => undefined);
+  }, [refreshSignal]);
 
   // Recherche au fil de la frappe.
   useEffect(() => {
@@ -298,8 +364,17 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
   const selectedUser = summary?.parUtilisateur.find((user) => user.utilisateurId === userId) ?? null;
   const currentProfile = userId && profile?.utilisateur?.id === userId ? profile : null;
   const toggleGenre = (genre: Genre) => setGenres((current) => current.includes(genre) ? current.filter((value) => value !== genre) : [...current, genre]);
-  const hasFilters = Boolean(query || genres.length || resource || method || screen);
-  const clearFilters = () => { setQuery(""); setGenres([]); setResource(""); setMethod(""); setScreen(""); };
+  const hasFilters = Boolean(query || genres.length || resource || method || screen || feedUserId);
+  const clearFilters = () => { setQuery(""); setGenres([]); setResource(""); setMethod(""); setScreen(""); setFeedUserId(""); };
+  // Les plus actifs de la période d'abord, puis les autres comptes par ordre alphabétique.
+  const activity = new Map((summary?.parUtilisateur ?? []).map((user) => [user.utilisateurId, user]));
+  const pickableUsers: PickableUser[] = [
+    ...(summary?.parUtilisateur ?? []).map((user) => ({ id: user.utilisateurId, nom: user.nom, detail: `${user.poste ?? user.role ?? "Équipe"} · ${user.actions} action(s)` })),
+    ...accounts
+      .filter((account) => account.id && !activity.has(account.id))
+      .map((account) => ({ id: account.id as string, nom: [account.prenom, account.nom].filter(Boolean).join(" "), detail: `${account.poste?.nom ?? account.role} · aucune activité sur la période` }))
+      .sort((a, b) => a.nom.localeCompare(b.nom)),
+  ];
 
   const loadMore = async () => {
     if (!feed?.next) return;
@@ -317,7 +392,7 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
     }
   };
 
-  const exportCsv = async () => {
+  const exportPdf = async () => {
     setExporting(true);
     try {
       const rows: FeedItem[] = [];
@@ -328,25 +403,29 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
         cursor = chunk.suivant;
         if (!cursor) break;
       }
-      const cell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+      // Au-delà, le PDF dépasserait la centaine de pages : mieux vaut une période plus courte.
+      if (cursor) {
+        setError(`Cette période contient plus de ${rows.length} événements. Réduisez la période ou filtrez par utilisateur, puis relancez l'export.`);
+        return;
+      }
       const typeLabel: Record<Genre, string> = { action: "Action", echec: "Refus", navigation: "Écran consulté", clic: "Clic" };
-      const lines = [
-        ["Date", "Type", "Utilisateur", "Événement", "Détail", "Écran", "Résultat", "Requête", "IP", "Appareil", "Durée (ms)"].map(cell).join(";"),
-        ...rows.map((item) => {
+      await tablePdf({
+        title: "Journal d'audit",
+        subtitle: `Du ${range.dateDebut} au ${range.dateFin} · ${rows.length} événement(s)`,
+        fileName: `audit-ipaim-${range.dateDebut}-${range.dateFin}.pdf`,
+        columns: [
+          { label: "Date", width: 36 }, { label: "Type", width: 26 }, { label: "Utilisateur", width: 30 }, { label: "Événement", width: 50 },
+          { label: "Détail", width: 51 }, { label: "Résultat", width: 20 }, { label: "Requête", width: 32 }, { label: "IP et appareil", width: 22 },
+        ],
+        rows: rows.map((item) => {
           const text = describe(item);
           return [
-            auditDateTime(item.date), typeLabel[item.genre], item.utilisateurNom, text.title, text.detail, item.titre ?? "",
+            auditDateTime(item.date), typeLabel[item.genre], item.utilisateurNom, text.title, text.detail,
             item.genre === "echec" ? `Refusé (${item.statutHttp})` : item.genre === "action" ? "Réussi" : "",
-            `${item.methode ?? ""} ${item.chemin ?? item.page ?? ""}`.trim(), item.ip, device(item.navigateur) === "—" ? "" : device(item.navigateur), item.dureeMs,
-          ].map(cell).join(";");
+            `${item.methode ?? ""} ${item.chemin ?? item.page ?? ""}`.trim(), [item.ip, device(item.navigateur) === "—" ? "" : device(item.navigateur)].filter(Boolean).join(" "),
+          ];
         }),
-      ];
-      const url = URL.createObjectURL(new Blob([`﻿${lines.join("\r\n")}`], { type: "text/csv;charset=utf-8" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `audit-ipaim-${range.dateDebut}-${range.dateFin}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+      });
       toast(`${rows.length} événement(s) exporté(s).`);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Export impossible.");
@@ -370,7 +449,7 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
           <button type="button" className="outline-button small" aria-pressed={!live} onClick={() => setLive((value) => !value)}>
             {live ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />} {live ? "Mettre en pause" : "Reprendre"}
           </button>
-          <button type="button" className="primary-button compact" disabled={exporting} onClick={() => void exportCsv()}><Download size={15} aria-hidden="true" /> {exporting ? "Export…" : "Exporter"}</button>
+          <button type="button" className="primary-button compact" disabled={exporting} onClick={() => void exportPdf()}><Download size={15} aria-hidden="true" /> {exporting ? "Export…" : "Exporter en PDF"}</button>
         </div>
       </header>
 
@@ -481,6 +560,7 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
               {GENRES.map((genre) => (
                 <button key={genre.value} type="button" className={`audit-chip ${genre.value}`} aria-pressed={genres.includes(genre.value)} onClick={() => toggleGenre(genre.value)}>{genre.label}</button>
               ))}
+              {!userId && <UserPicker users={pickableUsers} value={feedUserId} onChange={setFeedUserId} />}
               <select aria-label="Type de donnée" value={resource} onChange={(event) => setResource(event.target.value)}>
                 <option value="">Toutes les données</option>
                 {(summary?.parRessource ?? []).map((row) => <option key={row.ressource} value={row.ressource}>{row.ressource} ({row.actions})</option>)}

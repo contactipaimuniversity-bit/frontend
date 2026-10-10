@@ -1,7 +1,9 @@
 "use client";
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { Banknote, CalendarRange, CircleCheckBig, FileText, PackageCheck, ShieldCheck, Tags, Truck } from "lucide-react";
 import { ActionIcon } from "@/components/action-icon";
+import { HubBack, HubCard, HubCards, PageBar, usePaged } from "@/components/ui-kit";
 import { askConfirm, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
 import { apiFetch } from "@/lib/api";
@@ -870,16 +872,73 @@ export function ExpenseApprovalPage({ refreshSignal }: { refreshSignal: number }
   );
 }
 
+type ExecutionSection = "reception" | "facture" | "paiement" | "payees";
+
+// Dépenses soldées : l'historique, paginé par le serveur.
+function PaidExpenses({ signal, onOpen }: { signal: number; onOpen: (id: string) => void }) {
+  const [page, setPage] = useState(1);
+  const list = useLoad<ExpensePage>(`/depenses?vue=toutes&statut=PAYEE&page=${page}&limit=20`, signal);
+  const meta = list.data?.meta;
+  return (
+    <section className="panel full-panel expense-group">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Payées</p>
+          <h3>{meta ? meta.total : "--"} dépense(s) soldée(s)</h3>
+          <p className="panel-subtitle">Dépenses entièrement payées : ouvrez-en une pour revoir ses pièces et ses décaissements.</p>
+        </div>
+      </div>
+      {list.error && <p className="form-error">{list.error}</p>}
+      <ExpenseTable expenses={list.data?.data ?? []} empty={list.data ? "Aucune dépense payée." : "Chargement..."} onOpen={onOpen} />
+      {meta && <PageBar page={meta.page} pageCount={meta.totalPages} total={meta.total} noun="dépense(s)" onPage={setPage} />}
+    </section>
+  );
+}
+
+// Une étape du circuit : ses dépenses en attente, 20 par page.
+function ExecutionQueue({ title, hint, items, loaded, toPay, onOpen }: { title: string; hint: string; items: ExpenseSummary[]; loaded: boolean; toPay?: boolean; onOpen: (id: string) => void }) {
+  const paged = usePaged(items);
+  return (
+    <section className="panel full-panel expense-group">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">{title}</p>
+          <h3>{loaded ? items.length : "--"} dépense(s) · {formatMoney(items.reduce((sum, expense) => sum + Number(toPay ? expense.resteAPayer : expense.montant), 0))}</h3>
+          <p className="panel-subtitle">{hint}</p>
+        </div>
+      </div>
+      <ExpenseTable
+        expenses={paged.items}
+        empty={loaded ? "Rien à traiter." : "Chargement..."}
+        onOpen={onOpen}
+        extra={toPay ? { title: "Reste à payer", render: (expense) => <span className="status status-refusee">{formatMoney(expense.resteAPayer)}</span> } : { title: "Bon de commande", render: (expense) => expense.numeroBonCommande ?? "—" }}
+      />
+      <PageBar page={paged.page} pageCount={paged.pageCount} total={paged.total} noun="dépense(s)" onPage={paged.setPage} />
+    </section>
+  );
+}
+
 export function ExpenseExecutionPage({ refreshSignal }: { refreshSignal: number }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<ExpenseDetail | "new" | null>(null);
+  const [section, setSection] = useState<ExecutionSection | null>(null);
+  const [reloads, setReloads] = useState(0);
   const queue = useLoad<ExpenseSummary[]>("/depenses/a-executer", refreshSignal);
+  const paid = useLoad<ExpensePage>("/depenses?vue=toutes&statut=PAYEE&page=1&limit=1", refreshSignal + reloads);
   const expenses = queue.data ?? [];
-  const groups = [
-    { title: "À réceptionner", hint: "Bon de commande émis : constatez la livraison avec le bon de livraison.", items: expenses.filter((expense) => expense.statut === "VALIDEE" && expense.categorie.livraisonRequise) },
-    { title: "À facturer", hint: "Enregistrez la facture du fournisseur et joignez-la.", items: expenses.filter((expense) => expense.statut === "RECEPTIONNEE" || (expense.statut === "VALIDEE" && !expense.categorie.livraisonRequise)) },
-    { title: "À payer", hint: "Dépenses facturées : enregistrez chaque décaissement.", items: expenses.filter((expense) => ["FACTUREE", "PAYEE_PARTIELLEMENT"].includes(expense.statut)) },
+  const loaded = Boolean(queue.data);
+  const toReceive = expenses.filter((expense) => expense.statut === "VALIDEE" && expense.categorie.livraisonRequise);
+  const toInvoice = expenses.filter((expense) => expense.statut === "RECEPTIONNEE" || (expense.statut === "VALIDEE" && !expense.categorie.livraisonRequise));
+  const toPay = expenses.filter((expense) => ["FACTUREE", "PAYEE_PARTIELLEMENT"].includes(expense.statut));
+  const amount = (items: ExpenseSummary[], rest = false) => formatMoney(items.reduce((sum, expense) => sum + Number(rest ? expense.resteAPayer : expense.montant), 0));
+  const count = (items: ExpenseSummary[]) => (loaded ? `${items.length}` : "…");
+  const cards: HubCard<ExecutionSection>[] = [
+    { key: "reception", icon: PackageCheck, title: "À réceptionner", value: count(toReceive), detail: toReceive.length ? `dépense(s) · ${amount(toReceive)} commandés` : "Aucune livraison attendue", tone: toReceive.length ? "warn" : undefined, info: "Les dépenses validées dont le bon de commande est émis et qui attendent leur livraison. Constatez la réception avec le bon de livraison : c'est la première des trois pièces exigées avant de payer." },
+    { key: "facture", icon: FileText, title: "À facturer", value: count(toInvoice), detail: toInvoice.length ? `dépense(s) · ${amount(toInvoice)} à facturer` : "Aucune facture attendue", tone: toInvoice.length ? "warn" : undefined, info: "Les dépenses livrées, ou qui n'exigent pas de livraison, dont la facture du fournisseur n'est pas encore enregistrée. Saisissez son numéro et son montant, et joignez-la : elle ne peut pas dépasser le montant validé." },
+    { key: "paiement", icon: Banknote, title: "À payer", value: count(toPay), detail: toPay.length ? `dépense(s) · ${amount(toPay, true)} restent à payer` : "Aucun paiement en attente", tone: toPay.length ? "alert" : undefined, info: "Les dépenses facturées, payées en partie ou pas du tout. Enregistrez chaque décaissement avec son mode de paiement : le reste à payer se met à jour, et la dépense est soldée quand il atteint zéro." },
+    { key: "payees", icon: CircleCheckBig, title: "Payées", value: paid.data ? `${paid.data.meta.total}` : "…", detail: "dépense(s) entièrement soldée(s)", info: "L'historique des dépenses soldées. Ouvrez-en une pour revoir son bon de commande, sa facture et ses décaissements." },
   ];
+  const reload = () => { queue.reload(); setReloads((current) => current + 1); };
   return (
     <div className="content-scroll">
       <div className="page-intro">
@@ -888,27 +947,16 @@ export function ExpenseExecutionPage({ refreshSignal }: { refreshSignal: number 
           <h2>Exécution des dépenses</h2>
           <p>Commande, livraison, facture puis paiement : une dépense n&apos;est payée que si les trois pièces concordent.</p>
         </div>
-        <button className="outline-button small" onClick={queue.reload}>Actualiser</button>
+        <button className="outline-button small" onClick={reload}>Actualiser</button>
       </div>
       {queue.error && <p className="form-error">{queue.error}</p>}
-      {groups.map((group) => (
-        <section className="panel full-panel expense-group" key={group.title}>
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">{group.title}</p>
-              <h3>{queue.data ? group.items.length : "--"} dépense(s) · {formatMoney(group.items.reduce((sum, expense) => sum + Number(group.title === "À payer" ? expense.resteAPayer : expense.montant), 0))}</h3>
-              <p className="panel-subtitle">{group.hint}</p>
-            </div>
-          </div>
-          <ExpenseTable
-            expenses={group.items}
-            empty={queue.data ? "Rien à traiter." : "Chargement..."}
-            onOpen={setOpenId}
-            extra={group.title === "À payer" ? { title: "Reste à payer", render: (expense) => <span className="status status-refusee">{formatMoney(expense.resteAPayer)}</span> } : { title: "Bon de commande", render: (expense) => expense.numeroBonCommande ?? "—" }}
-          />
-        </section>
-      ))}
-      <ExpenseModals openId={openId} editing={editing} setOpenId={setOpenId} setEditing={setEditing} onChanged={queue.reload} />
+      {!section && <HubCards cards={cards} onOpen={setSection} />}
+      {section && <HubBack label="Exécution des dépenses" onBack={() => setSection(null)} />}
+      {section === "reception" && <ExecutionQueue title="À réceptionner" hint="Bon de commande émis : constatez la livraison avec le bon de livraison." items={toReceive} loaded={loaded} onOpen={setOpenId} />}
+      {section === "facture" && <ExecutionQueue title="À facturer" hint="Enregistrez la facture du fournisseur et joignez-la." items={toInvoice} loaded={loaded} onOpen={setOpenId} />}
+      {section === "paiement" && <ExecutionQueue title="À payer" hint="Dépenses facturées : enregistrez chaque décaissement." items={toPay} loaded={loaded} toPay onOpen={setOpenId} />}
+      {section === "payees" && <PaidExpenses signal={refreshSignal + reloads} onOpen={setOpenId} />}
+      <ExpenseModals openId={openId} editing={editing} setOpenId={setOpenId} setEditing={setEditing} onChanged={reload} />
     </div>
   );
 }
@@ -1250,14 +1298,27 @@ function FiscalYearsSettings({ canEdit, signal }: { canEdit: boolean; signal: nu
 
 export function FinanceSettingsPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   const canEdit = hasAccess(user, "finance-settings", "edit");
-  const [tab, setTab] = useState<SettingsTab>("regles");
+  const [tab, setTab] = useState<SettingsTab | null>(null);
+  // Chiffres clés des cartes.
+  const rules = useLoad<FinanceRules>(tab ? null : "/finances/parametres", refreshSignal);
+  const categories = useLoad<ExpenseCategory[]>(tab ? null : "/finances/categories", refreshSignal);
+  const suppliers = useLoad<Supplier[]>(tab ? null : "/finances/fournisseurs", refreshSignal);
+  const years = useLoad<FiscalYear[]>(tab ? null : "/finances/exercices", refreshSignal);
   const tabs: Array<[SettingsTab, string, string]> = [
     ["regles", "Règles", "Seuils et contrôles appliqués à chaque dépense."],
     ["categories", "Catégories", "Les lignes budgétaires sur lesquelles on impute les dépenses."],
     ["fournisseurs", "Fournisseurs", "Les fournisseurs et bénéficiaires que l'on peut payer."],
     ["exercices", "Exercices", "Les périodes budgétaires. Une dépense appartient à l'exercice ouvert le jour de sa soumission."],
   ];
-  const active = tabs.find(([key]) => key === tab)!;
+  const active = tabs.find(([key]) => key === tab);
+  const now = new Date();
+  const openYear = years.data?.find((year) => !year.cloture && new Date(year.dateDebut) <= now && new Date(year.dateFin) >= now);
+  const cards: HubCard<SettingsTab>[] = [
+    { key: "regles", icon: ShieldCheck, title: "Règles", value: rules.data ? formatMoney(rules.data.seuilDoubleValidation) : "…", detail: rules.data ? `seuil de double validation · budget ${rules.data.budgetBloquant ? "bloquant" : "indicatif"}` : "seuil de double validation", info: "Les règles du circuit de dépense : le montant à partir duquel une seconde validation est exigée, le caractère bloquant du budget et la séparation entre celui qui valide et celui qui paie. Elles s'appliquent à toutes les dépenses, sans exception." },
+    { key: "categories", icon: Tags, title: "Catégories", value: categories.data ? `${categories.data.filter((item) => item.actif).length}` : "…", detail: "catégorie(s) de dépense active(s)", info: "Les lignes budgétaires sur lesquelles on impute les dépenses (fournitures, salaires, communication…). Pour chacune, indiquez si une livraison doit être constatée avant la facture, et son compte de charge en comptabilité." },
+    { key: "fournisseurs", icon: Truck, title: "Fournisseurs", value: suppliers.data ? `${suppliers.data.filter((item) => item.actif).length}` : "…", detail: "fournisseur(s) actif(s)", info: "Les fournisseurs et bénéficiaires que l'on peut payer, avec leurs contacts et leur identifiant fiscal. Une dépense ne se facture qu'au nom d'un fournisseur enregistré ici." },
+    { key: "exercices", icon: CalendarRange, title: "Exercices", value: years.data ? `${years.data.length}` : "…", detail: !years.data ? "exercice(s) budgétaire(s)" : openYear ? `exercice(s) · en cours : ${openYear.libelle}` : "Aucun exercice ouvert aujourd'hui", tone: years.data && !openYear ? "alert" : undefined, info: "Les périodes budgétaires. Une dépense appartient à l'exercice ouvert le jour de sa soumission ; sans exercice ouvert, aucune dépense ne peut être soumise. Clôturer un exercice le ferme définitivement aux nouvelles écritures." },
+  ];
   return (
     <div className="content-scroll">
       <div className="page-intro">
@@ -1267,16 +1328,9 @@ export function FinanceSettingsPage({ user, refreshSignal }: { user: User | null
           <p>Réglez une fois les règles du jeu : elles s&apos;appliquent ensuite à toutes les dépenses, sans exception.</p>
         </div>
       </div>
-      <div className="report-toolbar">
-        <div className="segmented compact">
-          <div className="segmented-options" role="radiogroup" aria-label="Rubrique">
-            {tabs.map(([key, label]) => (
-              <button key={key} type="button" role="radio" aria-checked={tab === key} className="segmented-option" onClick={() => setTab(key)}>{label}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-      <section className="panel full-panel">
+      {!tab && <HubCards cards={cards} onOpen={setTab} />}
+      {tab && active && <HubBack label="Paramètres finances" onBack={() => setTab(null)} />}
+      {tab && active && <section className="panel full-panel">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">{active[1]}</p>
@@ -1287,7 +1341,7 @@ export function FinanceSettingsPage({ user, refreshSignal }: { user: User | null
         {tab === "categories" && <CategoriesSettings canEdit={canEdit} signal={refreshSignal} />}
         {tab === "fournisseurs" && <SuppliersSettings canEdit={canEdit} signal={refreshSignal} />}
         {tab === "exercices" && <FiscalYearsSettings canEdit={canEdit} signal={refreshSignal} />}
-      </section>
+      </section>}
     </div>
   );
 }

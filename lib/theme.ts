@@ -186,3 +186,43 @@ export function subscribeToTypography(onChange: () => void) {
     window.removeEventListener("storage", onChange);
   };
 }
+
+// ---------- Style d'interface (préférence de l'appareil) ----------
+// Chaque style est une couche de app/ui-styles.css activée par un attribut sur
+// <html> : revenir à « Classique » retire la couche, rien d'autre n'est modifié.
+
+export const UI_STYLES = [
+  { id: "classic", label: "Classique", hint: "Panneaux à bordure sur fond teinté · par défaut", font: "geist" },
+  { id: "airy", label: "Aéré", hint: "Cartes sans bordure, ombres légères, plus d'espace, police Inter", font: "inter" },
+] as const satisfies ReadonlyArray<{ id: string; label: string; hint: string; font: FontId }>;
+export type UiStyleId = (typeof UI_STYLES)[number]["id"];
+
+const uiStyleStorageKey = "ipaim-ui-style";
+const uiStyleChangeEvent = "ipaim-ui-style-change";
+
+export function readUiStyle(): UiStyleId {
+  if (typeof window === "undefined") return "classic";
+  const saved = window.localStorage.getItem(uiStyleStorageKey);
+  return UI_STYLES.find((style) => style.id === saved)?.id ?? "classic";
+}
+
+export function applyUiStyle(id: UiStyleId, persist = true) {
+  if (typeof window === "undefined") return;
+  const style = UI_STYLES.find((item) => item.id === id) ?? UI_STYLES[0];
+  document.documentElement.dataset.uiStyle = style.id;
+  if (!persist) return;
+  // Un style apporte sa police, sauf si l'utilisateur en a choisi une autre.
+  const previous = UI_STYLES.find((item) => item.id === readUiStyle()) ?? UI_STYLES[0];
+  window.localStorage.setItem(uiStyleStorageKey, style.id);
+  if (previous.id !== style.id && readFont() === previous.font) applyFont(style.font);
+  window.dispatchEvent(new Event(uiStyleChangeEvent));
+}
+
+export function subscribeToUiStyle(onChange: () => void) {
+  window.addEventListener(uiStyleChangeEvent, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(uiStyleChangeEvent, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}

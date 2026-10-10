@@ -5,7 +5,8 @@ import { askConfirm, askReason, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
 import { API_URL } from "@/lib/offline";
 import { FiscalYear, User, formatDate, formatMoney } from "@/lib/types";
-import { Badge, Empty, FormActions, Modal, PageIntro, Panel, Tabs, dateTime, downloadCsv, messageOf, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { BookOpenText, ChartNoAxesCombined, ListTree, NotebookText, Scale } from "lucide-react";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, dateTime, downloadPdf, messageOf, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
 
 type Account = { id: string; numero: string; libelle: string; classe: number; actif: boolean };
 type EntryLine = { id: string; libelle?: string | null; debit: string; credit: string; compte: Account };
@@ -51,7 +52,10 @@ function usePeriod(signal: number) {
       <label className="print-date-filter">au<input type="date" value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} /></label>
     </>
   );
-  return { query: params.toString(), controls };
+  // Période rappelée en tête des exports.
+  const year = (years.data ?? []).find((item) => item.id === yearId);
+  const label = [year ? `Exercice ${year.libelle}` : "Tous les exercices", from && `du ${from}`, to && `au ${to}`].filter(Boolean).join(" · ");
+  return { query: params.toString(), controls, label };
 }
 
 function EntryForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
@@ -207,7 +211,7 @@ function BalanceTab({ signal, onOpenAccount }: { signal: number; onOpenAccount: 
     <>
       <div className="finance-inline-form">
         {period.controls}
-        <button className="outline-button small" onClick={() => data && downloadCsv("balance.csv", [["Compte", "Libellé", "Débit", "Crédit", "Solde débiteur", "Solde créditeur"], ...data.lignes.map((line) => [line.numero, line.libelle, line.debit, line.credit, line.soldeDebiteur, line.soldeCrediteur]), ["", "TOTAL", data.totaux.debit, data.totaux.credit, data.totaux.soldeDebiteur, data.totaux.soldeCrediteur]])}>Exporter (Excel)</button>
+        <button className="outline-button small" onClick={() => data && downloadPdf("balance.pdf", "Balance des comptes", period.label, [["Compte", "Libellé", "Débit", "Crédit", "Solde débiteur", "Solde créditeur"], ...data.lignes.map((line) => [line.numero, line.libelle, line.debit, line.credit, line.soldeDebiteur, line.soldeCrediteur]), ["", "TOTAL", data.totaux.debit, data.totaux.credit, data.totaux.soldeDebiteur, data.totaux.soldeCrediteur]])}>Exporter en PDF</button>
       </div>
       {balance.error && <p className="form-error">{balance.error}</p>}
       <div className="table-wrap">
@@ -248,7 +252,7 @@ function LedgerTab({ signal, account, onAccount }: { signal: number; account: st
           {(accounts.data ?? []).map((item) => <option key={item.id} value={item.numero}>{item.numero} · {item.libelle}</option>)}
         </select>
         {period.controls}
-        <button className="outline-button small" onClick={() => data && downloadCsv(`grand-livre-${data.compte.numero}.csv`, [["Date", "Écriture", "Journal", "Libellé", "Pièce", "Débit", "Crédit", "Solde"], ...data.lignes.map((line) => [line.date.slice(0, 10), line.numero, line.journal, line.libelle, line.reference, line.debit, line.credit, line.solde])])}>Exporter (Excel)</button>
+        <button className="outline-button small" onClick={() => data && downloadPdf(`grand-livre-${data.compte.numero}.pdf`, `Grand livre · compte ${data.compte.numero}`, period.label, [["Date", "Écriture", "Journal", "Libellé", "Pièce", "Débit", "Crédit", "Solde"], ...data.lignes.map((line) => [line.date.slice(0, 10), line.numero, line.journal, line.libelle, line.reference, line.debit, line.credit, line.solde])])}>Exporter en PDF</button>
       </div>
       {ledger.error && <p className="form-error">{ledger.error}</p>}
       {data && <p className="panel-subtitle">{data.compte.numero} · {data.compte.libelle} — solde à l&apos;ouverture : {formatMoney(data.report)} · solde à la clôture : <strong>{formatMoney(data.solde)}</strong> ({data.solde >= 0 ? "débiteur" : "créditeur"})</p>}
@@ -359,8 +363,13 @@ function ChartTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
 export function AccountingPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   type Tab = "journal" | "balance" | "livre" | "etats" | "plan";
   const canEdit = hasAccess(user, "accounting", "edit");
-  const [tab, setTab] = useState<Tab>("journal");
+  const [tab, setTab] = useState<Tab | null>(null);
   const [account, setAccount] = useState("");
+  // Chiffres clés des cartes ; lire le journal passe aussi les écritures en attente.
+  const journal = useLoad<Journal>("/comptabilite/journal?page=1&limit=1", refreshSignal);
+  const balance = useLoad<Balance>(tab ? null : "/comptabilite/balance", refreshSignal);
+  const statements = useLoad<Statements>(tab ? null : "/comptabilite/etats", refreshSignal);
+  const accounts = useLoad<Account[]>(tab ? null : "/comptabilite/comptes", refreshSignal);
   const titles: Record<Tab, [string, string]> = {
     journal: ["Journal", "Toutes les écritures, dans l'ordre. Celles de la gestion arrivent toutes seules."],
     balance: ["Balance", "Le total des mouvements et le solde de chaque compte."],
@@ -368,17 +377,32 @@ export function AccountingPage({ user, refreshSignal }: { user: User | null; ref
     etats: ["États financiers", "Résultat, trésorerie et bilan simplifié de la période."],
     plan: ["Plan comptable", "Les comptes utilisables, inspirés du SYSCOHADA."],
   };
+  const treasury = statements.data ? statements.data.tresorerie.caisse + statements.data.tresorerie.banque + statements.data.tresorerie.mobileMoney : null;
+  const result = statements.data?.resultat.resultat;
+  const unbalanced = balance.data ? Math.abs(balance.data.totaux.debit - balance.data.totaux.credit) >= 0.01 : false;
+  const cards: HubCard<Tab>[] = [
+    { key: "journal", icon: BookOpenText, title: "Journal", value: journal.data ? `${journal.data.meta.total}` : "…", detail: "écriture(s) enregistrée(s)", info: "Toutes les écritures, de la plus récente à la plus ancienne. Celles des encaissements, factures, paiements et paies arrivent toutes seules ; vous n'y saisissez à la main que les opérations exceptionnelles, que vous pouvez ensuite valider ou extourner." },
+    { key: "balance", icon: Scale, title: "Balance", value: balance.data ? formatMoney(balance.data.totaux.debit) : "…", detail: unbalanced ? "Débits et crédits ne sont pas égaux" : "de mouvements · débits = crédits", tone: unbalanced ? "alert" : undefined, info: "Pour chaque compte, le total de ses débits, de ses crédits et son solde, sur l'exercice ou la période choisie. Le total des débits doit toujours égaler celui des crédits : c'est le premier contrôle à faire." },
+    { key: "livre", icon: NotebookText, title: "Grand livre", value: treasury === null ? "…" : formatMoney(treasury), detail: "en trésorerie (caisse, banque, mobile money)", info: "Le détail des mouvements d'un compte, ligne par ligne, avec son solde qui évolue. Choisissez un compte, par exemple la caisse, pour voir d'où vient chaque montant et retrouver une opération." },
+    { key: "etats", icon: ChartNoAxesCombined, title: "États financiers", value: result === undefined ? "…" : formatMoney(result), detail: result === undefined ? "résultat" : result < 0 ? "de déficit : charges supérieures aux produits" : "d'excédent : produits moins charges", tone: result !== undefined && result < 0 ? "alert" : undefined, info: "La synthèse : le résultat (produits moins charges), la trésorerie disponible par compte, les dettes en cours et un bilan simplifié. C'est l'écran à montrer à la direction." },
+    { key: "plan", icon: ListTree, title: "Plan comptable", value: accounts.data ? `${accounts.data.filter((item) => item.actif).length}` : "…", detail: "compte(s) actif(s)", info: "La liste des comptes utilisables, inspirée du SYSCOHADA et classée par nature (trésorerie, charges, produits…). Ajoutez un compte ou désactivez-en un qui ne sert plus." },
+  ];
   return (
     <div className="content-scroll">
       <PageIntro eyebrow="Finances" title="Comptabilité" text="Chaque encaissement, facture, paiement et paie validée génère automatiquement son écriture. Vous ne saisissez à la main que les opérations exceptionnelles." />
-      <Tabs label="Rubrique" value={tab} onChange={setTab} tabs={[["journal", "Journal"], ["balance", "Balance"], ["livre", "Grand livre"], ["etats", "États financiers"], ["plan", "Plan comptable"]]} />
-      <Panel eyebrow={titles[tab][0]} title={titles[tab][1]}>
-        {tab === "journal" && <JournalTab canEdit={canEdit} signal={refreshSignal} />}
-        {tab === "balance" && <BalanceTab signal={refreshSignal} onOpenAccount={(numero) => { setAccount(numero); setTab("livre"); }} />}
-        {tab === "livre" && <LedgerTab signal={refreshSignal} account={account} onAccount={setAccount} />}
-        {tab === "etats" && <StatementsTab signal={refreshSignal} />}
-        {tab === "plan" && <ChartTab canEdit={canEdit} signal={refreshSignal} />}
-      </Panel>
+      {!tab && <HubCards cards={cards} onOpen={setTab} />}
+      {tab && (
+        <>
+          <HubBack label="Comptabilité" onBack={() => setTab(null)} />
+          <Panel eyebrow={titles[tab][0]} title={titles[tab][1]}>
+            {tab === "journal" && <JournalTab canEdit={canEdit} signal={refreshSignal} />}
+            {tab === "balance" && <BalanceTab signal={refreshSignal} onOpenAccount={(numero) => { setAccount(numero); setTab("livre"); }} />}
+            {tab === "livre" && <LedgerTab signal={refreshSignal} account={account} onAccount={setAccount} />}
+            {tab === "etats" && <StatementsTab signal={refreshSignal} />}
+            {tab === "plan" && <ChartTab canEdit={canEdit} signal={refreshSignal} />}
+          </Panel>
+        </>
+      )}
     </div>
   );
 }

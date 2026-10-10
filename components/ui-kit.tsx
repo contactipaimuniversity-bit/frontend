@@ -1,7 +1,10 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, CircleHelp, Info, type LucideIcon } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { listPdf } from "@/lib/pdf-docs";
+import { toast } from "@/components/feedback";
 
 // Briques communes aux pages de gestion (académique, personnel, paie, comptabilité).
 
@@ -171,13 +174,76 @@ export function useForm<T extends Record<string, string | boolean>>(initial: T) 
   return { values, setValues, bind, check };
 }
 
-// Téléchargement d'un tableau au format CSV (lisible par Excel).
-export function downloadCsv(name: string, rows: Array<Array<string | number | null | undefined>>) {
-  const text = rows.map((row) => row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(";")).join("\r\n");
-  const url = URL.createObjectURL(new Blob([`﻿${text}`], { type: "text/csv;charset=utf-8" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+// Téléchargement d'un tableau en PDF : la première ligne porte les intitulés des colonnes.
+export function downloadPdf(name: string, title: string, subtitle: string, rows: Array<Array<string | number | null | undefined>>) {
+  void listPdf(name, title, subtitle, rows).catch((failure) => toast(messageOf(failure), "error"));
+}
+
+// ---------- Accueil par cartes ----------
+
+// Bulle d'aide d'une carte : elle s'ouvre au survol et au focus clavier.
+export function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="info-tip" tabIndex={0} role="note" aria-label={text}>
+      <Info size={16} aria-hidden="true" focusable="false" />
+      <span className="info-tip-bubble" aria-hidden="true">{text}</span>
+    </span>
+  );
+}
+
+// Point d'interrogation à côté d'un champ : la bulle explique le réglage et ce que change sa valeur.
+export function FieldHelp({ text }: { text: string }) {
+  return (
+    <span className="info-tip inline" tabIndex={0} role="note" aria-label={text}>
+      <CircleHelp size={15} aria-hidden="true" focusable="false" />
+      <span className="info-tip-bubble" aria-hidden="true">{text}</span>
+    </span>
+  );
+}
+
+export type HubCard<Key extends string> = { key: Key; icon: LucideIcon; title: string; value: string; detail: string; tone?: "alert" | "warn"; info: string };
+
+// Une carte par tâche : son chiffre clé, sa bulle d'aide, et un clic pour ouvrir son écran.
+export function HubCards<Key extends string>({ cards, onOpen }: { cards: HubCard<Key>[]; onOpen: (key: Key) => void }) {
+  return (
+    <div className="hub-grid">
+      {cards.map((card) => (
+        <article className={`hub-card ${card.tone ?? ""}`} key={card.key}>
+          <button type="button" className="hub-card-open" onClick={() => onOpen(card.key)}>
+            <span className="hub-card-icon"><card.icon size={22} aria-hidden="true" focusable="false" /></span>
+            <span className="hub-card-title">{card.title}</span>
+            <strong>{card.value}</strong>
+            <small>{card.detail}</small>
+            <span className="hub-card-more">Ouvrir <ChevronRight size={15} aria-hidden="true" focusable="false" /></span>
+          </button>
+          <InfoTip text={card.info} />
+        </article>
+      ))}
+    </div>
+  );
+}
+
+export function HubBack({ label, onBack }: { label: string; onBack: () => void }) {
+  return <button type="button" className="settings-back" onClick={onBack}><ChevronLeft size={16} aria-hidden="true" /> {label}</button>;
+}
+
+// Pagination d'une liste déjà chargée : 20 lignes par page.
+export function usePaged<T>(items: T[], pageSize = 20) {
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const current = Math.min(page, pageCount);
+  return { items: items.slice((current - 1) * pageSize, current * pageSize), page: current, pageCount, total: items.length, setPage };
+}
+
+export function PageBar({ page, pageCount, total, noun, onPage }: { page: number; pageCount: number; total: number; noun: string; onPage: (page: number) => void }) {
+  if (pageCount <= 1) return null;
+  return (
+    <div className="pagination-bar">
+      <span>Page {page} sur {pageCount} · {total} {noun}</span>
+      <div className="pagination-actions">
+        <button className="outline-button small" disabled={page <= 1} onClick={() => onPage(page - 1)}>Précédente</button>
+        <button className="outline-button small" disabled={page >= pageCount} onClick={() => onPage(page + 1)}>Suivante</button>
+      </div>
+    </div>
+  );
 }

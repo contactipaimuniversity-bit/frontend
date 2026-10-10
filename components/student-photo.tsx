@@ -5,7 +5,7 @@ import { Camera, ImagePlus, Trash2, UserRound } from "lucide-react";
 import { askConfirm, toast } from "@/components/feedback";
 import { apiFetch } from "@/lib/api";
 import { API_URL } from "@/lib/offline";
-import { Person } from "@/lib/types";
+import { Person, User } from "@/lib/types";
 
 const PHOTO_MAX_SIDE = 900;
 const messageOf = (failure: unknown, fallback: string) => (failure instanceof Error ? failure.message : fallback);
@@ -100,7 +100,7 @@ type PhotoOwner = Pick<Person, "id" | "photoUrl">;
 
 // La photo enregistrée est lue via le serveur, avec la session : l'hébergeur
 // de fichiers ne la diffuse pas publiquement.
-function useStoredPhoto(owner?: PhotoOwner | null) {
+function useStoredPhoto(owner?: PhotoOwner | null, resource: "personnes" | "utilisateurs" = "personnes") {
   const personId = owner?.photoUrl ? owner.id : null;
   // Change à chaque nouvelle photo, pour ne pas réafficher l'ancienne depuis le cache.
   const version = owner?.photoUrl?.split("/").pop() ?? "";
@@ -111,7 +111,7 @@ function useStoredPhoto(owner?: PhotoOwner | null) {
     let active = true;
     let objectUrl: string | null = null;
     const token = window.sessionStorage.getItem("ipaim-token");
-    fetch(`${API_URL}/personnes/${personId}/photo?v=${encodeURIComponent(version)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(`${API_URL}/${resource}/${personId}/photo?v=${encodeURIComponent(version)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
       .then((response) => (response.ok ? response.blob() : Promise.reject(new Error("Photo indisponible"))))
       .then((blob) => {
         if (!active) return;
@@ -124,8 +124,21 @@ function useStoredPhoto(owner?: PhotoOwner | null) {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [personId, version]);
+  }, [personId, resource, version]);
   return loaded && loaded.key === key ? loaded.url : null;
+}
+
+// Pastille ronde d'un utilisateur : sa photo de profil, ou une silhouette s'il n'en a pas.
+export function UserAvatar({ user, className = "avatar" }: { user: User | null; className?: string }) {
+  const photo = useStoredPhoto(user?.id ? { id: user.id, photoUrl: user.photoUrl } : null, "utilisateurs");
+  return (
+    <span className={`${className} user-avatar`}>
+      {photo
+        // eslint-disable-next-line @next/next/no-img-element
+        ? <img src={photo} alt="" />
+        : <UserRound aria-hidden="true" focusable="false" strokeWidth={1.6} />}
+    </span>
+  );
 }
 
 export function PhotoFrame({ url, owner, alt }: { url?: string | null; owner?: PhotoOwner | null; alt: string }) {
@@ -194,6 +207,43 @@ export function PhotoField({ value, onChange, current }: { value: File | null; o
         {error && <p className="form-error" role="alert">{error}</p>}
       </div>
     </section>
+  );
+}
+
+// Photo de profil du compte connecté : chacun ajoute, remplace ou retire la sienne.
+export function ProfilePhotoCard({ user, onUpdated }: { user: User | null; onUpdated: (user: User) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const run = async (action: () => Promise<User>, done: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      onUpdated(await action());
+      toast(done);
+    } catch (failure) {
+      setError(messageOf(failure, "La photo n'a pas pu être mise à jour."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const upload = (photo: File) => {
+    const form = new FormData();
+    form.append("photo", photo);
+    void run(() => apiFetch<User>("/utilisateurs/me/photo", { method: "POST", body: form, silent: true }), "Photo de profil enregistrée.");
+  };
+  const remove = async () => {
+    if (!(await askConfirm({ title: "Retirer la photo de profil ?", message: "Une silhouette la remplacera.", confirmLabel: "Retirer", danger: true }))) return;
+    void run(() => apiFetch<User>("/utilisateurs/me/photo", { method: "DELETE", silent: true }), "Photo de profil retirée.");
+  };
+  return (
+    <div className="profile-photo">
+      <UserAvatar user={user} className="profile-photo-preview" />
+      <div className="profile-photo-body">
+        <p className="panel-subtitle">{busy ? "Envoi en cours..." : user?.photoUrl ? "Elle apparaît à côté de votre nom dans le menu." : "Aucune photo : une silhouette s'affiche à côté de votre nom."}</p>
+        <PhotoSources busy={busy} hasPhoto={Boolean(user?.photoUrl)} onPicked={upload} onRemove={() => void remove()} onError={setError} />
+        {error && <p className="form-error" role="alert">{error}</p>}
+      </div>
+    </div>
   );
 }
 

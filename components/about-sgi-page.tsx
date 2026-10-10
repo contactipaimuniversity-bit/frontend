@@ -5,23 +5,43 @@ import { BrandLogo } from "@/components/brand-logo";
 const capabilities = [
   {
     index: "01",
-    title: "Un parcours suivi de bout en bout",
-    detail: "Les demandes de bourse, inscriptions, pièces et certificats se retrouvent dans un même espace de travail, pour garder une lecture claire de chaque dossier.",
+    title: "Admissions et inscriptions",
+    detail: "Prospects, demandes de bourse, inscriptions, pièces, photos et certificats se suivent dans un même espace, du premier contact jusqu’au dossier complet.",
   },
   {
     index: "02",
-    title: "Des opérations maîtrisées",
-    detail: "Les paiements, échéances et affectations sont rapprochés des dossiers concernés, afin de rendre les montants attendus et les actions restantes plus lisibles.",
+    title: "Encaissements maîtrisés",
+    detail: "Paiements, échéances, reçus, trop-perçus et annulations motivées sont rattachés à chaque dossier : le reste à payer est toujours à jour et rien ne s’efface.",
   },
   {
     index: "03",
-    title: "Un contrôle concret au quotidien",
-    detail: "Le suivi des éléments requis et des états de dossier aide les équipes à repérer ce qui est complet, ce qui manque et ce qui doit avancer.",
+    title: "Vie académique",
+    detail: "Filières, classes, emplois du temps, cahier de textes, présences, notes sous anonymat, délibérations, bulletins et statistiques de réussite.",
   },
   {
     index: "04",
-    title: "Une vision utile à la décision",
-    detail: "Les rapports rassemblent les indicateurs d’activité, les dossiers incomplets et les échéances en retard pour faciliter le pilotage de l’établissement.",
+    title: "Dépenses et budget",
+    detail: "Chaque dépense suit son circuit, de la demande à la validation puis au paiement, et se compare au budget voté par catégorie.",
+  },
+  {
+    index: "05",
+    title: "Comptabilité tenue automatiquement",
+    detail: "Encaissements, factures, décaissements et paies génèrent leurs écritures : journal, balance, grand livre et états financiers sont disponibles à tout moment.",
+  },
+  {
+    index: "06",
+    title: "Personnel et paie",
+    detail: "Recrutement, contrats, congés et absences alimentent la préparation de la paie, sa validation et l’édition des bulletins.",
+  },
+  {
+    index: "07",
+    title: "Un travail qui continue sans connexion",
+    detail: "Les saisies faites hors ligne sont conservées sur l’appareil puis envoyées au serveur dès que la connexion revient.",
+  },
+  {
+    index: "08",
+    title: "Pilotage, traçabilité et sécurité",
+    detail: "Tableau de bord, rapports et exports PDF éclairent les décisions ; les accès par poste, le journal d’audit, la corbeille et les sauvegardes chiffrées protègent les données.",
   },
 ];
 
@@ -32,15 +52,15 @@ export function AboutSgiPage({ onBack }: { onBack: () => void }) {
         <div className="about-sgi-brand"><BrandLogo compact /><span>IPAIM UNIVERSITY</span></div>
         <p className="eyebrow">Innovation au service de l’éducation</p>
         <h2>IPAIM fait du numérique un véritable outil de maîtrise.</h2>
-        <p className="about-sgi-lead">Le SGI d’IPAIM réunit le suivi, le contrôle et le pilotage des activités scolaires dans un espace conçu pour aider les équipes à faire avancer chaque dossier avec clarté.</p>
+        <p className="about-sgi-lead">Le SGI d’IPAIM réunit dans un même espace les admissions, la scolarité, les finances et le personnel, pour aider chaque équipe à faire avancer son travail avec clarté.</p>
         <div className="about-sgi-status"><span aria-hidden="true">✓</span><div><strong>Version stable en service</strong><small>Vous utilisez la dernière version stable du SGI IPAIM.</small></div></div>
       </section>
       <section className="about-sgi-intro">
         <p className="eyebrow">Une ambition portée par IPAIM</p>
         <h3>Faire mieux circuler l’information pour mieux agir.</h3>
-        <p>IPAIM a voulu créer un système de gestion intégré qui accompagne la réalité de l’établissement : des admissions aux inscriptions, du contrôle des pièces au suivi financier. Cette innovation place l’information utile au bon endroit et donne aux équipes une vision plus cohérente du travail à accomplir.</p>
+        <p>IPAIM a voulu créer un système de gestion intégré qui accompagne la réalité de l’établissement : des admissions aux délibérations, de l’encaissement à la comptabilité, du recrutement à la paie. Cette innovation place l’information utile au bon endroit et donne aux équipes une vision plus cohérente du travail à accomplir.</p>
       </section>
-      <section className="about-sgi-capabilities" aria-label="Les principes du SGI IPAIM">
+      <section className="about-sgi-capabilities" aria-label="Ce que couvre le SGI IPAIM">
         {capabilities.map((item) => (
           <article className="about-sgi-capability" key={item.index}>
             <span>{item.index}</span><div><h3>{item.title}</h3><p>{item.detail}</p></div>

@@ -7,7 +7,8 @@ import { Payslip, monthLabel, payslipsPdf } from "@/lib/pdf-docs";
 import { logPrint } from "@/lib/print-log";
 import { ExpenseCategory, User, formatDate, formatMoney } from "@/lib/types";
 import { PAYMENT_MODES } from "@/components/hr-page";
-import { Badge, Empty, FormActions, Modal, PageIntro, Panel, Tabs, downloadCsv, number, personName, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { CalendarCheck, ListChecks, SlidersHorizontal } from "lucide-react";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, downloadPdf, number, personName, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
 
 type PeriodRow = { id: string; annee: number; mois: number; statut: string; prepareParNom: string; valideParNom?: string | null; _count: { bulletins: number }; bulletins: Array<{ brut: string; net: string; chargesPatronales: string }> };
 type Slip = Payslip & { id: string; employeId: string; heuresVacation: string; tauxHoraire: string; joursAbsence: string; ajustements: Record<string, number> };
@@ -96,7 +97,7 @@ function PeriodModal({ id, canEdit, canApprove, onClose, onChanged }: { id: stri
     });
   const exportCsv = () =>
     data &&
-    downloadCsv(`livre-de-paie-${data.annee}-${String(data.mois).padStart(2, "0")}.csv`, [
+    downloadPdf(`livre-de-paie-${data.annee}-${String(data.mois).padStart(2, "0")}.pdf`, "Livre de paie", monthLabel(data.annee, data.mois), [
       ["Matricule", "Nom", "Prénom", "Fonction", "Salaire de base", "Heures de cours", "Jours d'absence", "Brut", "Retenues", "Net à payer", "Charges patronales", "Mode de paiement"],
       ...data.bulletins.map((slip) => [slip.employe.matricule, slip.employe.nom, slip.employe.prenom, slip.fonction, Number(slip.salaireBase), Number(slip.heuresVacation), Number(slip.joursAbsence), Number(slip.brut), Number(slip.totalRetenues), Number(slip.net), Number(slip.chargesPatronales), PAYMENT_MODES[slip.employe.modePaiement ?? ""] ?? ""]),
       ["", "", "", "TOTAL", "", "", "", data.totaux.brut, data.totaux.retenues, data.totaux.net, data.totaux.chargesPatronales, ""],
@@ -154,7 +155,7 @@ function PeriodModal({ id, canEdit, canApprove, onClose, onChanged }: { id: stri
           {action.error && !paying && <p className="form-error">{action.error}</p>}
           {!paying && (
             <div className="form-actions expense-actions">
-              <button className="secondary-button" onClick={() => exportCsv()}>Livre de paie (Excel)</button>
+              <button className="secondary-button" onClick={() => exportCsv()}>Livre de paie (PDF)</button>
               <button className="secondary-button" disabled={action.busy || !data.bulletins.length} onClick={() => void print(data.bulletins)}>Tous les bulletins (PDF)</button>
               {open && canEdit && <button className="secondary-button" disabled={action.busy} onClick={() => void post("recalculer", undefined, "Paie recalculée.")}>Recalculer</button>}
               {data.statut === "VALIDEE" && canApprove && <button className="danger-button" onClick={() => void reopen()}>Rouvrir</button>}
@@ -365,19 +366,40 @@ function SettingsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) 
 
 export function PayrollPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   type Tab = "periodes" | "rubriques" | "reglages";
-  const [tab, setTab] = useState<Tab>("periodes");
+  const [tab, setTab] = useState<Tab | null>(null);
   const canEdit = hasAccess(user, "payroll", "edit");
   const canApprove = hasAccess(user, "payroll-approval", "edit");
   const canSettings = hasAccess(user, "hr", "edit");
+  // Chiffres clés des cartes.
+  const periods = useLoad<PeriodRow[]>(tab ? null : "/paie/periodes", refreshSignal);
+  const rubrics = useLoad<Rubric[]>(tab ? null : "/paie/rubriques", refreshSignal);
+  const settings = useLoad<HrSettings>(tab ? null : "/rh/parametres", refreshSignal);
+  const pending = (periods.data ?? []).filter((period) => period.statut !== "PAYEE");
+  const next = pending[0];
+  const titles: Record<Tab, [string, string]> = {
+    periodes: ["Paies", "Une paie par mois : préparation, validation, versement"],
+    rubriques: ["Rubriques", "Primes, retenues et cotisations appliquées aux bulletins"],
+    reglages: ["Réglages", "Règles de congé et lien avec le budget"],
+  };
+  const cards: HubCard<Tab>[] = [
+    { key: "periodes", icon: CalendarCheck, title: "Paies mensuelles", value: periods.data ? `${periods.data.length}` : "…", detail: !periods.data ? "paie(s) mensuelle(s)" : next ? `paie(s) · ${monthLabel(next.annee, next.mois)} : ${PERIOD_STATUS[next.statut]?.label.toLowerCase() ?? next.statut}` : periods.data.length ? "Toutes les paies sont versées" : "Aucune paie ouverte pour l'instant", tone: next ? "warn" : undefined, info: "Une paie par mois. Ouvrez le mois : les bulletins se calculent seuls à partir des contrats, des heures de cours et des absences. Vous vérifiez, une autre personne valide, puis vous enregistrez le versement et éditez les bulletins." },
+    { key: "rubriques", icon: ListChecks, title: "Rubriques de paie", value: rubrics.data ? `${rubrics.data.filter((item) => item.actif).length}` : "…", detail: "rubrique(s) active(s)", info: "Les lignes qui composent un bulletin : primes et indemnités, retenues, cotisations salariales et charges patronales. Pour chacune, réglez son mode de calcul (montant fixe ou pourcentage), son plafond et si elle s'applique à tous." },
+    { key: "reglages", icon: SlidersHorizontal, title: "Réglages", value: settings.data ? `${settings.data.joursCongeAnnuel} j` : "…", detail: settings.data ? `de congé par an · ${settings.data.joursOuvresMois} jours ouvrés par mois` : "de congé par an", info: "Les règles communes : le nombre de jours de congé annuel, le nombre de jours ouvrés d'un mois (qui sert à calculer la retenue d'une absence) et la catégorie budgétaire sur laquelle la paie est imputée." },
+  ];
   return (
     <div className="content-scroll">
       <PageIntro eyebrow="Ressources humaines" title="Paie" text="La paie se calcule seule à partir des contrats, des heures de cours déclarées et des absences. Vous vérifiez, une autre personne valide, puis le versement est enregistré." />
-      <Tabs label="Rubrique" value={tab} onChange={setTab} tabs={[["periodes", "Paies mensuelles"], ["rubriques", "Rubriques de paie"], ["reglages", "Réglages"]]} />
-      <Panel eyebrow={tab === "periodes" ? "Paies" : tab === "rubriques" ? "Rubriques" : "Réglages"} title={tab === "periodes" ? "Une paie par mois : préparation, validation, versement" : tab === "rubriques" ? "Primes, retenues et cotisations appliquées aux bulletins" : "Règles de congé et lien avec le budget"}>
-        {tab === "periodes" && <PeriodsTab canEdit={canEdit} canApprove={canApprove} signal={refreshSignal} />}
-        {tab === "rubriques" && <RubricsTab canEdit={canEdit} signal={refreshSignal} />}
-        {tab === "reglages" && <SettingsTab canEdit={canSettings} signal={refreshSignal} />}
-      </Panel>
+      {!tab && <HubCards cards={cards} onOpen={setTab} />}
+      {tab && (
+        <>
+          <HubBack label="Paie" onBack={() => setTab(null)} />
+          <Panel eyebrow={titles[tab][0]} title={titles[tab][1]}>
+            {tab === "periodes" && <PeriodsTab canEdit={canEdit} canApprove={canApprove} signal={refreshSignal} />}
+            {tab === "rubriques" && <RubricsTab canEdit={canEdit} signal={refreshSignal} />}
+            {tab === "reglages" && <SettingsTab canEdit={canSettings} signal={refreshSignal} />}
+          </Panel>
+        </>
+      )}
     </div>
   );
 }

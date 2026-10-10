@@ -6,6 +6,7 @@ export const ACCESS_FEATURES = [
   { key: "enrollments", label: "Inscriptions" },
   { key: "certificates", label: "Certificats" },
   { key: "payments", label: "Paiements" },
+  { key: "payment-cancellation", label: "Paiements · annulation d'un encaissement" },
   { key: "prospects", label: "Prospects" },
   { key: "people", label: "Personnes" },
   { key: "recruiting", label: "Recrutement" },

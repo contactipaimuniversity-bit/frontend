@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { toast } from "@/components/feedback";
+import { PaymentModeSelect } from "@/components/payment-mode";
 import { RefundReceipt } from "@/components/refund-receipt";
 import { apiFetch } from "@/lib/api";
 import { ApplicationFinance, PaymentTransaction, formatMoney } from "@/lib/types";
@@ -76,6 +77,7 @@ function RefundForm({ source, onCancel, onDone }: { source: Obligation; onCancel
   const surplus = surplusOf(source);
   const [amount, setAmount] = useState(String(surplus));
   const [reason, setReason] = useState("");
+  const [mode, setMode] = useState("ESPECES");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const value = amountOf(amount);
@@ -88,7 +90,7 @@ function RefundForm({ source, onCancel, onDone }: { source: Obligation; onCancel
     setBusy(true);
     setError("");
     try {
-      const refund = await apiFetch<PaymentTransaction>("/paiements/remboursements", { method: "POST", silent: true, body: JSON.stringify({ elementDossierId: source.id, montant: String(value), motif: reason.trim() }) });
+      const refund = await apiFetch<PaymentTransaction>("/paiements/remboursements", { method: "POST", silent: true, body: JSON.stringify({ elementDossierId: source.id, montant: String(value), motif: reason.trim(), modePaiement: mode }) });
       toast(`Remboursement de ${formatMoney(value)} enregistré. Faites signer le reçu.`);
       onDone(refund);
     } catch (failure) {
@@ -106,6 +108,7 @@ function RefundForm({ source, onCancel, onDone }: { source: Obligation; onCancel
         <input required type="number" min="1" max={surplus} step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} />
       </label>
       <p className="panel-subtitle">Maximum : {formatMoney(surplus)} (trop-perçu sur « {source.nom} »).</p>
+      <PaymentModeSelect label="Remboursé par" value={mode} onChange={setMode} />
       <label className="deletion-reason-label">
         Motif du remboursement
         <textarea className="deletion-reason-input" required minLength={5} maxLength={300} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Ex. : inscrit par erreur en L2, repassé en L1 (5 caractères minimum)" />

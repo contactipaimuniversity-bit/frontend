@@ -1,0 +1,113 @@
+/*
+ * Styles d'interface — chargés après design-system.css.
+ * Chaque style est une couche activée par l'attribut data-ui-style sur <html>
+ * (Paramètres → Apparence → Style d'interface). Sans attribut, ou avec
+ * « classic », aucune règle de ce fichier ne s'applique : la couche se retire
+ * sans rien défaire ailleurs. Les couleurs restent celles de la palette et du
+ * mode sombre ; un style ne règle que la mise en page.
+ */
+
+/* ---------- Aéré : cartes sans bordure, ombres légères, plus d'espace ---------- */
+
+:root[data-ui-style="airy"] {
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --card-shadow: 0 1px 2px rgb(16 24 40 / .05), 0 8px 24px rgb(16 24 40 / .06);
+  --card-shadow-hover: 0 2px 4px rgb(16 24 40 / .06), 0 14px 32px rgb(16 24 40 / .1);
+}
+
+/* Les cartes sont blanches : tout ce qui suit --surface (cellules figées, champs…) s'aligne. */
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) { --surface: #fff; }
+
+/* Fond : la teinte de la palette, adoucie vers un gris neutre et sans dégradé. */
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) :is(body, .app-shell, .content-area) {
+  background: color-mix(in srgb, var(--paper) 45%, #f6f7f9);
+}
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area .content-scroll { background: none; }
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area .topbar {
+  border-bottom-color: color-mix(in srgb, var(--line) 60%, transparent);
+  background: var(--surface);
+}
+
+/* Titre de page : posé sur le fond, sans bandeau. */
+:root[data-ui-style="airy"] .content-area .page-intro:not(.dossier-page-intro) {
+  margin-bottom: 26px;
+  padding: 0;
+  border-left: 0;
+  background: none;
+}
+:root[data-ui-style="airy"] .content-area :is(.page-intro h2, .welcome-row h2, .topbar h1) { letter-spacing: -.02em; }
+:root[data-ui-style="airy"] .content-area .eyebrow { font-weight: 700; letter-spacing: .9px; }
+
+/* Cartes : le relief vient de l'ombre, plus de la bordure. */
+:root[data-ui-style="airy"] .content-area .panel {
+  padding: 26px;
+  border-radius: var(--radius-lg);
+}
+:root[data-ui-style="airy"] .content-area :is(.worklist-card, .settings-option) {
+  padding: 20px;
+  border-radius: var(--radius-lg);
+}
+:root[data-ui-style="airy"] .content-area .stat-card { border-radius: var(--radius-lg); }
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area :is(.panel, .worklist-card, .settings-option, .hub-card, .stat-card:not(.orange, .blue, .mint, .violet)) {
+  border-color: transparent;
+  background: var(--surface);
+  box-shadow: var(--card-shadow);
+}
+/* Une carte dans une carte reste à plat : un filet suffit à la délimiter. */
+:root[data-ui-style="airy"] .content-area .panel .panel { padding: 22px; border-radius: var(--radius-md); }
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area .panel .panel {
+  border-color: color-mix(in srgb, var(--line) 75%, transparent);
+  box-shadow: none;
+}
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area :is(.settings-option, .hub-card):hover {
+  border-color: transparent;
+  box-shadow: var(--card-shadow-hover);
+}
+:root[data-ui-style="airy"] .content-area .panel-heading { margin-bottom: 24px; }
+:root[data-ui-style="airy"] .content-area .panel + .panel { margin-top: 20px; }
+:root[data-ui-style="airy"] .content-area :is(.worklist-grid, .dashboard-grid, .settings-hub) { gap: 20px; }
+:root[data-ui-style="airy"] .content-area .worklist { margin-bottom: 28px; }
+
+/* Tableaux : en-têtes discrets, lignes plus hautes, chiffres alignés. */
+:root[data-ui-style="airy"] .content-area th {
+  padding-bottom: 14px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-ui-style="airy"] .content-area td {
+  padding-top: 17px;
+  padding-bottom: 17px;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area th {
+  border-bottom-color: var(--line);
+  color: var(--muted);
+  background: var(--surface);
+}
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area td { border-top-color: color-mix(in srgb, var(--line) 55%, transparent); }
+/* Plus de lignes alternées : un filet entre les lignes, la ligne survolée se teinte. */
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area tbody :is(tr:nth-child(even), tr:hover) { background: none; }
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area tbody tr:hover td { background: color-mix(in srgb, var(--brand-blue) 6%, var(--surface)); }
+:root[data-ui-style="airy"] .content-area .status { padding: 5px 10px; border-radius: 999px; }
+
+/* Boutons et champs : plus ronds, un peu plus hauts. */
+:root[data-ui-style="airy"] :is(.primary-button, .secondary-button, .outline-button, .danger-solid-button) { border-radius: 10px; }
+:root[data-ui-style="airy"] .primary-button { min-height: 46px; padding-right: 22px; padding-left: 22px; }
+:root[data-ui-style="airy"] .primary-button.compact { min-height: 42px; }
+:root[data-ui-style="airy"] .secondary-button { min-height: 42px; padding-right: 18px; padding-left: 18px; }
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .content-area :is(.secondary-button, .outline-button) { background: var(--surface); }
+:root[data-ui-style="airy"] .entity-form :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select) {
+  min-height: 44px;
+  padding-right: 14px;
+  padding-left: 14px;
+  border-radius: 10px;
+}
+:root[data-ui-style="airy"] .entity-form textarea { border-radius: 10px; }
+:root[data-ui-style="airy"]:not([data-color-mode="dark"]) .entity-form :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea) { background: var(--surface); }
+
+/* Fenêtres : même arrondi que les cartes. */
+:root[data-ui-style="airy"] :is(.modal, .app-dialog) { padding: 28px; border-radius: var(--radius-lg); }

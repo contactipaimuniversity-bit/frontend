@@ -113,19 +113,37 @@ function database() {
       if (!db.objectStoreNames.contains("offlineAccounts"))
         db.createObjectStore("offlineAccounts", { keyPath: "email" });
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      // Le navigateur peut fermer la connexion de lui-même (données du site
+      // effacées, autre onglet qui met la base à jour) : on en rouvrira une.
+      const forget = () => { databasePromise = undefined; };
+      db.onclose = forget;
+      db.onversionchange = () => { db.close(); forget(); };
+      resolve(db);
+    };
+    request.onerror = () => { databasePromise = undefined; reject(request.error); };
   });
   return databasePromise;
 }
 
 async function store<T>(name: string, mode: IDBTransactionMode, action: (objectStore: IDBObjectStore) => IDBRequest<T>) {
-  const db = await database();
-  return new Promise<T>((resolve, reject) => {
-    const request = action(db.transaction(name, mode).objectStore(name));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  const run = async () => {
+    const db = await database();
+    return new Promise<T>((resolve, reject) => {
+      const request = action(db.transaction(name, mode).objectStore(name));
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  };
+  try {
+    return await run();
+  } catch (failure) {
+    // Connexion fermée entre-temps : une nouvelle tentative la rouvre.
+    if (!(failure instanceof DOMException) || failure.name !== "InvalidStateError") throw failure;
+    databasePromise = undefined;
+    return run();
+  }
 }
 
 function scope(token: string | null) {
@@ -928,6 +946,7 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
         montant: body.montant ?? 0,
         datePaiement: new Date(operation.createdAt).toISOString(),
         typePaiement: body.typePaiement ?? "FRAIS_DEPOT",
+        modePaiement: body.modePaiement ?? "ESPECES",
         dossierId,
         dossierType: isScholarship ? "demande-bourse" : "inscription",
         dossier: `${isScholarship ? "Demande" : "Inscription"} · ${typeof track === "string" ? track : "-"}`,

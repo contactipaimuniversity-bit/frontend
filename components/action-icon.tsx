@@ -1,5 +1,6 @@
 import {
   ArrowUpRight,
+  Ban,
   Banknote,
   CalendarClock,
   CalendarPlus,
@@ -31,6 +32,7 @@ const icons: Record<string, LucideIcon> = {
   person: UserRoundPen,
   edit: Pencil,
   delete: Trash2,
+  cancel: Ban,
   history: History,
   relance: PhoneCall,
   print: Printer,

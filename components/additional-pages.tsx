@@ -1,6 +1,8 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Award, CalendarRange, FolderCheck, HandCoins, Search } from "lucide-react";
+import { HubBack, HubCard, HubCards, PageBar, usePaged } from "@/components/ui-kit";
+import { listPdf } from "@/lib/pdf-docs";
 import { ActionIcon } from "@/components/action-icon";
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
@@ -820,6 +822,11 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
   >(null);
   const [selectedElement, setSelectedElement] = useState<CatalogElement>();
   const [selectedType, setSelectedType] = useState<ScholarshipType>();
+  const [section, setSection] = useState<"bourses" | "dossiers" | null>(null);
+  const referenceCards: HubCard<"bourses" | "dossiers">[] = [
+    { key: "bourses", icon: Award, title: "Types de bourse", value: `${types.length}`, detail: `type(s) · ${types.reduce((total, type) => total + (type.echeances?.length ?? 0), 0)} échéance(s) prévue(s)`, info: "Les bourses que l'établissement accorde : pour chacune, ses frais d'inscription, son taux de réduction et le calendrier de ses échéances (libellé, date limite, montant). Une demande de bourse acceptée suit le plan de son type." },
+    { key: "dossiers", icon: FolderCheck, title: "Dossiers", value: `${elements.length}`, detail: `élément(s) requis · ${elements.filter((item) => item.obligatoire).length} obligatoire(s)`, info: "Ce qu'un dossier doit contenir : pièces à fournir, fournitures et frais à payer, selon le contexte (bourse ou inscription directe) et le niveau. Chaque nouveau dossier reprend cette liste ; les dossiers existants gardent la leur." },
+  ];
   const [deleteTarget, setDeleteTarget] = useState<{
     kind: "element" | "scholarship";
     id: string;
@@ -921,8 +928,11 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
         </div>
       </div>
       <ErrorMessage error={error} />
-      <div className="reference-grid">
-        <section className="panel">
+      {!section && <HubCards cards={referenceCards} onOpen={setSection} />}
+      {section && <HubBack label="Référentiels" onBack={() => setSection(null)} />}
+      <div>
+        {section === "dossiers" && (
+        <section className="panel full-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Dossiers</p>
@@ -975,49 +985,56 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
             </table>
           </div>
         </section>
-        <section className="panel">
+        )}
+        {section === "bourses" && (
+        <section className="panel full-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Financement</p>
               <h3>Types de bourse</h3>
             </div>
           </div>
-          <div className="reference-cards">
+          <div className="scholarship-grid">
             {types.map((type) => (
-              <article className="reference-card" key={type.id}>
-                <div>
-                  <strong>{type.nom}</strong>
-                  <span>
-                    {formatMoney(type.fraisInscription)} ·{" "}
-                    {type.tauxReduction ?? 0}% de réduction
-                  </span>
-                </div>
-                <button
-                  className="row-action icon-action"
-                  onClick={() => {
-                    setSelectedType(type);
-                    setModal("schedule");
-                  }} aria-label="Ajouter une échéance"><ActionIcon name="schedule" /></button>
-                <button
-                  className="row-action icon-action danger-row-action"
-                  onClick={() => {
-                    setDeleteError("");
-                    setDeleteReason("");
-                    setDeleteTarget({ kind: "scholarship", id: type.id, label: type.nom });
-                  }} aria-label="Supprimer"><ActionIcon name="delete" /></button>
-                <div className="schedule-list">
-                  {type.echeances?.map((echeance: Echeance) => (
-                    <span key={echeance.id}>
-                      {echeance.ordre}. {echeance.libelle} ·{" "}
-                      {echeance.montantAttendu
-                        ? formatMoney(echeance.montantAttendu)
-                        : "-"}
-                    </span>
-                  ))}
-                  {!type.echeances?.length && (
-                    <small>Aucune échéance configurée</small>
-                  )}
-                </div>
+              <article className="scholarship-card" key={type.id}>
+                <header>
+                  <div>
+                    <strong>{type.nom}</strong>
+                    <small>{type.echeances?.length ? `${type.echeances.length} échéance(s)` : "Aucune échéance configurée"}</small>
+                  </div>
+                  <div className="scholarship-card-actions">
+                    <button
+                      className="row-action icon-action"
+                      onClick={() => {
+                        setSelectedType(type);
+                        setModal("schedule");
+                      }} aria-label="Ajouter une échéance"><ActionIcon name="schedule" /></button>
+                    <button
+                      className="row-action icon-action danger-row-action"
+                      onClick={() => {
+                        setDeleteError("");
+                        setDeleteReason("");
+                        setDeleteTarget({ kind: "scholarship", id: type.id, label: type.nom });
+                      }} aria-label="Mettre à la corbeille"><ActionIcon name="delete" /></button>
+                  </div>
+                </header>
+                <dl className="scholarship-figures">
+                  <div><dt>Frais d&apos;inscription</dt><dd>{formatMoney(type.fraisInscription)}</dd></div>
+                  <div><dt>Réduction</dt><dd>{type.tauxReduction ?? 0} %</dd></div>
+                </dl>
+                {type.echeances?.length ? (
+                  <ol className="scholarship-schedule">
+                    {type.echeances.map((echeance: Echeance) => (
+                      <li key={echeance.id}>
+                        <span>{echeance.ordre}</span>
+                        <div><strong>{echeance.libelle}</strong>{echeance.dateEcheance && <small>Avant le {formatDate(echeance.dateEcheance)}</small>}</div>
+                        <b>{echeance.montantAttendu ? formatMoney(echeance.montantAttendu) : "—"}</b>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <button type="button" className="scholarship-empty" onClick={() => { setSelectedType(type); setModal("schedule"); }}>+ Ajouter la première échéance</button>
+                )}
               </article>
             ))}
             {!types.length && (
@@ -1025,6 +1042,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
             )}
           </div>
         </section>
+        )}
       </div>
       {modal === "element" && (
         <ReferenceForm
@@ -1104,150 +1122,139 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
   );
 }
 
-function OperationalReportsPage() {
-  const [report, setReport] = useState<IncompleteReport | null>(null);
-  const [latePayments, setLatePayments] = useState<
-    Array<{
-      echeance: {
-        libelle: string;
-        dateEcheance?: string;
-        typeBourse?: { nom: string };
-      };
-      resteAPayer: string;
-      dossiers?: Array<{ demandeBourseId: string; personne?: Person; resteAPayer: string }>;
-    }>
-  >([]);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    void Promise.all([
-      apiFetch<IncompleteReport>("/rapports/dossiers-incomplets"),
-      apiFetch<{ echeances: typeof latePayments }>(
-        "/rapports/paiements-en-retard",
-      ),
-    ])
-      .then(([incomplete, late]) => {
-        setReport(incomplete);
-        setLatePayments(late.echeances);
-      })
-      .catch((failure) =>
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : "Rapports indisponibles.",
-        ),
-      );
-  }, []);
+type LateInstalment = {
+  echeance: { libelle: string; dateEcheance?: string; typeBourse?: { nom: string } };
+  resteAPayer: string;
+  dossiers?: Array<{ demandeBourseId: string; personne?: Person; resteAPayer: string }>;
+};
+
+const normalizeText = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase();
+const textMatches = (term: string, ...parts: Array<string | null | undefined>) => !term || normalizeText(parts.filter(Boolean).join(" ")).includes(term);
+const dossierKind = (type: string) => (type === "demande-bourse" ? "Demande de bourse" : "Inscription");
+// Une bulle montre quatre étiquettes sur deux lignes ; au-delà, la dernière devient « + N ».
+const MISSING_SLOTS = 4;
+
+// Dossiers incomplets : une bulle par dossier, trois par ligne, toutes de même taille.
+function MissingPiecesReport({ report }: { report: IncompleteReport | null }) {
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<"all" | "demande-bourse" | "inscription">("all");
-  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase();
-  const term = normalize(search.trim());
-  const matches = (...parts: Array<string | null | undefined>) => !term || normalize(parts.filter(Boolean).join(" ")).includes(term);
+  const term = normalizeText(search.trim());
   const dossiers = (report?.dossiers ?? []).filter((item) =>
     (kind === "all" || item.dossierType === kind) &&
-    matches(fullName(item.personne), item.personne?.telephone, item.dossierType === "demande-bourse" ? "demande de bourse" : "inscription", ...item.elementsManquants.map((element) => element.elementRequis.nom)),
-  );
-  const retards = latePayments.filter((item) =>
-    matches(item.echeance.libelle, item.echeance.typeBourse?.nom, ...(item.dossiers ?? []).map((dossier) => fullName(dossier.personne))),
+    textMatches(term, fullName(item.personne), item.personne?.telephone, dossierKind(item.dossierType), ...item.elementsManquants.map((element) => element.elementRequis.nom)),
   );
   const filtered = Boolean(term) || kind !== "all";
+  const paged = usePaged(dossiers, 12);
+  const exportPdf = () =>
+    void listPdf("dossiers-incomplets.pdf", "Dossiers incomplets", `${dossiers.length} dossier(s)${filtered ? " (liste filtrée)" : ""}`, [
+      ["Personne", "Téléphone", "Dossier", "Nombre", "Pièces manquantes"],
+      ...dossiers.map((item) => [fullName(item.personne), item.personne?.telephone ?? "", dossierKind(item.dossierType), item.elementsManquants.length, item.elementsManquants.map((element) => element.elementRequis.nom).join(", ")]),
+    ]);
   return (
-    <div className="content-scroll">
-      <div className="page-intro">
+    <section className="panel full-panel">
+      <div className="panel-heading">
         <div>
-          <p className="eyebrow">Pilotage</p>
-          <h2>Rapports</h2>
-          <p>Priorisez les dossiers incomplets et les échéances à recouvrer.</p>
+          <p className="eyebrow">Pièces manquantes</p>
+          <h3>{report ? dossiers.length : "--"} dossier(s) incomplet(s){filtered && report ? ` sur ${report.total}` : ""}</h3>
         </div>
+        <button type="button" className="outline-button small" disabled={!dossiers.length} onClick={exportPdf}>Exporter en PDF</button>
       </div>
-      <ErrorMessage error={error} />
       <div className="report-toolbar">
         <label className="report-search">
           <Search aria-hidden="true" focusable="false" />
-          <input type="search" value={search} placeholder="Rechercher un nom, un téléphone, une pièce, une échéance…" aria-label="Rechercher dans les rapports" onChange={(event) => setSearch(event.target.value)} />
+          <input type="search" value={search} placeholder="Rechercher un nom, un téléphone, une pièce…" aria-label="Rechercher un dossier incomplet" onChange={(event) => { setSearch(event.target.value); paged.setPage(1); }} />
         </label>
         <div className="segmented compact">
           <div className="segmented-options" role="radiogroup" aria-label="Type de dossier">
             {([["all", "Tous les dossiers"], ["demande-bourse", "Demandes de bourse"], ["inscription", "Inscriptions"]] as const).map(([value, label]) => (
-              <button key={value} type="button" role="radio" aria-checked={kind === value} className="segmented-option" onClick={() => setKind(value)}>{label}</button>
+              <button key={value} type="button" role="radio" aria-checked={kind === value} className="segmented-option" onClick={() => { setKind(value); paged.setPage(1); }}>{label}</button>
             ))}
           </div>
         </div>
       </div>
-      <div className="report-grid">
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Pièces manquantes</p>
-              <h3>{report ? dossiers.length : "--"} dossier(s) incomplet(s){filtered && report ? ` sur ${report.total}` : ""}</h3>
-            </div>
-          </div>
-          <div className="report-cards">
-            {dossiers.map((item) => (
-              <article className="report-card" key={`${item.dossierType}-${item.dossierId}`}>
-                <header>
-                  <div>
-                    <strong>{fullName(item.personne)}</strong>
-                    <span>{item.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}{item.personne?.telephone ? ` · ${item.personne.telephone}` : ""}</span>
-                  </div>
-                  <span className="report-card-count" title="Pièces manquantes">{item.elementsManquants.length}</span>
-                </header>
-                <div className="report-bubbles">
-                  {item.elementsManquants.map((element) => (
-                    <span className={`report-bubble ${element.statut === "MANQUANT" ? "missing" : ""}`} key={element.id}>
-                      <small>{element.statut === "MANQUANT" ? "Manquant" : "Attendu"}{element.elementRequis.obligatoire === false ? " · facultatif" : ""}</small>
-                      {element.elementRequis.nom}
-                    </span>
-                  ))}
-                </div>
-                <footer>
-                  <button type="button" className="row-action icon-action" onClick={() => navigateTo(pathForDossier({ type: item.dossierType, id: item.dossierId }))} aria-label="Ouvrir le dossier"><ActionIcon name="open" /></button>
-                </footer>
-              </article>
-            ))}
-          </div>
-          {!report && !error && <p className="empty-state">Chargement des dossiers…</p>}
-          {report && !dossiers.length && (
-            <p className="empty-state">{filtered ? "Aucun dossier incomplet ne correspond à cette recherche." : "Tous les dossiers sont complets."}</p>
-          )}
-        </section>
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Recouvrement</p>
-              <h3>{retards.length} échéance(s) en retard</h3>
-            </div>
-          </div>
-          <div className="report-cards single">
-            {retards.map((item, index) => (
-              <article className="report-card late" key={`${item.echeance.libelle}-${index}`}>
-                <header>
-                  <div>
-                    <strong>{item.echeance.libelle}</strong>
-                    <span>{item.echeance.typeBourse?.nom ?? "Bourse"} · échue le {formatDate(item.echeance.dateEcheance)}</span>
-                  </div>
-                  <strong className="report-amount">{formatMoney(item.resteAPayer)}</strong>
-                </header>
-                {(item.dossiers ?? []).length > 0 && (
-                  <div className="report-bubbles">
-                    {(item.dossiers ?? []).map((dossier) => (
-                      <button type="button" className="report-bubble missing" key={dossier.demandeBourseId} title="Ouvrir la demande de bourse" onClick={() => navigateTo(pathForDossier({ type: "demande-bourse", id: dossier.demandeBourseId }))}>
-                        <small>Reste {formatMoney(dossier.resteAPayer)}</small>
-                        {fullName(dossier.personne)}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </article>
-            ))}
-          </div>
-          {!retards.length && (
-            <p className="empty-state">{term && latePayments.length ? "Aucune échéance ne correspond à cette recherche." : "Aucun retard de paiement."}</p>
-          )}
-        </section>
+      <div className="missing-grid">
+        {paged.items.map((item) => {
+          const shown = item.elementsManquants.slice(0, item.elementsManquants.length > MISSING_SLOTS ? MISSING_SLOTS - 1 : MISSING_SLOTS);
+          const hidden = item.elementsManquants.slice(shown.length);
+          return (
+            <button type="button" className="missing-card" key={`${item.dossierType}-${item.dossierId}`} title="Ouvrir le dossier" onClick={() => navigateTo(pathForDossier({ type: item.dossierType, id: item.dossierId }))}>
+              <span className="missing-card-head">
+                <span><strong>{fullName(item.personne)}</strong><small>{dossierKind(item.dossierType)}{item.personne?.telephone ? ` · ${item.personne.telephone}` : ""}</small></span>
+                <b title="Pièces manquantes">{item.elementsManquants.length}</b>
+              </span>
+              <span className="missing-card-pieces">
+                {shown.map((element) => <i className={element.statut === "MANQUANT" ? "missing" : ""} key={element.id} title={`${element.statut === "MANQUANT" ? "Manquant" : "Attendu"}${element.elementRequis.obligatoire === false ? " · facultatif" : ""}`}>{element.elementRequis.nom}</i>)}
+                {hidden.length > 0 && <i className="more" title={hidden.map((element) => element.elementRequis.nom).join(", ")}>+ {hidden.length} autre(s)</i>}
+              </span>
+            </button>
+          );
+        })}
       </div>
-    </div>
+      {!report && <p className="empty-state">Chargement des dossiers…</p>}
+      {report && !dossiers.length && <p className="empty-state">{filtered ? "Aucun dossier incomplet ne correspond à cette recherche." : "Tous les dossiers sont complets."}</p>}
+      {dossiers.length > 0 && <p className="missing-legend"><i className="missing" /> Manquant <i /> Attendu</p>}
+      <PageBar page={paged.page} pageCount={paged.pageCount} total={paged.total} noun="dossier(s)" onPage={paged.setPage} />
+    </section>
   );
 }
+
+// Échéances de bourse échues et non soldées, avec les dossiers à relancer.
+function RecoveryReport({ latePayments }: { latePayments: LateInstalment[] | null }) {
+  const [search, setSearch] = useState("");
+  const term = normalizeText(search.trim());
+  const retards = (latePayments ?? []).filter((item) => textMatches(term, item.echeance.libelle, item.echeance.typeBourse?.nom, ...(item.dossiers ?? []).map((dossier) => fullName(dossier.personne))));
+  const total = retards.reduce((sum, item) => sum + Number(item.resteAPayer), 0);
+  const exportPdf = () =>
+    void listPdf("recouvrement.pdf", "Recouvrement", `${retards.length} échéance(s) en retard · ${formatMoney(total)} à recouvrer`, [
+      ["Échéance", "Type de bourse", "Échue le", "Personne", "Reste à payer"],
+      ...retards.flatMap((item) =>
+        (item.dossiers?.length ? item.dossiers : [null]).map((dossier) => [item.echeance.libelle, item.echeance.typeBourse?.nom ?? "", formatDate(item.echeance.dateEcheance), dossier ? fullName(dossier.personne) : "", formatMoney(dossier ? dossier.resteAPayer : item.resteAPayer)]),
+      ),
+    ]);
+  return (
+    <section className="panel full-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Recouvrement</p>
+          <h3>{latePayments ? retards.length : "--"} échéance(s) en retard · {formatMoney(total)}</h3>
+        </div>
+        <button type="button" className="outline-button small" disabled={!retards.length} onClick={exportPdf}>Exporter en PDF</button>
+      </div>
+      <div className="report-toolbar">
+        <label className="report-search">
+          <Search aria-hidden="true" focusable="false" />
+          <input type="search" value={search} placeholder="Rechercher une échéance, une bourse, un nom…" aria-label="Rechercher une échéance en retard" onChange={(event) => setSearch(event.target.value)} />
+        </label>
+      </div>
+      <div className="report-cards">
+        {retards.map((item, index) => (
+          <article className="report-card late" key={`${item.echeance.libelle}-${index}`}>
+            <header>
+              <div>
+                <strong>{item.echeance.libelle}</strong>
+                <span>{item.echeance.typeBourse?.nom ?? "Bourse"} · échue le {formatDate(item.echeance.dateEcheance)}</span>
+              </div>
+              <strong className="report-amount">{formatMoney(item.resteAPayer)}</strong>
+            </header>
+            {(item.dossiers ?? []).length > 0 && (
+              <div className="report-bubbles">
+                {(item.dossiers ?? []).map((dossier) => (
+                  <button type="button" className="report-bubble missing" key={dossier.demandeBourseId} title="Ouvrir la demande de bourse" onClick={() => navigateTo(pathForDossier({ type: "demande-bourse", id: dossier.demandeBourseId }))}>
+                    <small>Reste {formatMoney(dossier.resteAPayer)}</small>
+                    {fullName(dossier.personne)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+      {!latePayments && <p className="empty-state">Chargement des échéances…</p>}
+      {latePayments && !retards.length && <p className="empty-state">{term && latePayments.length ? "Aucune échéance ne correspond à cette recherche." : "Aucun retard de paiement."}</p>}
+    </section>
+  );
+}
+
 type ActivityReport = {
   synthese: {
     nombrePaiements: number;
@@ -1523,10 +1530,41 @@ function PeriodicReport() {
 }
 
 export function ReportsPage() {
+  type Section = "pieces" | "recouvrement" | "activite";
+  const [section, setSection] = useState<Section | null>(null);
+  const [report, setReport] = useState<IncompleteReport | null>(null);
+  const [latePayments, setLatePayments] = useState<LateInstalment[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    void Promise.all([
+      apiFetch<IncompleteReport>("/rapports/dossiers-incomplets"),
+      apiFetch<{ echeances: LateInstalment[] }>("/rapports/paiements-en-retard"),
+    ])
+      .then(([incomplete, late]) => { setReport(incomplete); setLatePayments(late.echeances); })
+      .catch((failure) => setError(failure instanceof Error ? failure.message : "Rapports indisponibles."));
+  }, []);
+  const lateTotal = (latePayments ?? []).reduce((sum, item) => sum + Number(item.resteAPayer), 0);
+  const missingPieces = (report?.dossiers ?? []).reduce((sum, item) => sum + item.elementsManquants.length, 0);
+  const cards: HubCard<Section>[] = [
+    { key: "pieces", icon: FolderCheck, title: "Pièces manquantes", value: report ? `${report.total}` : "…", detail: report?.total ? `dossier(s) incomplet(s) · ${missingPieces} pièce(s) à obtenir` : "Tous les dossiers sont complets", tone: report?.total ? "warn" : undefined, info: "Les demandes de bourse et les inscriptions auxquelles il manque encore une pièce, une fourniture ou un frais. Chaque bulle est un dossier : cliquez dessus pour l'ouvrir et relancer la personne. La liste se filtre et s'exporte en PDF." },
+    { key: "recouvrement", icon: HandCoins, title: "Recouvrement", value: latePayments ? `${latePayments.length}` : "…", detail: latePayments?.length ? `échéance(s) en retard · ${formatMoney(lateTotal)} à recouvrer` : "Aucun retard de paiement", tone: latePayments?.length ? "alert" : undefined, info: "Les échéances de bourse dont la date limite est passée et qui ne sont pas soldées, avec le reste à payer de chaque personne concernée. C'est la liste des relances de paiement, exportable en PDF." },
+    { key: "activite", icon: CalendarRange, title: "Activité sur une période", value: "PDF", detail: "rapport de direction entre deux dates", info: "Choisissez deux dates et générez le rapport d'activité : paiements encaissés, nouvelles demandes de bourse, inscriptions et prospects de la période. À remettre à la direction." },
+  ];
   return (
-      <div className="content-scroll reports-page-stack">
-        <PeriodicReport />
-        <OperationalReportsPage />
+    <div className="content-scroll">
+      <div className="page-intro">
+        <div>
+          <p className="eyebrow">Pilotage</p>
+          <h2>Rapports</h2>
+          <p>Priorisez les dossiers incomplets et les échéances à recouvrer.</p>
+        </div>
       </div>
+      <ErrorMessage error={error} />
+      {!section && <HubCards cards={cards} onOpen={setSection} />}
+      {section && <HubBack label="Rapports" onBack={() => setSection(null)} />}
+      {section === "pieces" && <MissingPiecesReport report={report} />}
+      {section === "recouvrement" && <RecoveryReport latePayments={latePayments} />}
+      {section === "activite" && <PeriodicReport />}
+    </div>
   );
 }

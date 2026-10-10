@@ -12,7 +12,7 @@ const FIELD_LABELS: Record<string, string> = {
   dateEntretien: "Date d'entretien", equipeEntretien: "Équipe d'entretien", dateDecision: "Date de décision", typeBourseId: "Type de bourse",
   demandeBourseId: "Demande de bourse", inscriptionId: "Inscription", personneId: "Personne", elementDossierId: "Obligation", echeanceId: "Échéance",
   montant: "Montant", montantAttendu: "Montant attendu", typePaiement: "Type de paiement", fraisInscription: "Frais d'inscription", tauxReduction: "Taux de réduction",
-  intention: "Intention", sourceConnaissance: "A connu l'IPAIM par", commentaire: "Commentaire", dateProchaineRelance: "Prochaine relance", motif: "Motif", permissions: "Permissions", posteId: "Poste",
+  intention: "Intention", sourceConnaissance: "A connu l'IPAIM par", commentaire: "Commentaire", dateProchaineRelance: "Prochaine relance", motif: "Motif", permissions: "Permissions", poleId: "Pôle", posteId: "Poste",
   motDePasse: "Mot de passe", ancienMotDePasse: "Ancien mot de passe", nouveauMotDePasse: "Nouveau mot de passe", obligatoire: "Obligatoire",
   categorie: "Catégorie", contexte: "Contexte", niveauApplicable: "Niveau applicable", diplome: "Diplôme", fonction: "Fonction", remarques: "Remarques",
   libelle: "Libellé", ordre: "Ordre", dateEcheance: "Date d'échéance", preparation: "Préparation du dossier", nouvellePersonne: "Nouvelle personne",
@@ -20,7 +20,7 @@ const FIELD_LABELS: Record<string, string> = {
   creeParId: "Créé par", elementRequisId: "Élément requis", statuses: "Statut des pièces", elementId: "Obligation", confirmerDemandeEnCours: "Demande non décidée confirmée",
 };
 
-const PAYMENT_LABELS: Record<string, string> = { FRAIS_DEPOT: "Frais de dépôt", FRAIS_INSCRIPTION: "Frais d'inscription", REMBOURSEMENT: "Remboursement", REPORT: "Report de trop-perçu", ECHEANCE_BOURSE: "Échéance de bourse" };
+const PAYMENT_LABELS: Record<string, string> = { FRAIS_DEPOT: "Frais de dépôt", FRAIS_INSCRIPTION: "Frais d'inscription", REMBOURSEMENT: "Remboursement", REPORT: "Report de trop-perçu", ANNULATION: "Annulation d'un encaissement", ECHEANCE_BOURSE: "Échéance de bourse" };
 
 export const fieldLabel = (key: string) =>
   FIELD_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (letter) => letter.toUpperCase());

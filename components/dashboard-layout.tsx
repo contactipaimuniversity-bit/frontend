@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { Award, BadgeCheck, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
 import { Summary, User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
+import { UserAvatar } from "@/components/student-photo";
 import { GlobalSearch } from "@/components/global-search";
 import { canAccessView } from "@/lib/access";
 
@@ -204,7 +205,7 @@ export function DashboardLayout({ activeView, setActiveView, user, summary, onLo
         </nav>
         <div className="sidebar-bottom">
           {user && <button type="button" title="Paramètres" className={`nav-item ${activeView === "Paramètres" ? "active" : ""}`} onClick={() => go(onSettings)}><Icon name="settings" /><span className="nav-text">Paramètres</span></button>}
-          <button type="button" title="Profil" className={`profile-card ${activeView === "Profil" ? "active" : ""}`} onClick={() => go(onProfile)}><span className="avatar">{(user?.prenom ?? user?.nom)?.slice(0, 1) ?? "A"}</span><span className="profile-text"><strong>{[user?.prenom, user?.nom].filter(Boolean).join(" ") || "Administrateur"}</strong><small>{user?.poste?.nom ?? (user?.role === "admin" ? "Administrateur" : "Équipe")}</small></span><span className="logout-icon">→</span></button>
+          <button type="button" title="Profil" className={`profile-card ${activeView === "Profil" ? "active" : ""}`} onClick={() => go(onProfile)}><UserAvatar user={user} /><span className="profile-text"><strong>{[user?.prenom, user?.nom].filter(Boolean).join(" ") || "Administrateur"}</strong><small>{user?.poste?.nom ?? (user?.role === "admin" ? "Administrateur" : "Équipe")}</small></span><span className="logout-icon">→</span></button>
           <button type="button" title="Se déconnecter" className="logout-button" onClick={() => setLogoutOpen(true)}>Se déconnecter <span>↪</span></button>
         </div>
       </aside>

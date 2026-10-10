@@ -1,4 +1,4 @@
-export type User = { id?: string; nom: string; prenom?: string | null; email: string; role: string; posteId?: string | null; poste?: { id: string; nom: string } | null; permissions?: string[] };
+export type User = { id?: string; nom: string; prenom?: string | null; email: string; role: string; posteId?: string | null; poste?: { id: string; nom: string } | null; permissions?: string[]; photoUrl?: string | null };
 export type DateOrder = "asc" | "desc";
 export type JobPosition = { id: string; nom: string; permissions: string[]; _count?: { utilisateurs: number } };
 export type Person = {
@@ -121,15 +121,30 @@ export type UnassignedPayment = {
 };
 export type PaymentTransaction = UnassignedPayment & {
   dossier: string;
-  /** Renseignés pour un remboursement ou un report de trop-perçu. */
+  /** Renseignés pour un remboursement, un report de trop-perçu ou une annulation. */
   motif?: string | null;
   saisiParNom?: string | null;
+  /** Espèces, mobile money, virement ou chèque. */
+  modePaiement?: string | null;
+  /** Numéro de reçu suivi ; absent tant qu'une saisie hors ligne n'est pas arrivée au serveur. */
+  numeroRecu?: string | null;
+  /** Encaissement saisi par erreur, neutralisé par une ligne d'annulation. */
+  annule?: boolean;
+  /** Sur une ligne d'annulation : le paiement qu'elle neutralise. */
+  annulePaiementId?: string | null;
   obligation?: string | null;
   echeance?: string | null;
   affecte: boolean;
   /** Paiement saisi sans connexion, pas encore reçu par le serveur. */
   _offline?: boolean;
 };
+export const PAYMENT_MODE_LABELS: Record<string, string> = {
+  ESPECES: "Espèces",
+  MOBILE_MONEY: "Mobile money",
+  VIREMENT: "Virement bancaire",
+  CHEQUE: "Chèque",
+};
+export const paymentModeLabel = (mode?: string | null) => PAYMENT_MODE_LABELS[mode ?? "ESPECES"] ?? mode ?? "Espèces";
 export type RequiredElement = {
   id: string;
   nom?: string;
@@ -265,6 +280,7 @@ export const statusLabels: Record<string, string> = {
   ECHEANCE_BOURSE: "Échéance de bourse",
   REMBOURSEMENT: "Remboursement",
   REPORT: "Report de trop-perçu",
+  ANNULATION: "Annulation d'un encaissement",
   REFUSE: "Refusé",
 };
 

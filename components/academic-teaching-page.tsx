@@ -6,7 +6,7 @@ import { hasAccess } from "@/lib/access";
 import { User, formatDate } from "@/lib/types";
 import { Room } from "@/components/academic-structure-page";
 import { Course, Student, useClassPicker } from "@/components/academic-classes-page";
-import { Badge, Empty, FormActions, Modal, PageIntro, Panel, Tabs, downloadCsv, number, personName, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, Modal, PageIntro, Panel, Tabs, downloadPdf, number, personName, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
 import { apiFetch } from "@/lib/api";
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -228,7 +228,7 @@ export function AcademicTeachingPage({ user, refreshSignal }: { user: User | nul
 
 // ---------- Notes ----------
 
-type Evaluation = { id: string; type: string; libelle: string; date?: string | null; bareme: string; statut: string; anonyme: boolean; notesSaisies: number; valideParNom?: string | null };
+type Evaluation = { id: string; type: string; libelle: string; date?: string | null; heureDebut?: string | null; heureFin?: string | null; bareme: string; statut: string; anonyme: boolean; notesSaisies: number; valideParNom?: string | null };
 type AnonymousCopies = { evaluation: { id: string; libelle: string; bareme: number }; copies: Array<{ numero: number; valeur: number | null; absent: boolean }> };
 type GradeGrid = {
   cours: { id: string; matiere: { nom: string; code: string }; classeNom: string; annee: string; enseignant: string | null };
@@ -236,8 +236,12 @@ type GradeGrid = {
   peutValider: boolean;
   poidsControleContinu: number;
   evaluations: Evaluation[];
-  etudiants: Array<{ inscriptionId: string; personne: Student; notes: Array<{ evaluationId: string; valeur: number | null; absent: boolean; masquee?: boolean }>; moyenne: number | null; complet: boolean }>;
+  // dispense : l'étudiant a déjà acquis l'unité de cette matière une année précédente.
+  etudiants: Array<{ inscriptionId: string; personne: Student; notes: Array<{ evaluationId: string; valeur: number | null; absent: boolean; masquee?: boolean }>; moyenne: number | null; complet: boolean; dispense?: boolean }>;
 };
+const EMPTY_EVALUATION = { type: "CONTROLE", libelle: "", date: "", heureDebut: "", heureFin: "", salleId: "", surveillant: "", bareme: "20" };
+const schedule = (item: { date?: string | null; heureDebut?: string | null; heureFin?: string | null }) =>
+  item.date ? `${formatDate(item.date)}${item.heureDebut ? ` · ${item.heureDebut}–${item.heureFin}` : ""}` : "";
 const EVALUATION_TYPES: Record<string, string> = { CONTROLE: "Contrôle continu", EXAMEN: "Examen", RATTRAPAGE: "Rattrapage" };
 
 // Saisie des notes d'une évaluation anonyme : le correcteur ne voit que des numéros.
@@ -284,10 +288,13 @@ function GradesModal({ courseId, canEdit, onClose }: { courseId: string; canEdit
   const [draft, setDraft] = useState<Record<string, { valeur: string; absent: boolean }>>({});
   const [creating, setCreating] = useState(false);
   const [copiesOf, setCopiesOf] = useState<string | null>(null);
-  const form = useForm({ type: "CONTROLE", libelle: "", date: "", bareme: "20" });
+  const form = useForm(EMPTY_EVALUATION);
+  const rooms = useLoad<Room[]>(creating ? "/academique/salles" : null);
   const action = useAction();
   const data = grid.data;
   const editable = canEdit && !data?.verrouille;
+  // Ceux qui ont déjà acquis l'unité n'ont pas de note à recevoir.
+  const graded = (data?.etudiants ?? []).filter((student) => !student.dispense).length;
   const cell = (evaluationId: string, inscriptionId: string) => {
     const key = `${evaluationId}:${inscriptionId}`;
     if (draft[key]) return draft[key];
@@ -336,7 +343,7 @@ function GradesModal({ courseId, canEdit, onClose }: { courseId: string; canEdit
   const anonymityTable = (evaluation: Evaluation) =>
     action.run(async () => {
       const table = await apiFetch<{ lignes: Array<{ numero: number; nom: string; prenom: string; matricule?: string | null }> }>(`/notes/evaluations/${evaluation.id}/correspondance`, { skipCache: true });
-      downloadCsv(`anonymat-${evaluation.libelle.replace(/\s+/g, "-")}.csv`, [["Numéro d'anonymat", "Nom", "Prénom", "Matricule"], ...table.lignes.map((line) => [line.numero, line.nom, line.prenom, line.matricule])]);
+      downloadPdf(`anonymat-${evaluation.libelle.replace(/\s+/g, "-")}.pdf`, "Table d'anonymat", evaluation.libelle, [["Numéro d'anonymat", "Nom", "Prénom", "Matricule"], ...table.lignes.map((line) => [line.numero, line.nom, line.prenom, line.matricule])]);
     });
   const remove = async (evaluation: Evaluation) => {
     if (!(await askConfirm({ title: `Supprimer « ${evaluation.libelle} » ?`, message: "Les notes déjà saisies pour cette évaluation seront perdues.", confirmLabel: "Supprimer", danger: true }))) return;
@@ -347,7 +354,7 @@ function GradesModal({ courseId, canEdit, onClose }: { courseId: string; canEdit
     void action.run(async () => {
       await send("/notes/evaluations", "POST", { ...form.values, coursId: courseId }, true);
       setCreating(false);
-      form.setValues({ type: "CONTROLE", libelle: "", date: "", bareme: "20" });
+      form.setValues(EMPTY_EVALUATION);
       grid.reload();
     });
   };
@@ -366,6 +373,13 @@ function GradesModal({ courseId, canEdit, onClose }: { courseId: string; canEdit
               <select className="expense-select" aria-label="Type" {...form.bind("type")}>{Object.entries(EVALUATION_TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
               <input required minLength={2} placeholder="Intitulé (ex. Devoir n°1)" aria-label="Intitulé" {...form.bind("libelle")} />
               <label>Date<input type="date" {...form.bind("date")} /></label>
+              <label>De<input type="time" required={Boolean(form.values.heureFin)} {...form.bind("heureDebut")} /></label>
+              <label>à<input type="time" required={Boolean(form.values.heureDebut)} min={form.values.heureDebut || undefined} {...form.bind("heureFin")} /></label>
+              <select className="expense-select" aria-label="Salle" {...form.bind("salleId")}>
+                <option value="">Sans salle</option>
+                {(rooms.data ?? []).filter((room) => room.actif).map((room) => <option key={room.id} value={room.id}>{room.nom}</option>)}
+              </select>
+              <input maxLength={160} placeholder="Surveillant (facultatif)" aria-label="Surveillant" {...form.bind("surveillant")} />
               <label>Barème<input required type="number" min="1" max="100" style={{ width: 80 }} {...form.bind("bareme")} /></label>
               <button className="outline-button small" disabled={action.busy}>Créer</button>
               <button type="button" className="row-action" onClick={() => setCreating(false)}>Annuler</button>
@@ -380,8 +394,8 @@ function GradesModal({ courseId, canEdit, onClose }: { courseId: string; canEdit
                   {data.evaluations.map((evaluation) => (
                     <th key={evaluation.id}>
                       {evaluation.libelle}
-                      <small className="cell-detail">{EVALUATION_TYPES[evaluation.type]} · /{Number(evaluation.bareme)}</small>
-                      <Badge tone={evaluation.statut === "VALIDEE" ? "ok" : "wait"}>{evaluation.statut === "VALIDEE" ? "Validée" : `${evaluation.notesSaisies}/${data.etudiants.length} saisies`}</Badge>
+                      <small className="cell-detail">{EVALUATION_TYPES[evaluation.type]} · /{Number(evaluation.bareme)}{evaluation.date ? ` · ${schedule(evaluation)}` : ""}</small>
+                      <Badge tone={evaluation.statut === "VALIDEE" ? "ok" : "wait"}>{evaluation.statut === "VALIDEE" ? "Validée" : `${evaluation.notesSaisies}/${graded} saisies`}</Badge>
                       {!data.verrouille && (
                         <span className="grades-actions">
                           {data.peutValider && evaluation.statut === "OUVERTE" && <button className="row-action" onClick={() => void validate(evaluation)}>{evaluation.anonyme ? "Valider et lever l'anonymat" : "Valider"}</button>}
@@ -404,6 +418,7 @@ function GradesModal({ courseId, canEdit, onClose }: { courseId: string; canEdit
                     {data.evaluations.map((evaluation) => {
                       const value = cell(evaluation.id, student.inscriptionId);
                       const locked = !editable || evaluation.statut !== "OUVERTE";
+                      if (student.dispense) return <td key={evaluation.id}><small className="cell-detail">Unité acquise</small></td>;
                       if (evaluation.anonyme && evaluation.statut === "OUVERTE") return <td key={evaluation.id}><small className="cell-detail">Sous anonymat</small></td>;
                       return (
                         <td key={evaluation.id}>
@@ -414,7 +429,7 @@ function GradesModal({ courseId, canEdit, onClose }: { courseId: string; canEdit
                         </td>
                       );
                     })}
-                    <td>{student.moyenne === null ? <small className="cell-detail">Incomplet</small> : <Badge tone={student.moyenne >= 10 ? "ok" : "bad"}>{number(student.moyenne)}</Badge>}</td>
+                    <td>{student.dispense ? <Badge tone="run">Dispensé</Badge> : student.moyenne === null ? <small className="cell-detail">Incomplet</small> : <Badge tone={student.moyenne >= 10 ? "ok" : "bad"}>{number(student.moyenne)}</Badge>}</td>
                   </tr>
                 ))}
                 {!data.etudiants.length && <Empty columns={data.evaluations.length + 2}>Aucun étudiant dans cette classe.</Empty>}
@@ -433,15 +448,154 @@ function GradesModal({ courseId, canEdit, onClose }: { courseId: string; canEdit
   );
 }
 
+// ---------- Calendrier des épreuves ----------
+
+type Exam = {
+  id: string;
+  type: string;
+  libelle: string;
+  date: string;
+  heureDebut: string | null;
+  heureFin: string | null;
+  statut: string;
+  salle: string | null;
+  surveillant: string | null;
+  matiere: string;
+  classeId: string;
+  classe: string;
+  enseignant: string | null;
+  conflits: string[];
+  horaireManquant: boolean;
+};
+type ExamCalendar = { annee: { id: string; libelle: string } | null; sansDate: number; epreuves: Exam[] };
+
+// Date, horaire, salle et surveillant d'une épreuve ; un conflit est refusé avec son explication.
+function PlanExam({ exam, onClose, onSaved }: { exam: Exam; onClose: () => void; onSaved: () => void }) {
+  const rooms = useLoad<Room[]>("/academique/salles");
+  const form = useForm({ date: exam.date.slice(0, 10), heureDebut: exam.heureDebut ?? "", heureFin: exam.heureFin ?? "", salleId: "", surveillant: exam.surveillant ?? "" });
+  // La salle actuelle n'est connue que par son nom : on la retrouve dans la liste.
+  const roomId = form.values.salleId || (rooms.data ?? []).find((room) => room.nom === exam.salle)?.id || "";
+  const action = useAction();
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    void action.run(async () => {
+      await send(`/notes/evaluations/${exam.id}`, "PATCH", { ...form.values, salleId: form.values.salleId === "aucune" ? null : roomId || null }, true);
+      toast("Épreuve planifiée.");
+      onSaved();
+      onClose();
+    });
+  };
+  return (
+    <Modal title={`Planifier · ${exam.libelle}`} onClose={onClose}>
+      <form className="entity-form" onSubmit={submit}>
+        <p className="panel-subtitle">{exam.matiere} · {exam.classe}</p>
+        <label>Date<input required type="date" {...form.bind("date")} /></label>
+        <div className="form-grid">
+          <label>Début<input required type="time" {...form.bind("heureDebut")} /></label>
+          <label>Fin<input required type="time" min={form.values.heureDebut || undefined} {...form.bind("heureFin")} /></label>
+        </div>
+        <label>Salle
+          <select value={form.values.salleId === "aucune" ? "aucune" : roomId} onChange={(event) => form.setValues({ ...form.values, salleId: event.target.value || "aucune" })}>
+            <option value="aucune">Sans salle</option>
+            {(rooms.data ?? []).filter((room) => room.actif).map((room) => <option key={room.id} value={room.id}>{room.nom}{room.capacite ? ` (${room.capacite} places)` : ""}</option>)}
+          </select>
+        </label>
+        <label>Surveillant<input maxLength={160} {...form.bind("surveillant")} /></label>
+        <p className="panel-subtitle">Deux épreuves ne se chevauchent pas pour une même classe, une même salle ou un même surveillant.</p>
+        {action.error && <p className="form-error">{action.error}</p>}
+        <FormActions busy={action.busy} label="Planifier" onCancel={onClose} />
+      </form>
+    </Modal>
+  );
+}
+
+function ExamCalendarPanel({ yearId, classId, className, canEdit, signal }: { yearId?: string; classId?: string; className?: string; canEdit: boolean; signal: number }) {
+  const [scope, setScope] = useState<"toutes" | "classe">("toutes");
+  const [types, setTypes] = useState("TOUS");
+  const calendar = useLoad<ExamCalendar>(`/notes/calendrier${yearId ? `?anneeId=${yearId}` : ""}`, signal);
+  const [planning, setPlanning] = useState<Exam | null>(null);
+  const exams = (calendar.data?.epreuves ?? []).filter((exam) => (scope === "toutes" || exam.classeId === classId) && (types === "TOUS" || (types === "EXAMENS" ? exam.type !== "CONTROLE" : exam.type === types)));
+  const conflicts = exams.filter((exam) => exam.conflits.length > 0);
+  const unscheduled = exams.filter((exam) => exam.horaireManquant).length;
+  const days = [...new Set(exams.map((exam) => exam.date.slice(0, 10)))];
+  const weekday = (date: string) => new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(date));
+  const exportPdf = () =>
+    downloadPdf(`calendrier-epreuves-${calendar.data?.annee?.libelle ?? ""}.pdf`, "Calendrier des épreuves", `${calendar.data?.annee?.libelle ?? ""}${scope === "classe" && className ? ` · ${className}` : ""}`, [
+      ["Date", "Horaire", "Classe", "Matière", "Épreuve", "Type", "Salle", "Surveillant"],
+      ...exams.map((exam) => [formatDate(exam.date), exam.heureDebut ? `${exam.heureDebut} - ${exam.heureFin}` : "", exam.classe, exam.matiere, exam.libelle, EVALUATION_TYPES[exam.type], exam.salle, exam.surveillant]),
+    ]);
+  return (
+    <Panel
+      eyebrow={calendar.data?.annee ? `Année ${calendar.data.annee.libelle}` : "Calendrier"}
+      title={`${calendar.data ? exams.length : "--"} épreuve(s) datée(s)`}
+      subtitle="Toutes les épreuves qui ont une date, dans l'ordre. Une épreuve se planifie à sa création dans la grille de notes, ou ici."
+      actions={<button className="outline-button small" disabled={!exams.length} onClick={exportPdf}>Exporter en PDF</button>}
+    >
+      <div className="finance-inline-form">
+        <select className="expense-select" aria-label="Classes" value={scope} onChange={(event) => setScope(event.target.value as "toutes" | "classe")}>
+          <option value="toutes">Toutes les classes</option>
+          {classId && <option value="classe">{className} seulement</option>}
+        </select>
+        <select className="expense-select" aria-label="Type d'épreuve" value={types} onChange={(event) => setTypes(event.target.value)}>
+          <option value="TOUS">Toutes les épreuves</option>
+          <option value="EXAMENS">Examens et rattrapages</option>
+          <option value="CONTROLE">Contrôles continus</option>
+        </select>
+      </div>
+      {calendar.error && <p className="form-error">{calendar.error}</p>}
+      {(conflicts.length > 0 || unscheduled > 0 || Boolean(calendar.data?.sansDate)) && (
+        <div className="expense-alert">
+          <span>À vérifier</span>
+          <ul>
+            {conflicts.map((exam) => <li key={exam.id}>{formatDate(exam.date)} · « {exam.libelle} » ({exam.classe}) : {exam.conflits.join(" ; ")}</li>)}
+            {unscheduled > 0 && <li>{unscheduled} épreuve(s) sans horaire : leurs conflits ne peuvent pas être contrôlés.</li>}
+            {Boolean(calendar.data?.sansDate) && <li>{calendar.data?.sansDate} évaluation(s) de l&apos;année n&apos;ont pas encore de date et n&apos;apparaissent pas ici.</li>}
+          </ul>
+        </div>
+      )}
+      {days.map((day) => (
+        <div className="curriculum-semester" key={day}>
+          <div className="curriculum-head"><h4>{weekday(day)}</h4></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Horaire</th><th>Classe</th><th>Matière</th><th>Épreuve</th><th>Salle</th><th>Surveillant</th><th /></tr></thead>
+              <tbody>
+                {exams.filter((exam) => exam.date.slice(0, 10) === day).map((exam) => (
+                  <tr key={exam.id}>
+                    <td className="strong-cell">{exam.heureDebut ? `${exam.heureDebut} – ${exam.heureFin}` : <Badge tone="wait">À préciser</Badge>}</td>
+                    <td>{exam.classe}</td>
+                    <td>{exam.matiere}<small className="cell-detail">{exam.enseignant ?? "Aucun enseignant affecté"}</small></td>
+                    <td>{exam.libelle}<small className="cell-detail">{EVALUATION_TYPES[exam.type]}</small>{exam.conflits.length > 0 && <Badge tone="bad">Conflit</Badge>}</td>
+                    <td>{exam.salle ?? "—"}</td>
+                    <td>{exam.surveillant ?? "—"}</td>
+                    <td>{canEdit && exam.statut === "OUVERTE" && <button className="row-action" onClick={() => setPlanning(exam)}>Planifier</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+      {calendar.data && !exams.length && <p className="empty-state">Aucune épreuve datée. Indiquez une date et un horaire en créant une évaluation dans « Saisie des notes ».</p>}
+      {!calendar.data && !calendar.error && <p className="empty-state">Chargement...</p>}
+      {planning && <PlanExam exam={planning} onClose={() => setPlanning(null)} onSaved={calendar.reload} />}
+    </Panel>
+  );
+}
+
 export function AcademicGradesPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   const classes = useClassPicker(refreshSignal);
   const courses = useLoad<Course[]>(classes.selected ? `/academique/cours?classeId=${classes.selected.id}` : null, refreshSignal);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [tab, setTab] = useState<"notes" | "calendrier">("notes");
   return (
     <div className="content-scroll">
-      <PageIntro eyebrow="Académique" title="Notes" text="Créez les évaluations de chaque matière et saisissez les notes. Un enseignant ne voit que ses propres matières.">{classes.picker}</PageIntro>
+      <PageIntro eyebrow="Académique" title="Notes" text="Créez les évaluations de chaque matière, planifiez les épreuves et saisissez les notes. Un enseignant ne voit que ses propres matières.">{classes.picker}</PageIntro>
       {(classes.error || courses.error) && <p className="form-error">{classes.error || courses.error}</p>}
-      {classes.selected ? (
+      <Tabs label="Rubrique" value={tab} onChange={setTab} tabs={[["notes", "Saisie des notes"], ["calendrier", "Calendrier des épreuves"]]} />
+      {tab === "calendrier" ? (
+        <ExamCalendarPanel yearId={classes.year?.id} classId={classes.selected?.id} className={classes.selected?.nom} canEdit={hasAccess(user, "grades", "edit")} signal={refreshSignal} />
+      ) : classes.selected ? (
         <Panel eyebrow={classes.selected.nom} title={`${courses.data?.length ?? "--"} matière(s)`}>
           <div className="table-wrap">
             <table>

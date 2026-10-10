@@ -5,8 +5,9 @@ import { askReason } from "@/components/feedback";
 import { FormEvent, useEffect, useState, useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api";
 import { ModalChoice } from "@/components/modal-choice";
+import { ProfilePhotoCard, UserAvatar } from "@/components/student-photo";
 import { ChevronLeft, ChevronRight, Coins, DatabaseBackup, Landmark, type LucideIcon, Palette, School, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
-import { applyColorMode, applyColorPreset, applyFont, applyTextSize, COLOR_PRESETS, ColorMode, ColorPresetId, FontId, FONTS, readColorMode, readColorPreset, readFont, readTextSize, subscribeToColorMode, subscribeToColorPreset, subscribeToTypography, TEXT_SIZES, TextSizeId } from "@/lib/theme";
+import { applyColorMode, applyColorPreset, applyFont, applyTextSize, applyUiStyle, COLOR_PRESETS, ColorMode, ColorPresetId, FontId, FONTS, readColorMode, readColorPreset, readFont, readTextSize, readUiStyle, subscribeToColorMode, subscribeToColorPreset, subscribeToTypography, subscribeToUiStyle, TEXT_SIZES, TextSizeId, UI_STYLES, UiStyleId } from "@/lib/theme";
 import { SettingsSection } from "@/lib/routes";
 import { User, ViewName } from "@/lib/types";
 import { ACCESS_FEATURES, AccessArea, AccessPermission, hasAccess } from "@/lib/access";
@@ -45,12 +46,12 @@ export function ProfilePage({
   return (
     <div className="content-scroll">
       <section className="account-hero">
-        <div className="account-avatar">{user?.nom?.slice(0, 1) ?? "A"}</div>
+        <UserAvatar user={user} className="account-avatar" />
         <div>
           <p className="eyebrow">Compte connecté</p>
           <h2>{user ? `${user.prenom ? `${user.prenom} ` : ""}${user.nom}` : "Administrateur"}</h2>
           <p>
-            {user?.role ?? "Equipe"} · {user?.email}
+            {user?.poste?.nom ?? (user?.role === "admin" ? "Administrateur" : "Équipe")} · {user?.email}
           </p>
         </div>
       </section>
@@ -62,6 +63,8 @@ export function ProfilePage({
               <h3>Votre profil</h3>
             </div>
           </div>
+          <p className="eyebrow form-section-label">Photo de profil</p>
+          <ProfilePhotoCard user={user} onUpdated={onUpdated} />
           <form className="entity-form profile-form" onSubmit={submit}>
             <div className="form-grid"><label>Nom<input required value={form.nom} onChange={(event) => setForm({ ...form, nom: event.target.value })} /></label><label>Prénom<input value={form.prenom} onChange={(event) => setForm({ ...form, prenom: event.target.value })} /></label></div>
             <label>Adresse email<input required type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
@@ -148,6 +151,7 @@ export function SettingsPage({
   const colorMode = useSyncExternalStore(subscribeToColorMode, readColorMode, () => "light" as ColorMode);
   const font = useSyncExternalStore(subscribeToTypography, readFont, () => "geist" as FontId);
   const textSize = useSyncExternalStore(subscribeToTypography, readTextSize, () => "normal" as TextSizeId);
+  const uiStyle = useSyncExternalStore(subscribeToUiStyle, readUiStyle, () => "classic" as UiStyleId);
   const isAdmin = currentUser?.role === "admin";
   // Les rubriques d'administration ne s'ouvrent qu'aux administrateurs.
   const page = section === "apparence" || (section && isAdmin) ? section : null;
@@ -299,7 +303,7 @@ export function SettingsPage({
         <div>
           <p className="eyebrow">{page ? "Paramètres" : "Réglages"}</p>
           <h2>{page === "apparence" ? "Apparence" : page === "postes" ? "Postes et accès" : page === "utilisateurs" ? "Utilisateurs" : "Paramètres"}</h2>
-          <p>{page === "apparence" ? "Couleurs, mode d'affichage, police et taille du texte. Ces choix sont propres à cet appareil." : page === "postes" ? "Chaque poste métier porte les accès donnés par défaut à ceux qui l'occupent." : page === "utilisateurs" ? "Les comptes autorisés à se connecter, leur poste et leurs accès." : "Choisissez une rubrique pour l'ouvrir."}</p>
+          <p>{page === "apparence" ? "Style d'interface, couleurs, mode d'affichage, police et taille du texte. Ces choix sont propres à cet appareil." : page === "postes" ? "Chaque poste métier porte les accès donnés par défaut à ceux qui l'occupent." : page === "utilisateurs" ? "Les comptes autorisés à se connecter, leur poste et leurs accès." : "Choisissez une rubrique pour l'ouvrir."}</p>
         </div>
         <div className="form-actions">
           {page === "postes" && <button className="primary-button compact" onClick={() => { setPositionForm({ id: "", nom: "", permissions: [] }); setPositionModalOpen(true); }}>+ Nouveau poste</button>}
@@ -309,6 +313,25 @@ export function SettingsPage({
       {error && <div className="api-error">{error}</div>}
       {page === "apparence" && (
         <>
+      <section className="panel full-panel color-settings-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Mise en page</p>
+            <h3>Style d&apos;interface</h3>
+            <p className="panel-subtitle">Un style change la mise en page et sa police, pas vos données. Revenez à « Classique » à tout moment.</p>
+          </div>
+        </div>
+        <div className="ui-style-grid" role="radiogroup" aria-label="Style d'interface">
+          {UI_STYLES.map((item) => (
+            <button type="button" role="radio" aria-checked={uiStyle === item.id} className="ui-style-option" key={item.id} onClick={() => applyUiStyle(item.id)}>
+              <span className={`ui-style-preview ${item.id}`} aria-hidden="true"><i /><span><b /><b /><b /></span></span>
+              <strong>{item.label}</strong>
+              <small>{item.hint}</small>
+              {uiStyle === item.id && <em aria-hidden="true">✓</em>}
+            </button>
+          ))}
+        </div>
+      </section>
       <section className="panel full-panel color-settings-panel">
         <div className="panel-heading">
           <div>
@@ -458,7 +481,7 @@ export function SettingsPage({
           <div className="settings-hub">
             <button type="button" className="settings-option" onClick={() => onOpenSection("apparence")}>
               <span className="settings-option-icon"><Palette size={21} aria-hidden="true" /></span>
-              <span><strong>Apparence</strong><small>Couleurs, mode sombre, police et taille du texte</small></span>
+              <span><strong>Apparence</strong><small>Style d&apos;interface, couleurs, mode sombre, police et taille du texte</small></span>
               <ChevronRight size={18} aria-hidden="true" />
             </button>
           </div>

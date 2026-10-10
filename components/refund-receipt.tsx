@@ -10,7 +10,7 @@ import { PaymentTransaction, formatMoney, fullName, pdfSafe } from "@/lib/types"
 const longDate = (value: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 
-const refundReference = (refund: PaymentTransaction) => `REMB-${refund.id.slice(0, 8).toUpperCase()}`;
+const refundReference = (refund: PaymentTransaction) => refund.numeroRecu ?? `REMB-${refund.id.slice(0, 8).toUpperCase()}`;
 const refundAmount = (refund: PaymentTransaction) => Math.abs(Number(refund.montant));
 const acknowledgement = (refund: PaymentTransaction) =>
   `Je soussigné(e) reconnais avoir reçu de l'IPAIM la somme de ${formatMoney(refundAmount(refund))}, au titre du remboursement d'un trop-perçu.`;

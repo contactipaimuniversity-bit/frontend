@@ -6,7 +6,7 @@ import { hasAccess } from "@/lib/access";
 import { studentCardsPdf } from "@/lib/pdf-docs";
 import { logPrint } from "@/lib/print-log";
 import { User } from "@/lib/types";
-import { AcademicYear, NIVEAUX, Program } from "@/components/academic-structure-page";
+import { AcademicYear, Pole, Program, useLevels } from "@/components/academic-structure-page";
 import { Badge, Empty, FormActions, Modal, PageIntro, Panel, Tabs, number, personName, send, useAction, useForm, useLoad } from "@/components/ui-kit";
 
 export type Student = { id: string; nom: string; prenom: string; matricule?: string | null; sexe?: string | null; telephone?: string | null; dateNaissance?: string | null };
@@ -14,6 +14,7 @@ export type ClassSummary = { id: string; nom: string; niveau: string; groupe: st
 export type ClassList = { annee: AcademicYear | null; classes: ClassSummary[] };
 type ClassDetail = ClassSummary & { anneeAcademique: AcademicYear; inscriptions: Array<{ id: string; statut: string; filiere: string; personne: Student }> };
 type Candidate = { id: string; filiere: string; statut: string; correspond: boolean; personne: Student };
+type ClassProgram = Program & { pole?: { id: string; nom: string } | null };
 export type Course = {
   id: string;
   classeId: string;
@@ -74,11 +75,11 @@ function AssignStudents({ classId, onClose, onSaved }: { classId: string; onClos
   return (
     <Modal wide title="Affecter des étudiants à la classe" onClose={onClose}>
       <form className="entity-form" onSubmit={submit}>
-        <p className="panel-subtitle">Inscriptions de la même année et du même niveau, sans classe. Celles dont la filière correspond sont cochées d&apos;avance ; un matricule est attribué à la première affectation.</p>
+        <p className="panel-subtitle">Inscriptions de la même année et du même niveau, sans classe. Celles de la filière sont cochées d&apos;avance ; affecter un étudiant d&apos;une autre filière le rattache à celle de la classe. Un matricule est attribué à la première affectation.</p>
         {candidates.error && <p className="form-error">{candidates.error}</p>}
         <div className="table-wrap pick-list">
           <table>
-            <thead><tr><th /><th>Étudiant</th><th>Filière saisie à l&apos;inscription</th><th>Correspondance</th></tr></thead>
+            <thead><tr><th /><th>Étudiant</th><th>Filière de l&apos;inscription</th><th>Correspondance</th></tr></thead>
             <tbody>
               {(candidates.data ?? []).map((item) => (
                 <tr key={item.id} onClick={() => toggle(item.id)}>
@@ -214,12 +215,15 @@ function ClassModal({ classId, canEdit, onClose, onChanged }: { classId: string;
 export function AcademicClassesPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   const canEdit = hasAccess(user, "academics", "edit");
   const [yearId, setYearId] = useState("");
+  const [poleId, setPoleId] = useState("");
   const years = useLoad<AcademicYear[]>("/academique/annees", refreshSignal);
   const programs = useLoad<Program[]>("/academique/filieres", refreshSignal);
-  const list = useLoad<ClassList>(`/academique/classes${yearId ? `?anneeId=${yearId}` : ""}`, refreshSignal);
+  const poles = useLoad<Pole[]>("/academique/poles", refreshSignal);
+  const levels = useLevels(refreshSignal);
+  const list = useLoad<ClassList>(`/academique/classes${yearId || poleId ? `?${new URLSearchParams({ ...(yearId ? { anneeId: yearId } : {}), ...(poleId ? { poleId } : {}) }).toString()}` : ""}`, refreshSignal);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const form = useForm({ filiereId: "", niveau: "L1", groupe: "A", capacite: "" });
+  const form = useForm({ filiereId: "", niveau: "", groupe: "A", capacite: "" });
   const action = useAction();
   const year = list.data?.annee ?? null;
   const create = (event: FormEvent) => {
@@ -238,7 +242,14 @@ export function AcademicClassesPage({ user, refreshSignal }: { user: User | null
           {(years.data ?? []).map((item) => <option key={item.id} value={item.id}>{item.libelle}{item.statut === "CLOTUREE" ? " (clôturée)" : ""}</option>)}
           {!years.data?.length && <option value="">Aucune année</option>}
         </select>
-        {canEdit && year && year.statut !== "CLOTUREE" && <button className="primary-button compact" onClick={() => { action.setError(""); form.setValues({ filiereId: programs.data?.find((item) => item.actif)?.id ?? "", niveau: "L1", groupe: "A", capacite: "" }); setCreating(true); }}>+ Nouvelle classe</button>}
+        {Boolean(poles.data?.length) && (
+          <select className="expense-select" aria-label="Pôle" value={poleId} onChange={(event) => setPoleId(event.target.value)}>
+            <option value="">Tous les pôles</option>
+            {(poles.data ?? []).map((pole) => <option key={pole.id} value={pole.id}>{pole.nom}</option>)}
+            <option value="aucun">Sans pôle</option>
+          </select>
+        )}
+        {canEdit && year && year.statut !== "CLOTUREE" && <button className="primary-button compact" onClick={() => { action.setError(""); form.setValues({ filiereId: programs.data?.find((item) => item.actif && (!poleId || item.poleId === poleId))?.id ?? "", niveau: levels.active[0]?.code ?? "", groupe: "A", capacite: "" }); setCreating(true); }}>+ Nouvelle classe</button>}
       </PageIntro>
       {list.error && <p className="form-error">{list.error}</p>}
       {list.data && !year && <Panel title="Aucune année académique">Ouvrez une année dans « Structure académique » pour créer des classes.</Panel>}
@@ -251,14 +262,14 @@ export function AcademicClassesPage({ user, refreshSignal }: { user: User | null
                 {(list.data?.classes ?? []).map((item) => (
                   <tr key={item.id}>
                     <td><button className="dossier-open-button" onClick={() => setOpenId(item.id)}>{item.nom}</button></td>
-                    <td>{item.filiere.nom}</td>
+                    <td>{item.filiere.nom}<small className="cell-detail">{(item.filiere as ClassProgram).pole?.nom ?? "Sans pôle"}</small></td>
                     <td>{item.niveau}</td>
                     <td>{item.effectif}{item.capacite ? ` / ${item.capacite}` : ""}</td>
                     <td>{item._count.cours}</td>
                     <td><button className="row-action" onClick={() => setOpenId(item.id)}>Ouvrir</button></td>
                   </tr>
                 ))}
-                {!list.data?.classes.length && <Empty columns={6}>Aucune classe pour cette année.</Empty>}
+                {!list.data?.classes.length && <Empty columns={6}>{poleId ? "Aucune classe de ce pôle pour cette année." : "Aucune classe pour cette année."}</Empty>}
               </tbody>
             </table>
           </div>
@@ -275,11 +286,11 @@ export function AcademicClassesPage({ user, refreshSignal }: { user: User | null
               </select>
             </label>
             <div className="form-grid">
-              <label>Niveau<select {...form.bind("niveau")}>{NIVEAUX.map((item) => <option key={item}>{item}</option>)}</select></label>
+              <label>Niveau<select required {...form.bind("niveau")}>{levels.active.map((item) => <option key={item.id} value={item.code}>{item.code} · {item.libelle}</option>)}</select></label>
               <label>Groupe<input required maxLength={8} {...form.bind("groupe")} /></label>
             </div>
             <label>Capacité (facultatif)<input type="number" min="1" {...form.bind("capacite")} /></label>
-            <p className="panel-subtitle">Les matières de la maquette de cette filière et de ce niveau sont rattachées automatiquement à la classe.</p>
+            <p className="panel-subtitle">Les matières de la maquette de cette filière et de ce niveau, pour cette année, sont rattachées automatiquement à la classe.</p>
             {action.error && <p className="form-error">{action.error}</p>}
             <FormActions busy={action.busy} label="Créer la classe" onCancel={() => setCreating(false)} />
           </form>
