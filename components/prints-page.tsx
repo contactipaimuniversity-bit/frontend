@@ -25,6 +25,7 @@ type PrintPage = {
 
 const DOCUMENT_LABELS: Record<string, string> = {
   RECU_PAIEMENT: "Reçu de paiement",
+  RECU_REMBOURSEMENT: "Reçu de remboursement",
   CERTIFICAT_BOURSE: "Certificat de bourse",
   CERTIFICAT_INSCRIPTION: "Certificat d'inscription",
   BON_COMMANDE: "Bon de commande",

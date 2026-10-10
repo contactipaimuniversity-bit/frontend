@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { login, notifySessionChanged } from "@/lib/api";
-import { enrollOfflineAccount, unlockOfflineAccount } from "@/lib/offline";
+import { ApiError, login, notifySessionChanged } from "@/lib/api";
+import { enrollOfflineAccount, forgetOfflineAccount, unlockOfflineAccount } from "@/lib/offline";
 import { User } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 
@@ -20,8 +20,8 @@ export function LoginScreen({
     setError("");
     if (!navigator.onLine) {
       try {
-        if (!(await openLocalSession(form.email, form.motDePasse, onLoggedIn)))
-          setError(offlineLoginUnavailable);
+        const opened = await openLocalSession(form.email, form.motDePasse, onLoggedIn);
+        if (opened !== true) setError(opened === "expired" ? offlineLoginExpired : offlineLoginUnavailable);
       } catch {
         setError("Le déverrouillage local est indisponible sur cet appareil.");
       } finally {
@@ -52,13 +52,17 @@ export function LoginScreen({
     } catch (failure) {
       if (failure instanceof TypeError) {
         try {
-          if (await openLocalSession(form.email, form.motDePasse, onLoggedIn)) return;
+          const opened = await openLocalSession(form.email, form.motDePasse, onLoggedIn);
+          if (opened === true) return;
+          setError(opened === "expired" ? offlineLoginExpired : offlineLoginUnavailable);
         } catch {
           setError("Le déverrouillage local est indisponible sur cet appareil.");
-          return;
         }
-        setError(offlineLoginUnavailable);
       } else {
+        // Identifiants refusés par le serveur (mot de passe changé, compte retiré) :
+        // l'ancien accès local à ce compte ne doit plus ouvrir l'appareil.
+        if (failure instanceof ApiError && failure.status === 401)
+          await forgetOfflineAccount(form.email).catch(() => undefined);
         setError(failure instanceof Error ? failure.message : "Connexion impossible.");
       }
     } finally {
@@ -130,11 +134,13 @@ export function LoginScreen({
   );
 }
 
+const offlineLoginExpired = "Cet appareil ne s’est pas connecté au serveur depuis plus de 14 jours. Reconnectez-vous en ligne pour rouvrir l’accès local.";
 const offlineLoginUnavailable = "Impossible de vérifier vos identifiants en ligne. Pour ouvrir l’espace hors ligne, connectez-vous d’abord en ligne sur cet appareil et utilisez le même courriel et mot de passe.";
 
 async function openLocalSession(email: string, password: string, onLoggedIn: (token: string, user: User, offlineReady?: boolean) => void) {
   const localAccount = await unlockOfflineAccount(email, password);
   if (!localAccount) return false;
+  if (localAccount === "expired") return "expired" as const;
   window.sessionStorage.removeItem("ipaim-token");
   window.sessionStorage.setItem("ipaim-user", JSON.stringify(localAccount.user));
   window.sessionStorage.setItem("ipaim-offline-session", JSON.stringify(localAccount));

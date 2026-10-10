@@ -28,7 +28,9 @@ export function useLoad<T>(path: string | null, signal = 0) {
   useEffect(() => {
     if (!path) return;
     let active = true;
-    void apiFetch<T>(path, { skipCache: true })
+    // Les données académiques gardent une copie sur l'appareil (appel et notes hors ligne) ;
+    // le personnel, la paie et la comptabilité se lisent toujours sur le serveur.
+    void apiFetch<T>(path, { skipCache: !/^\/(academique|scolarite|notes)\//.test(path) })
       .then((value) => {
         if (!active) return;
         setData(value);

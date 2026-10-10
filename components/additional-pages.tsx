@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { ActionIcon } from "@/components/action-icon";
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { confirmNewPerson } from "@/lib/duplicates";
 import { logPrint } from "@/lib/print-log";
 import { navigateTo, pathForDossier } from "@/lib/routes";
 import { ModalChoice } from "@/components/modal-choice";
@@ -85,6 +86,7 @@ export function PersonForm({
       const body = Object.fromEntries(
         Object.entries(form).map(([key, value]) => [key, value || null]),
       );
+      if (!person && !(await confirmNewPerson(form))) return;
       await apiFetch(person ? `/personnes/${person.id}` : "/personnes", {
         method: person ? "PATCH" : "POST",
         body: JSON.stringify(body),
@@ -822,7 +824,9 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
     kind: "element" | "scholarship";
     id: string;
     label: string;
+    dossiers?: number;
   } | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const load = async () => {
@@ -877,7 +881,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
     setDeleteError("");
     try {
       const resource = deleteTarget.kind === "element" ? "elements-requis" : "types-bourse";
-      await apiFetch(`/${resource}/${deleteTarget.id}`, { method: "DELETE" });
+      await apiFetch(`/${resource}/${deleteTarget.id}`, { method: "DELETE", body: JSON.stringify({ motif: deleteReason.trim() }) });
       setDeleteTarget(null);
       await load();
       onRefresh();
@@ -954,8 +958,9 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                         className="row-action icon-action danger-row-action"
                         onClick={() => {
                           setDeleteError("");
-                          setDeleteTarget({ kind: "element", id: item.id, label: item.nom });
-                        }} aria-label="Supprimer"><ActionIcon name="delete" /></button>
+                          setDeleteReason("");
+                          setDeleteTarget({ kind: "element", id: item.id, label: item.nom, dossiers: item._count?.elementsDossier });
+                        }} aria-label="Mettre à la corbeille"><ActionIcon name="delete" /></button>
                     </td>
                   </tr>
                 ))}
@@ -997,6 +1002,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                   className="row-action icon-action danger-row-action"
                   onClick={() => {
                     setDeleteError("");
+                    setDeleteReason("");
                     setDeleteTarget({ kind: "scholarship", id: type.id, label: type.nom });
                   }} aria-label="Supprimer"><ActionIcon name="delete" /></button>
                 <div className="schedule-list">
@@ -1044,16 +1050,34 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
       )}
       {deleteTarget && (
         <Modal
-          title="Supprimer ce référentiel ?"
+          title="Mettre ce référentiel à la corbeille ?"
           onClose={() => {
             if (!deleteBusy) setDeleteTarget(null);
           }}
         >
           <div className="entity-form">
             <p>
-              Supprimer « {deleteTarget.label} » ? Cette action est définitive.
-              Une référence déjà utilisée ne pourra pas être supprimée.
+              « {deleteTarget.label} » sera déplacé vers la corbeille. Un administrateur pourra
+              l&apos;y restaurer ou le supprimer définitivement.
             </p>
+            {deleteTarget.kind === "element" ? (
+              deleteTarget.dossiers ? (
+                <p className="form-error">
+                  Cet élément figure dans {deleteTarget.dossiers} dossier(s) : il en sera retiré.
+                  Les paiements déjà enregistrés dessus restent sur leur dossier, en « non affecté ».
+                </p>
+              ) : (
+                <p className="panel-subtitle">Cet élément n&apos;est utilisé dans aucun dossier.</p>
+              )
+            ) : (
+              <p className="panel-subtitle">
+                Un type de bourse déjà attribué à une demande ou encaissé ne peut pas être retiré.
+              </p>
+            )}
+            <label className="deletion-reason-label">
+              Motif
+              <textarea className="deletion-reason-input" required minLength={5} maxLength={500} value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} placeholder="Expliquez la raison (5 caractères minimum)" />
+            </label>
             <ErrorMessage error={deleteError} />
             <div className="form-actions">
               <button
@@ -1067,10 +1091,10 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
               <button
                 type="button"
                 className="danger-solid-button"
-                disabled={deleteBusy}
+                disabled={deleteBusy || deleteReason.trim().length < 5}
                 onClick={() => void removeReference()}
               >
-                {deleteBusy ? "Suppression..." : "Supprimer"}
+                {deleteBusy ? "Archivage..." : "Déplacer vers la corbeille"}
               </button>
             </div>
           </div>

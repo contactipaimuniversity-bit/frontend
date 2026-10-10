@@ -4,6 +4,9 @@ import { generatedByLine } from "@/lib/session";
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { toast } from "@/components/feedback";
+import { checkServer, isOffline } from "@/lib/connectivity";
+import { currentOfflineSession } from "@/lib/offline";
 import { logPrint, PrintRecord } from "@/lib/print-log";
 import { DateOrderControl } from "@/components/date-order-control";
 import { Application, ApplicationFinance, DateOrder, Enrollment, formatDate, formatMoney, fullName, pdfSafe } from "@/lib/types";
@@ -151,14 +154,14 @@ function addCertificateVisa(pdf: import("jspdf").jsPDF) {
   pdf.line(122, 281, 192, 281);
 }
 
-function addCertificateFooter(pdf: import("jspdf").jsPDF, identifier: string) {
+function addCertificateFooter(pdf: import("jspdf").jsPDF, identifier: string, provisional = false) {
   pdf.setDrawColor(200, 148, 27);
   pdf.setLineWidth(0.5);
   pdf.line(18, 284.5, 192, 284.5);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(8);
   pdf.setTextColor(102, 114, 140);
-  pdf.text(`Référence : IPAIM-${identifier.slice(0, 8).toUpperCase()}`, 18, 289.5);
+  pdf.text(`Référence : IPAIM-${identifier.slice(0, 8).toUpperCase()}${provisional ? " - PROVISOIRE" : ""}`, 18, 289.5);
   pdf.text(
     `IPAIM UNIVERSITY | ${new Date().getFullYear()} | Tous droits réservés`,
     192,
@@ -259,15 +262,41 @@ async function deliverCertificate(pdf: import("jspdf").jsPDF, fileName: string, 
   await printPdf(pdf);
 }
 
+// Sans le serveur, l'état réel du dossier ne peut pas être vérifié : le certificat
+// reste délivrable, mais il est marqué provisoire sur le document et dans le journal.
+// Le serveur est interrogé à l'instant de l'édition : une panne survenue depuis la
+// dernière lecture ne doit pas laisser sortir un certificat définitif tiré de la copie locale.
+async function isProvisional() {
+  return Boolean(currentOfflineSession()) || !(await checkServer()) || isOffline();
+}
+
+function addProvisionalNotice(pdf: import("jspdf").jsPDF) {
+  const issuedAt = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date());
+  pdf.setFillColor(251, 245, 231);
+  pdf.setDrawColor(200, 148, 27);
+  pdf.setLineWidth(0.4);
+  pdf.setLineDashPattern([1.6, 1.2], 0);
+  pdf.roundedRect(18, 61, 174, 9.5, 1.5, 1.5, "FD");
+  pdf.setLineDashPattern([], 0);
+  pdf.setTextColor(124, 97, 30);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8);
+  pdf.text(pdfSafe(`CERTIFICAT PROVISOIRE - établi hors ligne le ${issuedAt}, sous réserve de vérification`), 105, 67, { align: "center" });
+}
+
+// Renvoie true quand le certificat a été établi hors ligne (provisoire).
 async function downloadScholarshipCertificate(application: Application, shouldPrint = false) {
   const current = await apiFetch<Application>(`/demandes-bourse/${application.id}`);
+  // Vérifié après la lecture du dossier : si elle vient de la copie locale, le certificat est provisoire.
+  const provisional = await isProvisional();
   if (current.statut !== "ACCEPTEE" || !current.typeBourse) {
     throw new Error("Ce dossier n’est plus éligible à un certificat de bourse.");
   }
 
   const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadLogo()]);
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  addCertificateFrame(pdf, logo, "CERTIFICAT D’ATTRIBUTION DE BOURSE");
+  addCertificateFrame(pdf, logo, provisional ? "CERTIFICAT D’ATTRIBUTION DE BOURSE - PROVISOIRE" : "CERTIFICAT D’ATTRIBUTION DE BOURSE");
+  if (provisional) addProvisionalNotice(pdf);
   pdf.setTextColor(20, 40, 92);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(11);
@@ -303,20 +332,23 @@ async function downloadScholarshipCertificate(application: Application, shouldPr
     { align: "center" },
   );
   addCertificateVisa(pdf);
-  addCertificateFooter(pdf, current.id);
-  await deliverCertificate(pdf, `certificat-bourse-${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
+  addCertificateFooter(pdf, current.id, provisional);
+  await deliverCertificate(pdf, `certificat-bourse-${provisional ? "provisoire-" : ""}${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
+  return provisional;
 }
 
 async function downloadEnrollmentCertificate(item: PaidEnrollment, shouldPrint = false) {
   const current = await apiFetch<Enrollment>(`/inscriptions/${item.enrollment.id}`);
   const balance = await loadEnrollmentBalance(current.id);
+  const provisional = await isProvisional();
   if (current.statut === "ABANDONNEE" || !isPaid(balance)) {
     throw new Error("Le paiement complet de cette inscription n’est pas confirmé.");
   }
 
   const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadLogo()]);
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  addCertificateFrame(pdf, logo, "CERTIFICAT D’INSCRIPTION");
+  addCertificateFrame(pdf, logo, provisional ? "CERTIFICAT D’INSCRIPTION - PROVISOIRE" : "CERTIFICAT D’INSCRIPTION");
+  if (provisional) addProvisionalNotice(pdf);
   pdf.setTextColor(20, 40, 92);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(11);
@@ -357,8 +389,9 @@ async function downloadEnrollmentCertificate(item: PaidEnrollment, shouldPrint =
     { align: "center" },
   );
   addCertificateVisa(pdf);
-  addCertificateFooter(pdf, current.id);
-  await deliverCertificate(pdf, `certificat-inscription-${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
+  addCertificateFooter(pdf, current.id, provisional);
+  await deliverCertificate(pdf, `certificat-inscription-${provisional ? "provisoire-" : ""}${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
+  return provisional;
 }
 
 export function CertificatesPage({ refreshSignal, dateOrder, onDateOrderChange }: { refreshSignal: number; dateOrder: DateOrder; onDateOrderChange: (value: DateOrder) => void }) {
@@ -426,13 +459,21 @@ export function CertificatesPage({ refreshSignal, dateOrder, onDateOrderChange }
     return () => { active = false; };
   }, [refreshSignal, dateOrder]);
 
-  const generate = async (id: string, mode: "download" | "print", action: (shouldPrint: boolean) => Promise<void>, document: Pick<PrintRecord, "typeDocument" | "dossierType" | "libelle">) => {
+  const generate = async (id: string, mode: "download" | "print", action: (shouldPrint: boolean) => Promise<boolean>, document: Pick<PrintRecord, "typeDocument" | "dossierType" | "libelle">) => {
     setDownloadingId(id);
     setGeneratingAction(mode);
     setError("");
     try {
-      await action(mode === "print");
-      logPrint({ ...document, dossierId: id, mode: mode === "print" ? "IMPRESSION" : "PDF" });
+      const provisional = await action(mode === "print");
+      // Hors ligne, l'édition est consignée sur l'appareil et déclarée au serveur à la reconnexion.
+      logPrint({
+        ...document,
+        libelle: provisional ? `${document.libelle} · provisoire (hors ligne)` : document.libelle,
+        reference: `IPAIM-${id.slice(0, 8).toUpperCase()}`,
+        dossierId: id,
+        mode: mode === "print" ? "IMPRESSION" : "PDF",
+      });
+      if (provisional) toast("Certificat provisoire édité hors ligne. Il sera inscrit au journal des impressions à la reconnexion ; vérifiez le dossier avant de délivrer le certificat définitif.", "info");
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Le certificat n’a pas pu être généré.");
     } finally {

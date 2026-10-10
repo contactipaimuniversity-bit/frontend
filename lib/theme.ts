@@ -122,3 +122,67 @@ export function subscribeToColorMode(onChange: () => void) {
     window.removeEventListener("storage", onChange);
   };
 }
+
+// ---------- Police et taille du texte (préférences de l'appareil) ----------
+
+export const FONTS = [
+  { id: "geist", label: "Geist", hint: "Moderne et nette · par défaut", family: "var(--font-geist-sans)" },
+  { id: "inter", label: "Inter", hint: "Très lisible à l'écran", family: "var(--font-inter)" },
+  { id: "poppins", label: "Poppins", hint: "Ronde et géométrique", family: "var(--font-poppins)" },
+  { id: "nunito", label: "Nunito", hint: "Douce et arrondie", family: "var(--font-nunito)" },
+  { id: "source", label: "Source Sans", hint: "Sobre, à l'aise dans les tableaux", family: "var(--font-source)" },
+  { id: "lora", label: "Lora", hint: "Avec empattements, style imprimé", family: "var(--font-lora)" },
+  { id: "system", label: "Police du système", hint: "Celle de votre ordinateur", family: 'system-ui, "Segoe UI", Roboto, Arial, sans-serif' },
+] as const;
+export type FontId = (typeof FONTS)[number]["id"];
+
+export const TEXT_SIZES = [
+  { id: "small", label: "Petite" },
+  { id: "normal", label: "Normale" },
+  { id: "large", label: "Grande" },
+  { id: "xlarge", label: "Très grande" },
+] as const;
+export type TextSizeId = (typeof TEXT_SIZES)[number]["id"];
+
+const fontStorageKey = "ipaim-font";
+const textSizeStorageKey = "ipaim-text-size";
+const typographyChangeEvent = "ipaim-typography-change";
+
+export function readFont(): FontId {
+  if (typeof window === "undefined") return "geist";
+  const saved = window.localStorage.getItem(fontStorageKey);
+  return FONTS.find((font) => font.id === saved)?.id ?? "geist";
+}
+
+export function readTextSize(): TextSizeId {
+  if (typeof window === "undefined") return "normal";
+  const saved = window.localStorage.getItem(textSizeStorageKey);
+  return TEXT_SIZES.find((size) => size.id === saved)?.id ?? "normal";
+}
+
+export function applyFont(id: FontId, persist = true) {
+  if (typeof window === "undefined") return;
+  document.documentElement.dataset.font = id;
+  if (persist) {
+    window.localStorage.setItem(fontStorageKey, id);
+    window.dispatchEvent(new Event(typographyChangeEvent));
+  }
+}
+
+export function applyTextSize(id: TextSizeId, persist = true) {
+  if (typeof window === "undefined") return;
+  document.documentElement.dataset.textSize = id;
+  if (persist) {
+    window.localStorage.setItem(textSizeStorageKey, id);
+    window.dispatchEvent(new Event(typographyChangeEvent));
+  }
+}
+
+export function subscribeToTypography(onChange: () => void) {
+  window.addEventListener(typographyChangeEvent, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(typographyChangeEvent, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}

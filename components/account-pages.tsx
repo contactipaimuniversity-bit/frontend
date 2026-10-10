@@ -5,9 +5,11 @@ import { askReason } from "@/components/feedback";
 import { FormEvent, useEffect, useState, useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api";
 import { ModalChoice } from "@/components/modal-choice";
-import { applyColorMode, applyColorPreset, COLOR_PRESETS, ColorMode, ColorPresetId, readColorMode, readColorPreset, subscribeToColorMode, subscribeToColorPreset } from "@/lib/theme";
-import { User } from "@/lib/types";
-import { ACCESS_FEATURES, AccessArea, AccessPermission } from "@/lib/access";
+import { ChevronLeft, ChevronRight, Coins, DatabaseBackup, Landmark, type LucideIcon, Palette, School, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { applyColorMode, applyColorPreset, applyFont, applyTextSize, COLOR_PRESETS, ColorMode, ColorPresetId, FontId, FONTS, readColorMode, readColorPreset, readFont, readTextSize, subscribeToColorMode, subscribeToColorPreset, subscribeToTypography, TEXT_SIZES, TextSizeId } from "@/lib/theme";
+import { SettingsSection } from "@/lib/routes";
+import { User, ViewName } from "@/lib/types";
+import { ACCESS_FEATURES, AccessArea, AccessPermission, hasAccess } from "@/lib/access";
 import { JobPosition } from "@/lib/types";
 
 export function ProfilePage({
@@ -126,9 +128,15 @@ function PermissionEditor({ permissions, onChange }: { permissions: string[]; on
 export function SettingsPage({
   currentUser,
   onRefresh,
+  section,
+  onOpenSection,
+  onOpenView,
 }: {
   currentUser: User | null;
   onRefresh: () => void;
+  section: SettingsSection | null;
+  onOpenSection: (section: SettingsSection | null) => void;
+  onOpenView: (view: ViewName) => void;
 }) {
   const [users, setUsers] = useState<User[]>([]);
   const [positions, setPositions] = useState<JobPosition[]>([]);
@@ -138,6 +146,11 @@ export function SettingsPage({
     () => "ipa" as ColorPresetId,
   );
   const colorMode = useSyncExternalStore(subscribeToColorMode, readColorMode, () => "light" as ColorMode);
+  const font = useSyncExternalStore(subscribeToTypography, readFont, () => "geist" as FontId);
+  const textSize = useSyncExternalStore(subscribeToTypography, readTextSize, () => "normal" as TextSizeId);
+  const isAdmin = currentUser?.role === "admin";
+  // Les rubriques d'administration ne s'ouvrent qu'aux administrateurs.
+  const page = section === "apparence" || (section && isAdmin) ? section : null;
   const [modalOpen, setModalOpen] = useState(false);
   const [positionModalOpen, setPositionModalOpen] = useState(false);
   const [accessUser, setAccessUser] = useState<User | null>(null);
@@ -153,6 +166,13 @@ export function SettingsPage({
     role: "employe",
     posteId: "",
   });
+  const shortcuts: Array<{ view: ViewName; label: string; hint: string; icon: LucideIcon }> = [
+    ...(hasAccess(currentUser, "finance-settings") ? [{ view: "Paramètres finances" as const, label: "Finances", hint: "Seuils de validation, catégories, fournisseurs, exercices", icon: Landmark }] : []),
+    ...(hasAccess(currentUser, "academics") ? [{ view: "Structure académique" as const, label: "Académique", hint: "Années, filières, maquettes et règles de calcul", icon: School }] : []),
+    ...(hasAccess(currentUser, "payroll") || hasAccess(currentUser, "payroll-approval") ? [{ view: "Paie" as const, label: "Paie et congés", hint: "Rubriques de paie, jours de congé, lien avec le budget", icon: Coins }] : []),
+    ...(hasAccess(currentUser, "references") ? [{ view: "Référentiels" as const, label: "Référentiels", hint: "Types de bourse, frais et pièces demandées", icon: SlidersHorizontal }] : []),
+    ...(isAdmin ? [{ view: "Sauvegardes" as const, label: "Sauvegardes", hint: "Copies de la base et test de restauration", icon: DatabaseBackup }] : []),
+  ];
   const chooseColorPreset = (id: ColorPresetId) => {
     applyColorPreset(id);
   };
@@ -175,6 +195,7 @@ export function SettingsPage({
     }
   };
   useEffect(() => {
+    if (!isAdmin) return;
     let active = true;
     void Promise.all([apiFetch<User[]>("/utilisateurs"), apiFetch<JobPosition[]>("/utilisateurs/postes")])
       .then(([userData, positionData]) => {
@@ -186,7 +207,7 @@ export function SettingsPage({
     return () => {
       active = false;
     };
-  }, [onRefresh]);
+  }, [onRefresh, isAdmin]);
   const createUser = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -273,18 +294,21 @@ export function SettingsPage({
   };
   return (
     <div className="content-scroll">
+      {page && <button type="button" className="settings-back" onClick={() => onOpenSection(null)}><ChevronLeft size={16} aria-hidden="true" /> Paramètres</button>}
       <div className="page-intro">
         <div>
-          <p className="eyebrow">Administration</p>
-          <h2>Paramètres</h2>
-          <p>Gérez les accès à l’espace de gestion.</p>
+          <p className="eyebrow">{page ? "Paramètres" : "Réglages"}</p>
+          <h2>{page === "apparence" ? "Apparence" : page === "postes" ? "Postes et accès" : page === "utilisateurs" ? "Utilisateurs" : "Paramètres"}</h2>
+          <p>{page === "apparence" ? "Couleurs, mode d'affichage, police et taille du texte. Ces choix sont propres à cet appareil." : page === "postes" ? "Chaque poste métier porte les accès donnés par défaut à ceux qui l'occupent." : page === "utilisateurs" ? "Les comptes autorisés à se connecter, leur poste et leurs accès." : "Choisissez une rubrique pour l'ouvrir."}</p>
         </div>
         <div className="form-actions">
-          <button className="outline-button small" onClick={() => { setPositionForm({ id: "", nom: "", permissions: [] }); setPositionModalOpen(true); }}>+ Nouveau poste</button>
-          <button className="primary-button compact" onClick={() => setModalOpen(true)}>+ Nouvel utilisateur</button>
+          {page === "postes" && <button className="primary-button compact" onClick={() => { setPositionForm({ id: "", nom: "", permissions: [] }); setPositionModalOpen(true); }}>+ Nouveau poste</button>}
+          {page === "utilisateurs" && <button className="primary-button compact" onClick={() => setModalOpen(true)}>+ Nouvel utilisateur</button>}
         </div>
       </div>
       {error && <div className="api-error">{error}</div>}
+      {page === "apparence" && (
+        <>
       <section className="panel full-panel color-settings-panel">
         <div className="panel-heading">
           <div>
@@ -319,6 +343,43 @@ export function SettingsPage({
           ))}
         </div>
       </section>
+      <section className="panel full-panel color-settings-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Police</p>
+            <h3>Police d&apos;écriture</h3>
+          </div>
+        </div>
+        <div className="font-grid" role="radiogroup" aria-label="Police d'écriture">
+          {FONTS.map((item) => (
+            <button type="button" role="radio" aria-checked={font === item.id} className="font-option" key={item.id} style={{ fontFamily: item.family }} onClick={() => applyFont(item.id)}>
+              <b>Aa</b>
+              <span>{item.label}</span>
+              <small>{item.hint}</small>
+              {font === item.id && <i aria-hidden="true">✓</i>}
+            </button>
+          ))}
+        </div>
+      </section>
+      <section className="panel full-panel color-settings-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">Taille</p>
+            <h3>Taille du texte</h3>
+          </div>
+        </div>
+        <div className="segmented">
+          <div className="segmented-options" role="radiogroup" aria-label="Taille du texte">
+            {TEXT_SIZES.map((item) => (
+              <button key={item.id} type="button" role="radio" aria-checked={textSize === item.id} className="segmented-option" onClick={() => applyTextSize(item.id)}>{item.label}</button>
+            ))}
+          </div>
+        </div>
+        <p className="text-size-preview"><strong>Aperçu du texte</strong>Mariam Diallo · Informatique · 150 000 F encaissés le 10 octobre 2026.</p>
+      </section>
+        </>
+      )}
+      {page === "postes" && (
       <section className="panel full-panel">
         <div className="panel-heading">
           <div>
@@ -336,6 +397,8 @@ export function SettingsPage({
           {!positions.length && <p className="empty-state">Aucun poste métier créé.</p>}
         </div>
       </section>
+      )}
+      {page === "utilisateurs" && (
       <section className="panel full-panel">
         <div className="panel-heading">
           <div>
@@ -388,6 +451,50 @@ export function SettingsPage({
           </table>
         </div>
       </section>
+      )}
+      {!page && (
+        <>
+          <p className="settings-hub-title">Mon affichage</p>
+          <div className="settings-hub">
+            <button type="button" className="settings-option" onClick={() => onOpenSection("apparence")}>
+              <span className="settings-option-icon"><Palette size={21} aria-hidden="true" /></span>
+              <span><strong>Apparence</strong><small>Couleurs, mode sombre, police et taille du texte</small></span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+          </div>
+          {isAdmin && (
+            <>
+              <p className="settings-hub-title">Accès à l&apos;application</p>
+              <div className="settings-hub">
+                <button type="button" className="settings-option" onClick={() => onOpenSection("utilisateurs")}>
+                  <span className="settings-option-icon"><Users size={21} aria-hidden="true" /></span>
+                  <span><strong>Utilisateurs</strong><small>{users.length} compte(s) · création, poste et accès</small></span>
+                  <ChevronRight size={18} aria-hidden="true" />
+                </button>
+                <button type="button" className="settings-option" onClick={() => onOpenSection("postes")}>
+                  <span className="settings-option-icon"><ShieldCheck size={21} aria-hidden="true" /></span>
+                  <span><strong>Postes et accès</strong><small>{positions.length} poste(s) métier et leurs droits par défaut</small></span>
+                  <ChevronRight size={18} aria-hidden="true" />
+                </button>
+              </div>
+            </>
+          )}
+          {shortcuts.length > 0 && (
+            <>
+              <p className="settings-hub-title">Réglages des modules</p>
+              <div className="settings-hub">
+                {shortcuts.map((item) => (
+                  <button type="button" className="settings-option" key={item.view} onClick={() => onOpenView(item.view)}>
+                    <span className="settings-option-icon"><item.icon size={21} aria-hidden="true" /></span>
+                    <span><strong>{item.label}</strong><small>{item.hint}</small></span>
+                    <ChevronRight size={18} aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
       {modalOpen && (
         <div className="modal-backdrop" onMouseDown={() => setModalOpen(false)}>
           <section

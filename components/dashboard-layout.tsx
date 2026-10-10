@@ -203,7 +203,7 @@ export function DashboardLayout({ activeView, setActiveView, user, summary, onLo
           })}
         </nav>
         <div className="sidebar-bottom">
-          {user?.role === "admin" && <button type="button" title="Paramètres" className={`nav-item ${activeView === "Paramètres" ? "active" : ""}`} onClick={() => go(onSettings)}><Icon name="settings" /><span className="nav-text">Paramètres</span></button>}
+          {user && <button type="button" title="Paramètres" className={`nav-item ${activeView === "Paramètres" ? "active" : ""}`} onClick={() => go(onSettings)}><Icon name="settings" /><span className="nav-text">Paramètres</span></button>}
           <button type="button" title="Profil" className={`profile-card ${activeView === "Profil" ? "active" : ""}`} onClick={() => go(onProfile)}><span className="avatar">{(user?.prenom ?? user?.nom)?.slice(0, 1) ?? "A"}</span><span className="profile-text"><strong>{[user?.prenom, user?.nom].filter(Boolean).join(" ") || "Administrateur"}</strong><small>{user?.poste?.nom ?? (user?.role === "admin" ? "Administrateur" : "Équipe")}</small></span><span className="logout-icon">→</span></button>
           <button type="button" title="Se déconnecter" className="logout-button" onClick={() => setLogoutOpen(true)}>Se déconnecter <span>↪</span></button>
         </div>
@@ -214,7 +214,7 @@ export function DashboardLayout({ activeView, setActiveView, user, summary, onLo
   );
 }
 
-export function AppHeader({ title, user, onRefresh }: { title: string; user: User | null; onRefresh: () => void }) {
+export function AppHeader({ title, user, onRefresh, onHelp }: { title: string; user: User | null; onRefresh: () => void; onHelp?: () => void }) {
   return (
     <header className="topbar">
       <button type="button" className="menu-button" aria-label="Ouvrir le menu" onClick={() => window.dispatchEvent(new Event(MENU_EVENT))}>
@@ -223,6 +223,7 @@ export function AppHeader({ title, user, onRefresh }: { title: string; user: Use
       <div><p className="breadcrumb">Tableau de bord <span>/</span> {title}</p><h1>{title}</h1></div>
       <div className="topbar-actions">
         <GlobalSearch user={user} />
+        {onHelp && <button type="button" className="page-help-button" onClick={onHelp}><Info size={16} aria-hidden="true" focusable="false" /> Info sur la page</button>}
         <button className="refresh-button" onClick={onRefresh}>Actualiser <span>↻</span></button>
       </div>
     </header>

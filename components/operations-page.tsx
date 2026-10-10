@@ -7,8 +7,12 @@ import { askConfirm } from "@/components/feedback";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch } from "@/lib/api";
+import { confirmNewPerson } from "@/lib/duplicates";
 import { logPrint } from "@/lib/print-log";
 import { DocumentsPanel } from "@/components/hr-page";
+import { PersonPhotoCard, PhotoField, attachPhotoAfterSave } from "@/components/student-photo";
+import { RefundReceipt } from "@/components/refund-receipt";
+import { SurplusPanel, surplusOf } from "@/components/surplus-panel";
 import { ModalChoice } from "@/components/modal-choice";
 import { DateOrderControl } from "@/components/date-order-control";
 import { PersonForm } from "@/components/additional-pages";
@@ -299,6 +303,7 @@ function CreateApplication({
     ecoleOrigine: "",
   });
   const [createPerson, setCreatePerson] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
   const [preparation, setPreparation] = useState(EMPTY_PREPARATION);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -312,7 +317,8 @@ function CreateApplication({
         setError(preparationError);
         return;
       }
-      await apiFetch<{ id: string }>("/demandes-bourse", {
+      if (createPerson && !(await confirmNewPerson(form.nouvellePersonne))) return;
+      const saved = await apiFetch<{ id: string; personneId?: string }>("/demandes-bourse", {
         method: "POST",
         body: JSON.stringify({
           ...form,
@@ -321,6 +327,7 @@ function CreateApplication({
           preparation,
         }),
       });
+      await attachPhotoAfterSave(saved.personneId, photo);
       onSaved();
       onClose();
     } catch (failure) {
@@ -358,6 +365,7 @@ function CreateApplication({
             onChange={(value) => setForm({ ...form, personneId: value })}
           />
         )}
+        <PhotoField value={photo} onChange={setPhoto} current={createPerson ? null : people.find((person) => person.id === form.personneId)} />
         <ModalChoice
           label="Niveau"
           placeholder="Sélectionner un niveau"
@@ -421,6 +429,7 @@ function CreateEnrollment({
   });
   const [selectedBourse, setSelectedBourse] = useState<Application | null>(null);
   const [bourseLoading, setBourseLoading] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
   const [preparation, setPreparation] = useState({
     ...EMPTY_PREPARATION,
     typePaiement: "FRAIS_INSCRIPTION",
@@ -493,10 +502,12 @@ function CreateEnrollment({
         confirmerDemandeEnCours,
         preparation,
       };
-      await apiFetch<{ id: string }>("/inscriptions", {
+      if (body.nouvellePersonne && !(await confirmNewPerson(body.nouvellePersonne))) return;
+      const saved = await apiFetch<{ id: string; personneId?: string }>("/inscriptions", {
         method: "POST",
         body: JSON.stringify(body),
       });
+      await attachPhotoAfterSave(saved.personneId, photo);
       onSaved();
       onClose();
     } catch (failure) {
@@ -558,6 +569,7 @@ function CreateEnrollment({
             onChange={(nouvellePersonne) => setForm({ ...form, nouvellePersonne })}
           />
         )}
+        <PhotoField value={photo} onChange={setPhoto} current={form.viaBourse ? selectedBourse?.personne : null} />
         <label>
           Année scolaire
           <input
@@ -1300,6 +1312,8 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
       .catch((failure) => setError(failure instanceof Error ? failure.message : "Situation financière indisponible."));
   }, [dossierId, resource, reloadKey]);
   const globalRemaining = finance ? Math.max(0, Number(finance.totalAttendu) - Number(finance.totalPaye)) : 0;
+  const totalRemaining = finance ? finance.obligations.reduce((total, item) => total + Number(item.resteAPayer), 0) : 0;
+  const reload = () => { setReloadKey((current) => current + 1); onChanged?.(); };
   // Les paiements non affectés comptent déjà dans le total payé : on n'encaisse jamais plus que le reste global.
   const collectable = (item: ApplicationFinance["obligations"][number]) => Math.min(Number(item.resteAPayer), globalRemaining);
   const target = finance?.obligations.find((item) => item.id === collectId);
@@ -1347,7 +1361,8 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
       {!finance && !error && <p className="empty-state">Chargement...</p>}
       {finance && (
         <>
-          <div className="payment-summary"><strong>{formatMoney(finance.totalAttendu)}</strong><span>attendu</span><strong>{formatMoney(finance.totalPaye)}</strong><span>payé</span><strong>{formatMoney(String(Number(finance.totalAttendu) - Number(finance.totalPaye)))}</strong><span>reste</span></div>
+          <div className="payment-summary"><strong>{formatMoney(finance.totalAttendu)}</strong><span>attendu</span><strong>{formatMoney(finance.totalPaye)}</strong><span>payé</span><strong>{formatMoney(totalRemaining)}</strong><span>reste</span></div>
+          <SurplusPanel obligations={finance.obligations} onChanged={reload} />
           <div className="table-wrap">
             <table>
               <thead><tr><th>Obligation</th><th>Statut</th><th>Attendu</th><th>Payé</th><th>Reste</th><th /></tr></thead>
@@ -1358,7 +1373,7 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
                     <td>{statusLabels[item.statut] ?? item.statut}</td>
                     <td>{formatMoney(item.montantAttendu)}</td>
                     <td>{formatMoney(item.montantPaye)}</td>
-                    <td><span className="status status-refusee">{formatMoney(item.resteAPayer)}</span></td>
+                    <td>{surplusOf(item) > 0 ? <span className="status status-en_attente" title="Trop-perçu : payé en plus du montant dû">+{formatMoney(surplusOf(item))} en trop</span> : <span className="status status-refusee">{formatMoney(item.resteAPayer)}</span>}</td>
                     <td>{collectable(item) > 0 && <button type="button" className="row-action" disabled={busy} onClick={() => startCollect(item)}>Encaisser</button>}</td>
                   </tr>
                 ))}
@@ -1478,6 +1493,8 @@ const paymentLabels: Record<string, string> = {
   FRAIS_DEPOT: "Frais de dépôt",
   FRAIS_INSCRIPTION: "Frais d’inscription",
   ECHEANCE_BOURSE: "Échéance de bourse",
+  REMBOURSEMENT: "Remboursement",
+  REPORT: "Report de trop-perçu",
 };
 
 function paymentDate(value: string) {
@@ -1564,7 +1581,12 @@ async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation:
   pdf.setTextColor(228, 177, 59);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(10);
-  pdf.text("REÇU DE PAIEMENT", 58, 41);
+  pdf.text(payment._offline ? "REÇU DE PAIEMENT PROVISOIRE" : "REÇU DE PAIEMENT", 58, 41);
+  if (payment._offline) {
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7.5);
+    pdf.text("Enregistré hors ligne, en attente de confirmation par le serveur", 58, 47);
+  }
 
   pdf.setFillColor(242, 245, 250);
   pdf.roundedRect(18, 63, 174, 19, 2, 2, "F");
@@ -1654,7 +1676,7 @@ async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation:
     pdf.setTextColor(102, 114, 140);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(7);
-    pdf.text(`Référence de transaction : ${payment.id}`, 18, 290);
+    pdf.text(`Référence de transaction : ${payment.id}${payment._offline ? " · saisi hors ligne, en attente de synchronisation" : ""}`, 18, 290);
     pdf.text("IPAIM UNIVERSITY", 192, 290, { align: "right" });
     // Traçabilité du document : qui l'a édité, quel jour et à quelle heure.
     pdf.text(pdfSafe(generatedBy), 105, 294, { align: "center" });
@@ -1797,6 +1819,7 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
             </div>
             <p>REÇU DE PAIEMENT</p>
           </header>
+          {payment._offline && <p className="receipt-provisional">Reçu provisoire · paiement enregistré hors ligne, en attente de confirmation par le serveur</p>}
           <div className="receipt-reference">
             <div><span>Référence du reçu</span><strong>IPAIM-{payment.id.slice(0, 8).toUpperCase()}</strong></div>
             <div><span>Date du paiement</span><strong>{paymentDate(payment.datePaiement)}</strong></div>
@@ -1849,7 +1872,7 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
             <div><span>Le service de comptabilité</span><i /></div>
             <div><span>Cachet de l’établissement</span><i /></div>
           </footer>
-          <div className="receipt-footer">IPAIM UNIVERSITY · Référence de transaction : {payment.id}<br />{generatedBy}</div>
+          <div className="receipt-footer">IPAIM UNIVERSITY · Référence de transaction : {payment.id}{payment._offline && " · saisi hors ligne, en attente de synchronisation"}<br />{generatedBy}</div>
         </article>
         {pdfError && <p className="form-error receipt-pdf-error" role="alert">{pdfError}</p>}
         <div className="receipt-print-actions">
@@ -1890,6 +1913,7 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange }: { refreshK
       payment.id,
       payment.obligation,
       payment.echeance,
+      payment.motif,
       paymentLabels[payment.typePaiement] ?? payment.typePaiement,
     ].filter(Boolean).join(" ").toLocaleLowerCase();
     return searchable.includes(normalizedSearch);
@@ -1898,7 +1922,7 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange }: { refreshK
     <section className="panel full-panel payment-history-panel">
       <div className="panel-heading">
         <div><p className="eyebrow">Journal des encaissements</p><h3>{filteredPayments.length} transaction(s) affichée(s)</h3></div>
-        <div className="payment-history-total">Total encaissé <strong>{formatMoney(total)}</strong></div>
+        <div className="payment-history-total">Total encaissé (remboursements déduits) <strong>{formatMoney(total)}</strong></div>
       </div>
         <div className="payment-search-toolbar">
         <label className="payment-search-field">Rechercher une transaction
@@ -1917,11 +1941,13 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange }: { refreshK
       {error && <p className="form-error">{error}</p>}
       {loading && <p className="empty-state">Chargement de l&apos;historique...</p>}
       {!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Payeur</th><th>Dossier</th><th>Obligation / échéance</th><th>Type</th><th>Montant</th><th>État</th><th>Reçu</th></tr></thead><tbody>
-        {filteredPayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td><span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span></td><td><button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label="Imprimer le reçu"><ActionIcon name="print" /></button></td></tr>)}
+        {filteredPayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td>{payment.typePaiement === "REMBOURSEMENT" ? <span className="status status-refusee">Remboursé</span> : payment.typePaiement === "REPORT" ? <span className="status status-neutre">Report</span> : <span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span>}{payment._offline && <small className="local-payment-note">En attente de synchronisation</small>}</td><td>{payment.typePaiement !== "REPORT" && <button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label={payment.typePaiement === "REMBOURSEMENT" ? "Imprimer le reçu de remboursement" : "Imprimer le reçu"}><ActionIcon name="print" /></button>}</td></tr>)}
         {!filteredPayments.length && <tr><td colSpan={8} className="empty-state">{payments.length ? "Aucune transaction ne correspond à cette recherche." : "Aucune transaction enregistrée."}</td></tr>}
       </tbody></table></div>}
     </section>
-    {selectedReceipt && <PaymentReceipt payment={selectedReceipt} onClose={() => setSelectedReceipt(null)} />}
+    {selectedReceipt && (selectedReceipt.typePaiement === "REMBOURSEMENT"
+      ? <RefundReceipt refund={selectedReceipt} onClose={() => setSelectedReceipt(null)} />
+      : <PaymentReceipt payment={selectedReceipt} onClose={() => setSelectedReceipt(null)} />)}
   </>;
 }
 
@@ -1950,6 +1976,7 @@ type DossierPayment = {
   montant: string | number;
   datePaiement: string;
   typePaiement: string;
+  motif?: string | null;
   echeance?: { libelle: string } | null;
 };
 
@@ -2026,6 +2053,7 @@ export function DossierDetailsPage({
   const payments = dossier?.paiements ?? [];
   const missingElements = elements.filter((element) => element.statut !== "FOURNI" && element.statut !== "SUBSTITUE");
   const unpaidAmount = finance?.obligations.reduce((total, item) => total + Number(item.resteAPayer), 0) ?? 0;
+  const surplusAmount = finance?.obligations.reduce((total, item) => total + surplusOf(item), 0) ?? 0;
   const refreshDetails = () => {
     setLoading(true);
     setError("");
@@ -2081,16 +2109,19 @@ export function DossierDetailsPage({
 
           <section className="dossier-detail-section">
             <div className="dossier-section-heading"><h3>Personne</h3><button className="row-action" onClick={() => setAction("person")}>Modifier les informations</button></div>
-            <dl className="dossier-detail-fields">
-              <DetailField label="Nom complet" value={fullName(person)} />
-              <DetailField label="Matricule" value={person?.matricule} />
-              <DetailField label="Téléphone" value={person?.telephone} />
-              <DetailField label="Quartier" value={person?.quartier} />
-              <DetailField label="Date de naissance" value={fullDate(person?.dateNaissance)} />
-              <DetailField label="Lieu de naissance" value={person?.lieuNaissance} />
-              <DetailField label="Tuteur" value={[person?.tuteurPrenom, person?.tuteurNom].filter(Boolean).join(" ")} />
-              <DetailField label="Téléphone du tuteur" value={person?.tuteurTelephone} />
-            </dl>
+            <div className="dossier-person-layout">
+              {person && <PersonPhotoCard person={person} onChanged={() => { refreshDetails(); onRefresh(); }} />}
+              <dl className="dossier-detail-fields">
+                <DetailField label="Nom complet" value={fullName(person)} />
+                <DetailField label="Matricule" value={person?.matricule} />
+                <DetailField label="Téléphone" value={person?.telephone} />
+                <DetailField label="Quartier" value={person?.quartier} />
+                <DetailField label="Date de naissance" value={fullDate(person?.dateNaissance)} />
+                <DetailField label="Lieu de naissance" value={person?.lieuNaissance} />
+                <DetailField label="Tuteur" value={[person?.tuteurPrenom, person?.tuteurNom].filter(Boolean).join(" ")} />
+                <DetailField label="Téléphone du tuteur" value={person?.tuteurTelephone} />
+              </dl>
+            </div>
           </section>
 
           <section className="dossier-detail-section">
@@ -2130,7 +2161,7 @@ export function DossierDetailsPage({
             <div className="dossier-section-heading"><div><h3>Situation financière</h3><p className={unpaidAmount > 0 ? "dossier-debt-alert" : undefined}>{unpaidAmount > 0 ? `${formatMoney(unpaidAmount)} restent à recouvrer` : "Aucun solde restant sur les obligations"}</p></div><button className="row-action" onClick={() => setAction("finance")}>Voir le détail financier</button></div>
             <div className="dossier-finance-summary"><div><span>Total attendu</span><strong>{formatMoney(finance?.totalAttendu ?? 0)}</strong></div><div><span>Total payé</span><strong>{formatMoney(finance?.totalPaye ?? 0)}</strong></div><div><span>Paiements non affectés</span><strong>{formatMoney(finance?.montantPayeNonAffecte ?? 0)}</strong></div></div>
             <h4 className="dossier-subheading">Paiements enregistrés</h4>
-            {payments.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Échéance</th><th>Montant</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{fullDate(payment.datePaiement)}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{payment.echeance?.libelle ?? "-"}</td><td>{formatMoney(payment.montant)}</td></tr>)}</tbody></table></div> : <p className="panel-subtitle">Aucun paiement enregistré pour ce dossier.</p>}
+            {payments.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Échéance / précision</th><th>Montant</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{fullDate(payment.datePaiement)}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{payment.echeance?.libelle ?? payment.motif ?? "-"}</td><td>{formatMoney(payment.montant)}</td></tr>)}</tbody></table></div> : <p className="panel-subtitle">Aucun paiement enregistré pour ce dossier.</p>}
           </section>
 
           <section className="dossier-detail-section">
@@ -2141,9 +2172,10 @@ export function DossierDetailsPage({
           <section className="dossier-detail-section dossier-next-actions"><h3>À faire</h3>
             {missingElements.length > 0 && <button className="row-action" onClick={() => setAction("elements")}>Compléter les pièces manquantes ({missingElements.length})</button>}
             {unpaidAmount > 0 && <button className="row-action debt-action" onClick={() => setAction("finance")}>Suivre les paiements en attente ({formatMoney(unpaidAmount)})</button>}
+            {surplusAmount > 0 && <button className="row-action debt-action" onClick={() => setAction("finance")}>Régulariser le trop-perçu ({formatMoney(surplusAmount)}) : le reporter ou le rembourser</button>}
             {isApplication && !(dossier as DetailedApplication).dateEntretien && !["ACCEPTEE", "REFUSEE"].includes(dossier.statut) && <button className="row-action" onClick={() => setAction("interview")}>Planifier un entretien</button>}
             {isApplication && !["ACCEPTEE", "REFUSEE"].includes(dossier.statut) && <button className="row-action" onClick={() => setAction("status")}>Prendre une décision</button>}
-            {!missingElements.length && unpaidAmount <= 0 && (!isApplication || Boolean((dossier as DetailedApplication).dateEntretien) || ["ACCEPTEE", "REFUSEE"].includes(dossier.statut)) && (isApplication ? ["ACCEPTEE", "REFUSEE"].includes(dossier.statut) : dossier.statut === "COMPLETE") && <p className="panel-subtitle">Aucune action en attente n&apos;a été détectée.</p>}
+            {!missingElements.length && unpaidAmount <= 0 && surplusAmount <= 0 && (!isApplication || Boolean((dossier as DetailedApplication).dateEntretien) || ["ACCEPTEE", "REFUSEE"].includes(dossier.statut)) && (isApplication ? ["ACCEPTEE", "REFUSEE"].includes(dossier.statut) : dossier.statut === "COMPLETE") && <p className="panel-subtitle">Aucune action en attente n&apos;a été détectée.</p>}
           </section>
         </section>
       )}

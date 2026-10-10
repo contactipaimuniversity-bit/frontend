@@ -20,7 +20,7 @@ const FIELD_LABELS: Record<string, string> = {
   creeParId: "Créé par", elementRequisId: "Élément requis", statuses: "Statut des pièces", elementId: "Obligation", confirmerDemandeEnCours: "Demande non décidée confirmée",
 };
 
-const PAYMENT_LABELS: Record<string, string> = { FRAIS_DEPOT: "Frais de dépôt", FRAIS_INSCRIPTION: "Frais d'inscription", ECHEANCE_BOURSE: "Échéance de bourse" };
+const PAYMENT_LABELS: Record<string, string> = { FRAIS_DEPOT: "Frais de dépôt", FRAIS_INSCRIPTION: "Frais d'inscription", REMBOURSEMENT: "Remboursement", REPORT: "Report de trop-perçu", ECHEANCE_BOURSE: "Échéance de bourse" };
 
 export const fieldLabel = (key: string) =>
   FIELD_LABELS[key] ?? key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (letter) => letter.toUpperCase());

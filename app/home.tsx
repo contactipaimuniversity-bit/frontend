@@ -34,10 +34,12 @@ import {
   ReportsPage,
 } from "@/components/additional-pages";
 import { apiFetch, notifySessionChanged } from "@/lib/api";
-import { applyColorMode, applyColorPreset, readColorMode, readColorPreset } from "@/lib/theme";
+import { applyColorMode, applyColorPreset, applyFont, applyTextSize, readColorMode, readColorPreset, readFont, readTextSize } from "@/lib/theme";
 import { OfflineAccount } from "@/lib/offline";
+import { forgetDataKey } from "@/lib/local-crypto";
 import { canAccessView, hasAccess } from "@/lib/access";
-import { navigateTo, parsePath, pathForDossier, pathForView } from "@/lib/routes";
+import { helpReturnPath, navigateTo, parsePath, pathForDossier, pathForHelp, pathForView } from "@/lib/routes";
+import { PageHelpPage } from "@/components/page-help-page";
 import { FeedbackHost } from "@/components/feedback";
 import {
   Application,
@@ -96,6 +98,7 @@ export default function Home() {
   const view = route.view;
   const setView = (next: ViewName) => navigateTo(pathForView(next));
   const dossierReference = route.dossier;
+  const helpFor = route.helpFor ?? "Vue d'ensemble";
   const dossierReturnView = route.dossier?.type === "inscription" ? "Inscriptions" as const : "Demandes de bourse" as const;
   const [deletionInfoReturnView, setDeletionInfoReturnView] = useState<"Demandes de bourse" | "Inscriptions">("Demandes de bourse");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -189,12 +192,21 @@ export default function Home() {
     },
     () => false,
   );
-  const adminOnlyView = view === "Audit" || view === "Corbeille" || view === "Impressions" || view === "Sauvegardes" || view === "Paramètres";
+  const adminOnlyView = view === "Audit" || view === "Corbeille" || view === "Impressions" || view === "Sauvegardes";
   const activeView = !canAccessView(user, view) || (adminOnlyView && user?.role !== "admin") ? "Profil" : view;
   usePageTimeTracker(pathname ?? "/", activeView, token);
   // Impressions faites hors ligne ou session expirée : on les déclare dès la connexion.
   useEffect(() => {
-    if (token) void flushPrintLog();
+    if (!token) return;
+    const declare = () => void flushPrintLog();
+    declare();
+    // Retour du réseau ou du serveur en cours de session : même déclaration.
+    window.addEventListener("online", declare);
+    window.addEventListener("ipaim-server-online", declare);
+    return () => {
+      window.removeEventListener("online", declare);
+      window.removeEventListener("ipaim-server-online", declare);
+    };
   }, [token]);
   useClickTracker(pathname ?? "/", activeView, token);
 
@@ -203,6 +215,8 @@ export default function Home() {
     const syncColorMode = () => applyColorMode(readColorMode(), false);
     syncColorPreset();
     syncColorMode();
+    applyFont(readFont(), false);
+    applyTextSize(readTextSize(), false);
     window.addEventListener("storage", syncColorPreset);
     window.addEventListener("storage", syncColorMode);
     return () => {
@@ -372,7 +386,15 @@ export default function Home() {
     const refreshAfterSync = () => setRefreshKey((value) => value + 1);
     window.addEventListener("ipaim-sync-complete", refreshAfterSync);
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator)
-      void navigator.serviceWorker.register("/sw.js");
+      void navigator.serviceWorker.register("/sw.js").then(async () => {
+        // Les fichiers chargés avant l'installation n'ont pas été vus par le service
+        // worker : on les lui confie pour que l'application s'ouvre sans réseau dès la première visite.
+        const registration = await navigator.serviceWorker.ready;
+        const urls = performance.getEntriesByType("resource")
+          .map((entry) => entry.name)
+          .filter((url) => url.startsWith(`${window.location.origin}/_next/static/`));
+        registration.active?.postMessage({ type: "cache-urls", urls: [...new Set(urls)] });
+      }).catch(() => undefined);
     return () => window.removeEventListener("ipaim-sync-complete", refreshAfterSync);
   }, []);
 
@@ -380,6 +402,7 @@ export default function Home() {
     window.sessionStorage.removeItem("ipaim-token");
     window.sessionStorage.removeItem("ipaim-user");
     window.sessionStorage.removeItem("ipaim-offline-session");
+    forgetDataKey();
     setTemporaryToken(null);
     setTemporaryUser(null);
     notifySessionChanged();
@@ -426,7 +449,12 @@ export default function Home() {
       onProfile={() => setView("Profil")}
       onSettings={() => setView("Paramètres")}
     >
-      <AppHeader title={activeView} user={user} onRefresh={refresh} />
+      <AppHeader
+        title={activeView}
+        user={user}
+        onRefresh={refresh}
+        onHelp={activeView === "Aide de la page" ? undefined : () => navigateTo(pathForHelp(activeView, pathname))}
+      />
       <OfflineSync onOpenPage={() => setView("Synchronisation")} />
       {offlineAccessWarning && (
         <div className="api-error">
@@ -461,7 +489,7 @@ export default function Home() {
       ) : activeView === "Profil" ? (
         <ProfilePage user={user} onLogout={logout} onUpdated={(updated) => { setTemporaryUser(updated); window.sessionStorage.setItem("ipaim-user", JSON.stringify(updated)); }} />
       ) : activeView === "Paramètres" ? (
-        <SettingsPage currentUser={user} onRefresh={refresh} />
+        <SettingsPage currentUser={user} onRefresh={refresh} section={route.settingsSection ?? null} onOpenSection={(section) => navigateTo(section ? `/parametres/${section}` : "/parametres")} onOpenView={setView} />
       ) : activeView === "À propos du SGI" ? (
         <AboutSgiPage onBack={() => setView("Vue d'ensemble")} />
       ) : activeView === "Résumé de la journée" ? (
@@ -547,6 +575,8 @@ export default function Home() {
         <ReportsPage />
       ) : activeView === "Certificats" ? (
         <CertificatesPage refreshSignal={refreshKey} dateOrder={dateOrder} onDateOrderChange={setDateOrder} />
+      ) : activeView === "Aide de la page" ? (
+        <PageHelpPage view={helpFor} onBack={() => navigateTo(helpReturnPath(helpFor))} />
       ) : activeView === "Suppression des dossiers" ? (
         <DeletionInfoPage onBack={() => setView(deletionInfoReturnView)} />
       ) : activeView === "Fiche dossier" && dossierReference ? (

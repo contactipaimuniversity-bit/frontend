@@ -1,6 +1,6 @@
 import { API_URL } from "@/lib/offline";
 
-export type PrintDocument = "RECU_PAIEMENT" | "CERTIFICAT_BOURSE" | "CERTIFICAT_INSCRIPTION" | "BON_COMMANDE" | "RAPPORT_ACTIVITE" | "BULLETIN_NOTES" | "PV_DELIBERATION" | "BULLETIN_PAIE" | "CARTE_ETUDIANT";
+export type PrintDocument = "RECU_PAIEMENT" | "RECU_REMBOURSEMENT" | "CERTIFICAT_BOURSE" | "CERTIFICAT_INSCRIPTION" | "BON_COMMANDE" | "RAPPORT_ACTIVITE" | "BULLETIN_NOTES" | "PV_DELIBERATION" | "BULLETIN_PAIE" | "CARTE_ETUDIANT";
 export type PrintRecord = {
   typeDocument: PrintDocument;
   mode: "IMPRESSION" | "PDF";
@@ -61,6 +61,8 @@ export function logPrint(record: PrintRecord) {
   if (!listening) {
     listening = true;
     window.addEventListener("online", () => void flushPrintLog());
+    // Le serveur répond à nouveau alors que le réseau n'avait pas bougé (retour du courant).
+    window.addEventListener("ipaim-server-online", () => void flushPrintLog());
   }
   writePending([...readPending(), { ...record, cle: crypto.randomUUID(), date: new Date().toISOString() }]);
   void flushPrintLog();

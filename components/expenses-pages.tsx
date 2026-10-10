@@ -196,23 +196,37 @@ function ExpenseForm({ expense, onClose, onSaved }: { expense?: ExpenseDetail; o
     setError("");
     try {
       const body = JSON.stringify({ ...form, fournisseurId: form.fournisseurId || null, lignes: lines });
-      let current = saved
+      // Sans connexion, chaque étape attend sur l'appareil et partira dans l'ordre au retour
+      // du serveur : le brouillon (qui recevra alors son numéro), ses pièces, puis la soumission.
+      // Une étape mise en file ne renvoie qu'un identifiant provisoire, marqué `_offline`.
+      let queued = false;
+      const keep = (result: ExpenseDetail | null) => {
+        if ((result as { _offline?: boolean } | null)?._offline) return void (queued = true);
+        if (!result?.numero) return;
+        current = result;
+        setSaved(result);
+      };
+      const draft = saved
         ? await apiFetch<ExpenseDetail>(`/depenses/${saved.id}`, { method: "PATCH", body, silent: true })
         : await apiFetch<ExpenseDetail>("/depenses", { method: "POST", body, silent: true });
-      setSaved(current);
+      let current: ExpenseDetail | undefined = saved;
+      keep(draft);
+      const draftId = saved?.id ?? draft.id;
       // Les pièces partent une à une : en cas d'échec, ce qui est déjà envoyé est conservé.
       if (letter) {
-        current = await apiFetch<ExpenseDetail>(`/depenses/${current.id}/pieces`, { method: "POST", body: multipart({ type: "LETTRE_DEMANDE" }, letter), silent: true });
-        setSaved(current);
+        keep(await apiFetch<ExpenseDetail>(`/depenses/${draftId}/pieces`, { method: "POST", body: multipart({ type: "LETTRE_DEMANDE" }, letter), silent: true }));
         setLetter(null);
       }
       if (quote) {
-        current = await apiFetch<ExpenseDetail>(`/depenses/${current.id}/pieces`, { method: "POST", body: multipart({ type: "DEVIS" }, quote), silent: true });
-        setSaved(current);
+        keep(await apiFetch<ExpenseDetail>(`/depenses/${draftId}/pieces`, { method: "POST", body: multipart({ type: "DEVIS" }, quote), silent: true }));
         setQuote(null);
       }
-      if (submit) await apiFetch(`/depenses/${current.id}/soumettre`, { method: "POST", silent: true });
-      toast(submit ? `Demande ${current.numero} soumise pour validation.` : `Brouillon ${current.numero} enregistré.`);
+      if (submit) keep(await apiFetch<ExpenseDetail | null>(`/depenses/${draftId}/soumettre`, { method: "POST", silent: true }));
+      if (queued)
+        toast(submit
+          ? "Demande gardée sur cet appareil avec ses pièces. Elle sera envoyée puis soumise pour validation dès le retour de la connexion."
+          : "Brouillon gardé sur cet appareil avec ses pièces. Il sera envoyé dès le retour de la connexion.", "info");
+      else toast(submit ? `Demande ${current?.numero} soumise pour validation.` : `Brouillon ${current?.numero} enregistré.`);
       onSaved();
       onClose();
     } catch (failure) {
@@ -664,6 +678,16 @@ function ExpenseDetailModal({ id, onClose, onChanged, onEdit }: { id: string; on
 
 // ---------- Listes ----------
 
+// Ce qui attend sur l'appareil pour un brouillon préparé hors ligne.
+function offlineDraftNote(expense: ExpenseSummary) {
+  const { _pieces = 0, _soumission = false } = expense as ExpenseSummary & { _pieces?: number; _soumission?: boolean };
+  return [
+    "Hors ligne · en attente de synchronisation",
+    _pieces ? `${_pieces} pièce(s) jointe(s)` : "sans pièce jointe",
+    _soumission ? "sera soumise à l'envoi" : null,
+  ].filter(Boolean).join(" · ");
+}
+
 function ExpenseTable({ expenses, empty, extra, onOpen }: { expenses: ExpenseSummary[]; empty: string; extra?: { title: string; render: (expense: ExpenseSummary) => ReactNode }; onOpen: (id: string) => void }) {
   return (
     <div className="table-wrap">
@@ -684,7 +708,9 @@ function ExpenseTable({ expenses, empty, extra, onOpen }: { expenses: ExpenseSum
             <tr key={expense.id}>
               <td className="strong-cell">{expense.numero}</td>
               <td>
-                <button className="dossier-open-button" onClick={() => onOpen(expense.id)}>{expense.objet}</button>
+                {(expense as { _offline?: boolean })._offline
+                  ? <>{expense.objet}<small className="local-payment-note">{offlineDraftNote(expense)}</small></>
+                  : <button className="dossier-open-button" onClick={() => onOpen(expense.id)}>{expense.objet}</button>}
                 <small className="cell-detail">{expense.categorie.nom} · {formatDate(expense.dateSoumission ?? expense.dateCreation)}</small>
               </td>
               <td>{expense.initiateurNom}</td>

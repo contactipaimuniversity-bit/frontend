@@ -21,6 +21,8 @@ type Session = {
   enseignant?: { nom: string; prenom: string } | null;
   cours: { id: string; matiere: { nom: string; code: string } };
   absences: Array<{ id: string; justifiee: boolean; motif?: string | null; inscription: { personne: Student } }>;
+  /** Séance déclarée sans connexion, pas encore reçue par le serveur. */
+  _offline?: boolean;
 };
 type ClassStudents = { inscriptions: Array<{ id: string; statut: string; personne: Student }> };
 
@@ -182,15 +184,15 @@ function Logbook({ classId, canEdit, closed }: { classId: string; canEdit: boole
               <tr key={session.id}>
                 <td className="strong-cell">{formatDate(session.date)}<small className="cell-detail">{session.heureDebut} · {number(session.dureeMinutes / 60, 1)} h</small></td>
                 <td>{session.cours.matiere.nom}<small className="cell-detail">{session.enseignant ? personName(session.enseignant) : ""}</small></td>
-                <td className="logbook-content">{session.contenu}</td>
+                <td className="logbook-content">{session.contenu}{session._offline && <small className="local-payment-note">En attente de synchronisation</small>}</td>
                 <td>
                   {session.absences.length ? session.absences.map((absence) => (
-                    <button key={absence.id} className={`absence-chip ${absence.justifiee ? "justified" : ""}`} disabled={!editable} title={absence.justifiee ? `Justifiée : ${absence.motif ?? ""} (cliquer pour annuler)` : "Non justifiée (cliquer pour justifier)"} onClick={() => void justify(absence.id, personName(absence.inscription.personne), absence.justifiee)}>
+                    <button key={absence.id} className={`absence-chip ${absence.justifiee ? "justified" : ""}`} disabled={!editable || session._offline} title={absence.justifiee ? `Justifiée : ${absence.motif ?? ""} (cliquer pour annuler)` : "Non justifiée (cliquer pour justifier)"} onClick={() => void justify(absence.id, personName(absence.inscription.personne), absence.justifiee)}>
                       {personName(absence.inscription.personne)}{absence.justifiee ? " ✓" : ""}
                     </button>
                   )) : <small className="cell-detail">Aucun</small>}
                 </td>
-                <td>{editable && <button className="row-action danger-row-action" onClick={() => void remove(session)}>Supprimer</button>}</td>
+                <td>{editable && !session._offline && <button className="row-action danger-row-action" onClick={() => void remove(session)}>Supprimer</button>}</td>
               </tr>
             ))}
             {!sessions.data?.length && <Empty columns={5}>{sessions.data ? "Aucune séance déclarée pour cette classe." : "Chargement..."}</Empty>}
@@ -306,8 +308,14 @@ function GradesModal({ courseId, canEdit, onClose }: { courseId: string; canEdit
           .map(([key, value]) => ({ inscriptionId: key.split(":")[1], valeur: value.absent || value.valeur === "" ? null : value.valeur, absent: value.absent }));
         latest = await send<GradeGrid>(`/notes/evaluations/${evaluationId}/notes`, "PUT", { notes }, true);
       }
-      if (latest) apply(latest);
-      toast("Notes enregistrées.");
+      // Hors ligne, les notes attendent sur l'appareil : la grille locale les reprend.
+      if (latest && Array.isArray(latest.etudiants)) {
+        apply(latest);
+        toast("Notes enregistrées.");
+      } else {
+        setDraft({});
+        grid.reload();
+      }
       return true;
     });
   const validate = async (evaluation: Evaluation) => {

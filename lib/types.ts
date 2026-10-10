@@ -11,6 +11,7 @@ export type Person = {
   lieuNaissance?: string;
   sexe?: string | null;
   matricule?: string | null;
+  photoUrl?: string | null;
   tuteurNom?: string;
   tuteurPrenom?: string;
   tuteurTelephone?: string;
@@ -120,9 +121,14 @@ export type UnassignedPayment = {
 };
 export type PaymentTransaction = UnassignedPayment & {
   dossier: string;
+  /** Renseignés pour un remboursement ou un report de trop-perçu. */
+  motif?: string | null;
+  saisiParNom?: string | null;
   obligation?: string | null;
   echeance?: string | null;
   affecte: boolean;
+  /** Paiement saisi sans connexion, pas encore reçu par le serveur. */
+  _offline?: boolean;
 };
 export type RequiredElement = {
   id: string;
@@ -151,6 +157,7 @@ export type CatalogElement = {
   montantAttendu?: string | number | null;
   elementSubstitutId?: string | null;
   elementSubstitut?: { id: string; nom: string } | null;
+  _count?: { elementsDossier: number };
 };
 export type ScholarshipType = {
   id: string;
@@ -216,7 +223,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "Dépenses" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Aide de la page" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "Dépenses" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI";
 
 export type DailyActivityReport = {
   date: string;
@@ -253,6 +260,11 @@ export const statusLabels: Record<string, string> = {
   DEPOSE: "Dossier déposé",
   ENTRETIEN_REALISE: "Entretien réalisé",
   RETENU: "Retenu",
+  FRAIS_DEPOT: "Frais de dépôt",
+  FRAIS_INSCRIPTION: "Frais d'inscription",
+  ECHEANCE_BOURSE: "Échéance de bourse",
+  REMBOURSEMENT: "Remboursement",
+  REPORT: "Report de trop-perçu",
   REFUSE: "Refusé",
 };
 

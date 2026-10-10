@@ -24,6 +24,8 @@ const trashTypeLabels: Record<string, string> = {
   DEMANDE_BOURSE: "Demande de bourse et ses inscriptions liées",
   INSCRIPTION: "Inscription",
   UTILISATEUR: "Compte utilisateur",
+  ELEMENT_REQUIS: "Référentiel · élément requis",
+  TYPE_BOURSE: "Référentiel · type de bourse",
 };
 
 const snapshotFieldLabels: Record<string, string> = {
@@ -97,6 +99,11 @@ const snapshotFieldLabels: Record<string, string> = {
   dateEcheance: "Date d’échéance",
   montantPayeNonAffecte: "Paiement non affecté",
   creeParId: "Identifiant du créateur",
+  paiementIds: "Paiements qui y étaient affectés",
+  substituePourIds: "Éléments dont il était le substitut",
+  substitutUtiliseDansIds: "Pièces qu'il remplaçait dans des dossiers",
+  elementSubstitutId: "Identifiant du substitut prévu",
+  typeBourseId: "Identifiant du type de bourse",
 };
 
 function SnapshotTree({ label, value, depth = 0 }: { label: string; value: unknown; depth?: number }) {
@@ -230,7 +237,7 @@ export function TrashPage() {
         <div>
           <p className="eyebrow">Administration · Archives</p>
           <h2>Corbeille</h2>
-          <p>Les dossiers supprimés restent consultables ici jusqu’à leur purge définitive.</p>
+          <p>Les dossiers et référentiels supprimés restent consultables ici jusqu’à leur purge définitive.</p>
         </div>
         <button className="outline-button small" onClick={() => void loadEntries()} disabled={loading}>Actualiser</button>
       </div>
