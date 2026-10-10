@@ -32,11 +32,12 @@ Depuis le dossier front :
     npm install
     npm run dev
 
-Le frontend demarre generalement sur :
+Le frontend demarre sur (port fixe dans package.json) :
 
-    http://localhost:3000
+    http://localhost:3001
 
-Si le port 3000 est deja utilise, Next.js choisit un autre port disponible.
+Le backend ecoute sur le port 3000 et autorise par defaut l'origine
+http://localhost:3001 (variable FRONTEND_URL).
 
 Pour verifier la version de production :
 

@@ -1,9 +1,16 @@
 "use client";
 
+import { generatedByLine } from "@/lib/session";
+import { ActionIcon } from "@/components/action-icon";
+import { askConfirm } from "@/components/feedback";
+
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch } from "@/lib/api";
+import { logPrint } from "@/lib/print-log";
+import { DocumentsPanel } from "@/components/hr-page";
 import { ModalChoice } from "@/components/modal-choice";
+import { DateOrderControl } from "@/components/date-order-control";
 import { PersonForm } from "@/components/additional-pages";
 import { BrandLogo } from "@/components/brand-logo";
 import { getAcceptedApplicationsForEnrollment } from "@/lib/enrollment-eligibility";
@@ -12,12 +19,14 @@ import {
   ApplicationPage,
   ApplicationFinance,
   CatalogElement,
+    DateOrder,
   Enrollment,
   EnrollmentPage,
   LatePayment,
   Person,
   PersonPage,
   Prospect,
+  ProspectRelance,
   PaymentTransaction,
   RequiredElement,
   ScholarshipType,
@@ -25,6 +34,7 @@ import {
   ViewName,
   formatDate,
   formatMoney,
+  pdfSafe,
   fullName,
   statusLabels,
 } from "@/lib/types";
@@ -39,7 +49,7 @@ function Modal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop">
       <section
         className="modal"
         onMouseDown={(event) => event.stopPropagation()}
@@ -232,7 +242,13 @@ function DossierPreparation({
       <div className="elements-list">
         {catalogue.map((element) => (
           <div className="element-row" key={element.id}>
-            <div><strong>{element.nom}</strong><small>{element.obligatoire ? "Obligatoire" : "Facultatif"}</small></div>
+            <div>
+              <strong>{element.nom}</strong>
+              <small>{element.obligatoire ? "Obligatoire" : "Facultatif"}</small>
+              {element.montantAttendu !== null && element.montantAttendu !== undefined && (
+                <small>Montant attendu : {formatMoney(element.montantAttendu)}</small>
+              )}
+            </div>
             <select value={value.statuses[element.id] ?? "ATTENDU"} onChange={(event) => setStatus(element.id, event.target.value)}>
               <option value="ATTENDU">Attendu</option><option value="FOURNI">Fourni</option><option value="MANQUANT">Manquant</option><option value="SUBSTITUE" disabled={!element.elementSubstitutId}>Substitué</option>
             </select>
@@ -242,7 +258,13 @@ function DossierPreparation({
       </div>
       <div className="form-grid">
         <label>Montant du paiement (facultatif)<input type="text" inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={value.montant} onChange={(event) => onChange({ ...value, montant: event.target.value })} /></label>
-        <label>Type de paiement<select value={value.typePaiement} onChange={(event) => onChange({ ...value, typePaiement: event.target.value })}><option value="FRAIS_DEPOT">Frais de dépôt</option><option value="FRAIS_INSCRIPTION">Frais d&apos;inscription</option></select></label>
+        <label>
+          Type de paiement
+          <input
+            readOnly
+            value={contexte === "BOURSE" ? "Frais de dépôt" : "Frais d'inscription"}
+          />
+        </label>
       </div>
       {value.montant && <ModalChoice required label="Affecter à l&apos;obligation financière" placeholder="Sélectionner une obligation" choices={catalogue.filter((element) => element.montantAttendu !== null && element.montantAttendu !== undefined).map((element) => ({ value: element.id, label: element.nom, detail: formatMoney(element.montantAttendu ?? 0) }))} value={value.elementId} onChange={(elementId) => onChange({ ...value, elementId })} />}
     </section>
@@ -353,7 +375,6 @@ function CreateApplication({
             }
           />
         </label>
-        <DossierPreparation contexte="BOURSE" niveauApplicable={form.niveauDemande === "PREMIERE_ANNEE" ? "PREMIERE_ANNEE" : "DEUXIEME_ANNEE_PLUS"} value={preparation} onChange={setPreparation} />
         <label>
           Filière secondaire souhaitée (facultatif)
           <input
@@ -372,6 +393,7 @@ function CreateApplication({
             }
           />
         </label>
+        <DossierPreparation contexte="BOURSE" niveauApplicable={form.niveauDemande === "PREMIERE_ANNEE" ? "PREMIERE_ANNEE" : "DEUXIEME_ANNEE"} value={preparation} onChange={setPreparation} />
         {error && <p className="form-error">{error}</p>}
         <FormActions busy={busy} onCancel={onClose} />
       </form>
@@ -380,19 +402,16 @@ function CreateApplication({
 }
 
 function CreateEnrollment({
-  people,
   applications,
   onClose,
   onSaved,
 }: {
-  people: Person[];
   applications: Application[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const acceptedApplications = getAcceptedApplicationsForEnrollment(applications);
   const [form, setForm] = useState({
-    personneId: "",
     anneeScolaire: "2026-2027",
     niveau: "",
     filiere: "",
@@ -400,12 +419,46 @@ function CreateEnrollment({
     demandeBourseId: "",
     nouvellePersonne: EMPTY_PERSON,
   });
-  const [createPerson, setCreatePerson] = useState(false);
-  const [preparation, setPreparation] = useState(EMPTY_PREPARATION);
+  const [selectedBourse, setSelectedBourse] = useState<Application | null>(null);
+  const [bourseLoading, setBourseLoading] = useState(false);
+  const [preparation, setPreparation] = useState({
+    ...EMPTY_PREPARATION,
+    typePaiement: "FRAIS_INSCRIPTION",
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const selectBourse = async (demandeBourseId: string) => {
+    setSelectedBourse(null);
+    setForm((current) => ({ ...current, demandeBourseId }));
+    if (!demandeBourseId) return;
+    setBourseLoading(true);
+    try {
+      const application = applications.find((item) => item.id === demandeBourseId)
+        ?? await apiFetch<Application>(`/demandes-bourse/${demandeBourseId}`);
+      setSelectedBourse(application);
+      setForm((current) => ({
+        ...current,
+        niveau: application.niveauDemande === "DEUXIEME_ANNEE" ? "L2" : "L1",
+        filiere: application.filiereSouhaitee,
+      }));
+      setPreparation((current) => ({ ...current, elementId: "" }));
+      setError("");
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Impossible de charger le dossier de bourse.");
+    } finally {
+      setBourseLoading(false);
+    }
+  };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (!form.niveau) {
+      setError("Sélectionnez le niveau L1 ou L2.");
+      return;
+    }
+    if (form.viaBourse && !form.demandeBourseId) {
+      setError("Sélectionnez le dossier de bourse lié.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -414,7 +467,7 @@ function CreateEnrollment({
         setError(preparationError);
         return;
       }
-      const linkedApplication = applications.find(
+      const linkedApplication = selectedBourse ?? applications.find(
         (application) => application.id === form.demandeBourseId,
       );
       const confirmerDemandeEnCours =
@@ -423,17 +476,19 @@ function CreateEnrollment({
         linkedApplication.statut !== "ACCEPTEE";
       if (
         confirmerDemandeEnCours &&
-        !window.confirm(
-          "Cette demande de bourse est encore en attente de décision. Voulez-vous continuer ?",
-        )
+        !(await askConfirm({
+          title: "Demande de bourse non décidée",
+          message: "Cette demande de bourse est encore en attente de décision. Voulez-vous quand même créer l'inscription ?",
+          confirmLabel: "Créer l'inscription",
+        }))
       ) {
         setBusy(false);
         return;
       }
       const body = {
         ...form,
-        personneId: createPerson ? undefined : form.personneId,
-        nouvellePersonne: createPerson ? form.nouvellePersonne : undefined,
+        personneId: form.viaBourse ? selectedBourse?.personne?.id : undefined,
+        nouvellePersonne: form.viaBourse ? undefined : form.nouvellePersonne,
         demandeBourseId: form.viaBourse ? form.demandeBourseId : undefined,
         confirmerDemandeEnCours,
         preparation,
@@ -457,28 +512,50 @@ function CreateEnrollment({
   return (
     <Modal title="Nouvelle inscription" onClose={onClose}>
       <form className="entity-form" onSubmit={submit}>
-        {!form.viaBourse && (
-          <label className="checkbox-label">
-            <input type="checkbox" checked={createPerson} onChange={(event) => setCreatePerson(event.target.checked)} />{" "}
-            Créer une nouvelle personne
-          </label>
+        <ModalChoice
+          required
+          label="Type d'inscription"
+          placeholder="Sélectionner un mode"
+          value={form.viaBourse ? "BOURSE" : "DIRECTE"}
+          choices={[
+            { value: "DIRECTE", label: "Inscription directe · nouvelle personne" },
+            { value: "BOURSE", label: "Inscription via une bourse" },
+          ]}
+          onChange={(mode) => {
+            const viaBourse = mode === "BOURSE";
+            setForm((current) => ({
+              ...current,
+              viaBourse,
+              demandeBourseId: "",
+              ...(viaBourse ? { niveau: "", filiere: "" } : {}),
+            }));
+            setSelectedBourse(null);
+          }}
+        />
+        {form.viaBourse && (
+          <>
+            <ModalChoice
+              required
+              label="Dossier de bourse lié"
+              placeholder="Sélectionner un dossier accepté"
+              value={form.demandeBourseId}
+              choices={acceptedApplications.map((application) => ({ value: application.id, label: fullName(application.personne), detail: `${application.filiereSouhaitee} · ${application.niveauDemande === "DEUXIEME_ANNEE" ? "L2" : "L1"}` }))}
+              loadChoices={async (query, page) => {
+                const result = await apiFetch<ApplicationPage>(
+                  `/demandes-bourse?statut=ACCEPTEE&page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+                );
+                return { choices: result.data.map((application) => ({ value: application.id, label: fullName(application.personne), detail: `${application.filiereSouhaitee} · ${application.niveauDemande === "DEUXIEME_ANNEE" ? "L2" : "L1"}` })), hasMore: result.meta.page < result.meta.totalPages };
+              }}
+              onChange={(value) => void selectBourse(value)}
+            />
+            {selectedBourse?.personne && <p className="panel-subtitle">Personne liée : {fullName(selectedBourse.personne)}</p>}
+            {bourseLoading && <p className="panel-subtitle">Chargement du dossier...</p>}
+          </>
         )}
-        {createPerson && !form.viaBourse ? (
-          <NewPersonFields person={form.nouvellePersonne} onChange={(nouvellePersonne) => setForm({ ...form, nouvellePersonne })} />
-        ) : (
-          <ModalChoice
-            required
-            label="Étudiant"
-            placeholder="Sélectionner une personne"
-            value={form.personneId}
-            choices={people.map((person) => ({ value: person.id, label: fullName(person) }))}
-            loadChoices={async (query, page) => {
-              const result = await apiFetch<PersonPage>(
-                `/personnes?page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
-              );
-              return { choices: result.data.map((person) => ({ value: person.id, label: fullName(person) })), hasMore: result.meta.page < result.meta.totalPages };
-            }}
-            onChange={(value) => setForm({ ...form, personneId: value })}
+        {!form.viaBourse && (
+          <NewPersonFields
+            person={form.nouvellePersonne}
+            onChange={(nouvellePersonne) => setForm({ ...form, nouvellePersonne })}
           />
         )}
         <label>
@@ -491,56 +568,41 @@ function CreateEnrollment({
             }
           />
         </label>
-        <label>
-          Niveau
-          <input
-            required
-            value={form.niveau}
-            onChange={(event) =>
-              setForm({ ...form, niveau: event.target.value })
-            }
-          />
-        </label>
+        <ModalChoice
+          required
+          label="Niveau"
+          placeholder="Sélectionner un niveau"
+          value={form.niveau}
+          choices={[{ value: "L1", label: "L1 · Première année" }, { value: "L2", label: "L2 · Deuxième année" }]}
+          onChange={(niveau) => {
+            setForm({ ...form, niveau });
+            setPreparation((current) => ({ ...current, elementId: "" }));
+          }}
+        />
         <label>
           Filière
           <input
             required
+            list="filieres-referentiel"
             value={form.filiere}
             onChange={(event) =>
               setForm({ ...form, filiere: event.target.value })
             }
           />
         </label>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={form.viaBourse}
-            onChange={(event) => {
-              setForm({ ...form, viaBourse: event.target.checked });
-              if (event.target.checked) setCreatePerson(false);
-            }}
-          />{" "}
-          Inscription via une bourse
-        </label>
-        {form.viaBourse && (
-          <ModalChoice
-            required
-            label="Demande liée"
-            placeholder="Sélectionner une demande acceptée"
-            value={form.demandeBourseId}
-            choices={acceptedApplications.map((application) => ({ value: application.id, label: fullName(application.personne), detail: application.filiereSouhaitee }))}
-            loadChoices={async (query, page) => {
-              const result = await apiFetch<ApplicationPage>(
-                `/demandes-bourse?statut=ACCEPTEE&page=${page}&limit=100${query ? `&q=${encodeURIComponent(query)}` : ""}`,
-              );
-              return { choices: result.data.map((application) => ({ value: application.id, label: fullName(application.personne), detail: application.filiereSouhaitee })), hasMore: result.meta.page < result.meta.totalPages };
-            }}
-            onChange={(value) => setForm({ ...form, demandeBourseId: value })}
+        {form.niveau ? (
+          <DossierPreparation
+            contexte="INSCRIPTION_DIRECTE"
+            niveauApplicable={form.niveau === "L1" ? "PREMIERE_ANNEE" : "DEUXIEME_ANNEE"}
+            value={preparation}
+            onChange={setPreparation}
           />
+        ) : (
+          <p className="panel-subtitle">Sélectionnez un niveau pour afficher les frais et pièces applicables.</p>
         )}
-        <DossierPreparation contexte="INSCRIPTION_DIRECTE" niveauApplicable={form.niveau.toUpperCase().includes("PREMIERE") || form.niveau.includes("1") ? "PREMIERE_ANNEE" : "DEUXIEME_ANNEE_PLUS"} value={preparation} onChange={setPreparation} />
+        <ProgramSuggestions />
         {error && <p className="form-error">{error}</p>}
-        <FormActions busy={busy} onCancel={onClose} />
+        <FormActions busy={busy || bourseLoading} onCancel={onClose} />
       </form>
     </Modal>
   );
@@ -559,6 +621,7 @@ function CreateProspect({
     telephone: "",
     filiereSouhaitee: "",
     intention: "",
+    sourceConnaissance: "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -636,10 +699,39 @@ function CreateProspect({
             placeholder="Ex. veut visiter le campus"
           />
         </label>
+        <label>
+          Comment a-t-il entendu parler de l&apos;IPAIM ?
+          <input list="prospect-sources" maxLength={160} value={form.sourceConnaissance} onChange={(event) => setForm({ ...form, sourceConnaissance: event.target.value })} placeholder="Choisir ou saisir" />
+        </label>
+        <ProspectSources />
         {error && <p className="form-error">{error}</p>}
         <FormActions busy={busy} onCancel={onClose} />
       </form>
     </Modal>
+  );
+}
+
+// Filières du référentiel académique, proposées à la saisie pour que l'inscription se rattache ensuite à sa classe.
+function ProgramSuggestions() {
+  const [programs, setPrograms] = useState<Array<{ id: string; nom: string; actif: boolean }>>([]);
+  useEffect(() => {
+    void apiFetch<Array<{ id: string; nom: string; actif: boolean }>>("/academique/filieres").then(setPrograms).catch(() => undefined);
+  }, []);
+  return (
+    <datalist id="filieres-referentiel">
+      {programs.filter((program) => program.actif).map((program) => <option key={program.id} value={program.nom} />)}
+    </datalist>
+  );
+}
+
+// Réponses proposées à « Comment a-t-il entendu parler de l'IPAIM ? » ; la saisie reste libre.
+function ProspectSources() {
+  return (
+    <datalist id="prospect-sources">
+      {["Bouche-à-oreille", "Étudiant ou ancien étudiant", "Parent ou proche", "Facebook", "WhatsApp", "TikTok", "Instagram", "Site internet", "Affiche ou banderole", "Radio ou télévision", "Visite dans son établissement", "Salon ou événement", "Passage devant le campus"].map((source) => (
+        <option key={source} value={source} />
+      ))}
+    </datalist>
   );
 }
 
@@ -722,7 +814,13 @@ function CreatePayment({
           placeholder="Sélectionner le type de dossier"
           value={form.dossierType}
           choices={[{ value: "demandeBourseId", label: "Demande de bourse" }, { value: "inscriptionId", label: "Inscription" }]}
-          onChange={(value) => setForm({ ...form, dossierType: value, dossierId: "" })}
+          onChange={(value) => setForm({
+            ...form,
+            dossierType: value,
+            dossierId: "",
+            // Les frais de dépôt ne concernent que les demandes de bourse.
+            typePaiement: value === "inscriptionId" && form.typePaiement === "FRAIS_DEPOT" ? "FRAIS_INSCRIPTION" : form.typePaiement,
+          })}
         />
         <ModalChoice
           required
@@ -750,7 +848,11 @@ function CreatePayment({
           label="Type de paiement"
           placeholder="Sélectionner un type"
           value={form.typePaiement}
-          choices={[{ value: "FRAIS_DEPOT", label: "Frais de dépôt" }, { value: "FRAIS_INSCRIPTION", label: "Frais d'inscription" }, { value: "ECHEANCE_BOURSE", label: "Échéance bourse" }]}
+          choices={[
+            ...(form.dossierType === "demandeBourseId" ? [{ value: "FRAIS_DEPOT", label: "Frais de dépôt" }] : []),
+            { value: "FRAIS_INSCRIPTION", label: "Frais d'inscription" },
+            { value: "ECHEANCE_BOURSE", label: "Échéance bourse" },
+          ]}
           onChange={(value) => setForm({ ...form, typePaiement: value, echeanceId: "" })}
         />
         {form.typePaiement === "ECHEANCE_BOURSE" && (
@@ -868,7 +970,7 @@ function EditProspectForm({
     tuteurTelephone: person?.tuteurTelephone ?? "",
     filiereSouhaitee: prospect.filiereSouhaitee ?? "",
     intention: prospect.intention ?? "",
-    statutRelance: prospect.statutRelance,
+    sourceConnaissance: prospect.sourceConnaissance ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -890,6 +992,7 @@ function EditProspectForm({
           tuteurTelephone: form.tuteurTelephone || null,
           filiereSouhaitee: form.filiereSouhaitee || null,
           intention: form.intention || null,
+          sourceConnaissance: form.sourceConnaissance || null,
         }),
       });
       onSaved();
@@ -919,11 +1022,107 @@ function EditProspectForm({
         </div>
         <label>Téléphone du tuteur<input value={form.tuteurTelephone} onChange={(event) => setForm({ ...form, tuteurTelephone: event.target.value })} /></label>
         <label>Filière souhaitée<input value={form.filiereSouhaitee} onChange={(event) => setForm({ ...form, filiereSouhaitee: event.target.value })} /></label>
-        <label>Intention<input value={form.intention} onChange={(event) => setForm({ ...form, intention: event.target.value })} /></label>
-        <ModalChoice label="Statut de suivi" placeholder="Sélectionner un statut" value={form.statutRelance} choices={["A_RELANCER", "RELANCE", "CONVERTI", "ABANDONNE"].map((value) => ({ value, label: statusLabels[value] ?? value }))} onChange={(statutRelance) => setForm({ ...form, statutRelance })} />
+        <label>Intention actuelle<input value={form.intention} onChange={(event) => setForm({ ...form, intention: event.target.value })} /></label>
+        <label>
+          Comment a-t-il entendu parler de l&apos;IPAIM ?
+          <input list="prospect-sources" maxLength={160} value={form.sourceConnaissance} onChange={(event) => setForm({ ...form, sourceConnaissance: event.target.value })} placeholder="Choisir ou saisir" />
+        </label>
+        <ProspectSources />
         {error && <p className="form-error">{error}</p>}
         <FormActions busy={busy} onCancel={onClose} />
       </form>
+    </Modal>
+  );
+}
+
+function ProspectRelanceForm({
+  prospect,
+  onClose,
+  onSaved,
+}: {
+  prospect: Prospect;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [commentaire, setCommentaire] = useState("");
+  const [intention, setIntention] = useState(prospect.intention ?? "");
+  const [statutRelance, setStatutRelance] = useState(
+    prospect.statutRelance === "A_RELANCER" ? "RELANCE" : prospect.statutRelance,
+  );
+  const [dateProchaineRelance, setDateProchaineRelance] = useState("");
+  const [relances, setRelances] = useState<ProspectRelance[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<ProspectRelance[]>(`/prospects/${prospect.id}/relances`)
+      .then((items) => {
+        if (active) setRelances(items);
+      })
+      .catch((failure) => {
+        if (active) setHistoryError(failure instanceof Error ? failure.message : "Historique indisponible.");
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [prospect.id]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await apiFetch(`/prospects/${prospect.id}/relances`, {
+        method: "POST",
+        body: JSON.stringify({
+          commentaire,
+          intention: intention || null,
+          statutRelance,
+          dateProchaineRelance: dateProchaineRelance || null,
+        }),
+      });
+      onSaved();
+      onClose();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Enregistrement de la relance impossible.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Relancer ${fullName(prospect.personne)}`} onClose={onClose}>
+      <form className="entity-form" onSubmit={submit}>
+        <label>Compte rendu de l’échange<textarea required minLength={2} maxLength={3000} rows={4} value={commentaire} onChange={(event) => setCommentaire(event.target.value)} placeholder="Ce que la personne a dit, ses questions ou ses réserves" /></label>
+        <label>Intention actuelle<input value={intention} onChange={(event) => setIntention(event.target.value)} placeholder="Ex. intéressé pour la prochaine rentrée" /></label>
+        <ModalChoice label="Statut après l’échange" placeholder="Sélectionner un statut" value={statutRelance} choices={["A_RELANCER", "RELANCE", "CONVERTI", "ABANDONNE"].map((value) => ({ value, label: statusLabels[value] ?? value }))} onChange={setStatutRelance} />
+        <label>Prochaine date de rappel<input type="date" value={dateProchaineRelance} onChange={(event) => setDateProchaineRelance(event.target.value)} /></label>
+        {error && <p className="form-error">{error}</p>}
+        <FormActions busy={busy} onCancel={onClose} />
+      </form>
+      <section className="prospect-followup-history">
+        <h4>Historique des relances</h4>
+        {historyLoading && <p className="panel-subtitle">Chargement...</p>}
+        {historyError && <p className="form-error">{historyError}</p>}
+        {!historyLoading && !historyError && relances.length === 0 && <p className="panel-subtitle">Aucune relance enregistrée.</p>}
+        {relances.map((relance) => (
+          <article className="prospect-followup-item" key={relance.id}>
+            <div className="prospect-followup-meta">
+              <strong>{new Date(relance.date).toLocaleString("fr-FR")}</strong>
+              <span>{statusLabels[relance.statutRelance] ?? relance.statutRelance}</span>
+            </div>
+            <p>{relance.commentaire}</p>
+            {relance.intention && <small>Intention : {relance.intention}</small>}
+            <small>{relance._offline ? "En attente de synchronisation" : `Par ${relance.utilisateurNom}`}{relance.dateProchaineRelance ? ` · Rappel le ${formatDate(relance.dateProchaineRelance)}` : ""}</small>
+          </article>
+        ))}
+      </section>
     </Modal>
   );
 }
@@ -1028,7 +1227,14 @@ function ElementsModal({
     try {
       await apiFetch(
         `/${resource}/${dossierId}/elements/${element.elementRequis.id}`,
-        { method: "PATCH", body: JSON.stringify({ statut }) },
+        {
+          method: "PATCH",
+          body: JSON.stringify(
+            statut === "SUBSTITUE"
+              ? { statut, elementSubstitutUtiliseId: element.elementRequis.elementSubstitutId }
+              : { statut },
+          ),
+        },
       );
       const updated = elements?.map((item) =>
         item.id === element.id ? { ...item, statut } : item,
@@ -1061,7 +1267,15 @@ function ElementsModal({
               label="Statut"
               placeholder="Sélectionner un statut"
               value={element.statut}
-              choices={[{ value: "ATTENDU", label: "Attendu" }, { value: "FOURNI", label: "Fourni" }, { value: "MANQUANT", label: "Manquant" }, { value: "SUBSTITUE", label: "Substitué" }]}
+              choices={[
+                { value: "ATTENDU", label: "Attendu" },
+                { value: "FOURNI", label: "Fourni" },
+                { value: "MANQUANT", label: "Manquant" },
+                // « Substitué » n'existe que si le référentiel prévoit un substitut.
+                ...(element.elementRequis.elementSubstitutId || element.statut === "SUBSTITUE"
+                  ? [{ value: "SUBSTITUE", label: "Substitué" }]
+                  : []),
+              ]}
               onChange={(value) => void update(element, value)}
             />
           </div>
@@ -1071,16 +1285,103 @@ function ElementsModal({
   );
 }
 
-function FinanceModal({ dossierType, dossierId, onClose }: { dossierType: "demande-bourse" | "inscription"; dossierId: string; onClose: () => void }) {
+function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierType: "demande-bourse" | "inscription"; dossierId: string; onClose: () => void; onChanged?: () => void }) {
   const [finance, setFinance] = useState<ApplicationFinance | null>(null);
   const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [collectId, setCollectId] = useState("");
+  const [montant, setMontant] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [collectError, setCollectError] = useState("");
   const resource = dossierType === "demande-bourse" ? "demandes-bourse" : "inscriptions";
   useEffect(() => {
     void apiFetch<ApplicationFinance>(`/${resource}/${dossierId}/finance`)
       .then(setFinance)
       .catch((failure) => setError(failure instanceof Error ? failure.message : "Situation financière indisponible."));
-  }, [dossierId, resource]);
-  return <Modal title={`Situation financière de ${dossierType === "demande-bourse" ? "la demande" : "l'inscription"}`} onClose={onClose}>{error && <p className="form-error">{error}</p>}{!finance && !error && <p className="empty-state">Chargement...</p>}{finance && <><div className="payment-summary"><strong>{formatMoney(finance.totalAttendu)}</strong><span>attendu</span><strong>{formatMoney(finance.totalPaye)}</strong><span>payé</span><strong>{formatMoney(String(Number(finance.totalAttendu) - Number(finance.totalPaye)))}</strong><span>reste</span></div><div className="table-wrap"><table><thead><tr><th>Obligation</th><th>Statut</th><th>Attendu</th><th>Payé</th><th>Reste</th></tr></thead><tbody>{finance.obligations.map((item) => <tr key={item.id}><td className="strong-cell">{item.nom}</td><td>{statusLabels[item.statut] ?? item.statut}</td><td>{formatMoney(item.montantAttendu)}</td><td>{formatMoney(item.montantPaye)}</td><td><span className="status status-refusee">{formatMoney(item.resteAPayer)}</span></td></tr>)}</tbody></table></div><p className="panel-subtitle">Paiements non affectés : {formatMoney(finance.montantPayeNonAffecte)}</p></>}</Modal>;
+  }, [dossierId, resource, reloadKey]);
+  const globalRemaining = finance ? Math.max(0, Number(finance.totalAttendu) - Number(finance.totalPaye)) : 0;
+  // Les paiements non affectés comptent déjà dans le total payé : on n'encaisse jamais plus que le reste global.
+  const collectable = (item: ApplicationFinance["obligations"][number]) => Math.min(Number(item.resteAPayer), globalRemaining);
+  const target = finance?.obligations.find((item) => item.id === collectId);
+  const maximum = target ? collectable(target) : 0;
+  const pendingAssignment = Boolean(finance) && Number(finance?.montantPayeNonAffecte) > 0 && Boolean(finance?.obligations.some((item) => Number(item.resteAPayer) > 0));
+  const startCollect = (item: ApplicationFinance["obligations"][number]) => {
+    setCollectId(item.id);
+    setMontant(String(collectable(item)));
+    setCollectError("");
+  };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!target) return;
+    const value = Number(montant.replace(",", "."));
+    if (!(value > 0) || value > maximum) {
+      setCollectError(`Le montant doit être supérieur à 0 et ne pas dépasser ${formatMoney(maximum)}.`);
+      return;
+    }
+    setBusy(true);
+    setCollectError("");
+    try {
+      // Le paiement est affecté d'office à l'obligation choisie : rien ne reste « non affecté ».
+      await apiFetch("/paiements", {
+        method: "POST",
+        body: JSON.stringify({
+          [dossierType === "demande-bourse" ? "demandeBourseId" : "inscriptionId"]: dossierId,
+          elementDossierId: target.id,
+          montant: String(value),
+          // Les frais de dépôt ne concernent que les demandes de bourse.
+          typePaiement: dossierType === "demande-bourse" && /d[ée]p[oô]t/i.test(target.nom) ? "FRAIS_DEPOT" : "FRAIS_INSCRIPTION",
+        }),
+      });
+      setCollectId("");
+      setReloadKey((current) => current + 1);
+      onChanged?.();
+    } catch (failure) {
+      setCollectError(failure instanceof Error ? failure.message : "Impossible d'enregistrer le paiement.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={`Situation financière de ${dossierType === "demande-bourse" ? "la demande" : "l'inscription"}`} onClose={onClose}>
+      {error && <p className="form-error">{error}</p>}
+      {!finance && !error && <p className="empty-state">Chargement...</p>}
+      {finance && (
+        <>
+          <div className="payment-summary"><strong>{formatMoney(finance.totalAttendu)}</strong><span>attendu</span><strong>{formatMoney(finance.totalPaye)}</strong><span>payé</span><strong>{formatMoney(String(Number(finance.totalAttendu) - Number(finance.totalPaye)))}</strong><span>reste</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Obligation</th><th>Statut</th><th>Attendu</th><th>Payé</th><th>Reste</th><th /></tr></thead>
+              <tbody>
+                {finance.obligations.map((item) => (
+                  <tr key={item.id}>
+                    <td className="strong-cell">{item.nom}</td>
+                    <td>{statusLabels[item.statut] ?? item.statut}</td>
+                    <td>{formatMoney(item.montantAttendu)}</td>
+                    <td>{formatMoney(item.montantPaye)}</td>
+                    <td><span className="status status-refusee">{formatMoney(item.resteAPayer)}</span></td>
+                    <td>{collectable(item) > 0 && <button type="button" className="row-action" disabled={busy} onClick={() => startCollect(item)}>Encaisser</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="panel-subtitle">Paiements non affectés : {formatMoney(finance.montantPayeNonAffecte)}</p>
+          {pendingAssignment && <p className="panel-subtitle">Des paiements déjà encaissés ne sont pas encore affectés : affectez-les depuis la page Paiements avant d&apos;encaisser le reste.</p>}
+          {target && (
+            <form className="entity-form" onSubmit={submit}>
+              <label>
+                Montant à encaisser · {target.nom}
+                <input required autoFocus type="number" min="0.01" max={maximum} step="0.01" value={montant} onChange={(event) => setMontant(event.target.value)} />
+              </label>
+              <p className="panel-subtitle">Maximum : {formatMoney(maximum)} (reste à payer)</p>
+              {collectError && <p className="form-error">{collectError}</p>}
+              <FormActions busy={busy} onCancel={() => setCollectId("")} />
+            </form>
+          )}
+        </>
+      )}
+    </Modal>
+  );
 }
 
 function AssignPaymentModal({ payment, onClose, onSaved }: { payment: UnassignedPayment; onClose: () => void; onSaved: () => void }) {
@@ -1170,7 +1471,7 @@ function UnassignedPaymentsPanel({ onRefresh }: { onRefresh: () => void }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
-  return <><section className="panel full-panel"><div className="panel-heading"><div><p className="eyebrow">Affectation</p><h3>{payments.length} paiement(s) à affecter</h3></div><button className="outline-button small" onClick={() => void load()}>Actualiser</button></div>{error && <p className="form-error">{error}</p>}{loading && <p className="empty-state">Chargement...</p>}{!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Personne</th><th>Dossier</th><th>Type</th><th>Montant</th><th /></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}</td><td>{payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{formatMoney(payment.montant)}</td><td><button className="row-action" onClick={() => setSelected(payment)}>Affecter</button></td></tr>)}{!payments.length && <tr><td colSpan={6} className="empty-state">Tous les paiements sont affectés.</td></tr>}</tbody></table></div>}</section>{selected && <AssignPaymentModal payment={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); void load(); onRefresh(); }} />}</>;
+  return <><section className="panel full-panel"><div className="panel-heading"><div><p className="eyebrow">Affectation</p><h3>{payments.length} paiement(s) à affecter</h3></div><button className="outline-button small" onClick={() => void load()}>Actualiser</button></div>{error && <p className="form-error">{error}</p>}{loading && <p className="empty-state">Chargement...</p>}{!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Personne</th><th>Dossier</th><th>Type</th><th>Montant</th><th /></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}</td><td>{payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{formatMoney(payment.montant)}</td><td><button className="row-action icon-action" onClick={() => setSelected(payment)} aria-label="Affecter le paiement à une obligation"><ActionIcon name="assign" /></button></td></tr>)}{!payments.length && <tr><td colSpan={6} className="empty-state">Tous les paiements sont affectés.</td></tr>}</tbody></table></div>}</section>{selected && <AssignPaymentModal payment={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); void load(); onRefresh(); }} />}</>;
 }
 
 const paymentLabels: Record<string, string> = {
@@ -1206,7 +1507,39 @@ async function loadReceiptLogo() {
   return image;
 }
 
-async function downloadPaymentReceiptPdf(payment: PaymentTransaction) {
+type DossierSituation = {
+  obligations: Array<{ nom: string; attendu: number; paye: number; reste: number }>;
+  pieces: Array<{ nom: string; obligatoire: boolean }>;
+  totalReste: number;
+};
+
+// État du dossier vis-à-vis du référentiel : obligations financières (montant
+// attendu, payé, reste) et pièces ou fournitures qui n'ont pas encore été fournies.
+function dossierSituation(elements: RequiredElement[]): DossierSituation {
+  const obligations = elements
+    .filter((element) => element.montantAttendu !== null && element.montantAttendu !== undefined)
+    .map((element) => {
+      const attendu = Number(element.montantAttendu);
+      const paye = (element.paiements ?? []).reduce((total, item) => total + Number(item.montant), 0);
+      return { nom: element.elementRequis.nom, attendu, paye, reste: Math.max(0, Math.round((attendu - paye) * 100) / 100) };
+    });
+  const pieces = elements
+    .filter((element) => (element.montantAttendu === null || element.montantAttendu === undefined) && element.statut !== "FOURNI" && element.statut !== "SUBSTITUE")
+    .map((element) => ({ nom: element.elementRequis.nom, obligatoire: element.elementRequis.obligatoire !== false }));
+  return { obligations, pieces, totalReste: obligations.reduce((total, item) => total + item.reste, 0) };
+}
+
+function situationHeadline(situation: DossierSituation) {
+  const settled = situation.totalReste <= 0;
+  const missing = situation.pieces.length;
+  if (settled && !missing) return "Dossier soldé et complet : rien ne reste à payer ni à fournir.";
+  return [
+    settled ? "Obligations financières soldées" : `Reste à payer : ${formatMoney(situation.totalReste)}`,
+    missing ? `${missing} pièce${missing > 1 ? "s" : ""} à fournir` : "pièces complètes",
+  ].join(" · ");
+}
+
+async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation: DossierSituation | null) {
   const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadReceiptLogo()]);
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -1268,68 +1601,180 @@ async function downloadPaymentReceiptPdf(payment: PaymentTransaction) {
     rowY += 2;
   }
 
-  const addRow = (label: string, value: string) => {
-    const lines = pdf.splitTextToSize(value || "-", 112);
-    const height = Math.max(14, 7 + lines.length * 4.5);
+  // Détails sur deux colonnes : la place gagnée sert à la situation du dossier.
+  const addPair = (cells: Array<[string, string]>) => {
     pdf.setDrawColor(226, 232, 242);
-    pdf.line(18, rowY + height, 192, rowY + height);
-    pdf.setTextColor(102, 114, 140);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7.5);
-    pdf.text(label.toUpperCase(), 20, rowY + height / 2 + 1);
-    pdf.setTextColor(36, 51, 76);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.5);
-    pdf.text(lines, 76, rowY + 5);
-    rowY += height;
+    pdf.line(18, rowY + 13, 192, rowY + 13);
+    cells.forEach(([label, value], index) => {
+      const x = 20 + index * 88;
+      pdf.setTextColor(102, 114, 140);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7);
+      pdf.text(label.toUpperCase(), x, rowY + 4.5);
+      pdf.setTextColor(36, 51, 76);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(8.5);
+      pdf.text(pdf.splitTextToSize(value || "-", 82)[0], x, rowY + 10);
+    });
+    rowY += 13;
   };
 
-  addRow("Dossier concerné", payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription");
-  addRow("Filière / dossier", payment.dossier);
-  addRow("Référence du dossier", payment.dossierId);
-  addRow("Nature du paiement", paymentLabels[payment.typePaiement] ?? payment.typePaiement);
-  addRow("Obligation / échéance", payment.obligation ?? payment.echeance ?? "Paiement non affecté");
-  addRow("État d’affectation", payment.affecte ? "Affecté au dossier" : "En attente d’affectation");
+  addPair([
+    ["Dossier concerné", payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"],
+    ["Filière / dossier", payment.dossier],
+  ]);
+  addPair([
+    ["Référence du dossier", payment.dossierId],
+    ["Nature du paiement", paymentLabels[payment.typePaiement] ?? payment.typePaiement],
+  ]);
+  addPair([
+    ["Obligation / échéance", payment.obligation ?? payment.echeance ?? "Paiement non affecté"],
+    ["État d’affectation", payment.affecte ? "Affecté au dossier" : "En attente d’affectation"],
+  ]);
 
-  const amountY = Math.max(rowY + 5, 211);
+  const amountY = rowY + 6;
   pdf.setFillColor(247, 239, 217);
-  pdf.roundedRect(18, amountY, 174, 25, 2, 2, "F");
+  pdf.roundedRect(18, amountY, 174, 19, 2, 2, "F");
   pdf.setFillColor(200, 148, 27);
-  pdf.rect(18, amountY, 3, 25, "F");
+  pdf.rect(18, amountY, 3, 19, "F");
   pdf.setTextColor(102, 114, 140);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
-  pdf.text("MONTANT REÇU", 25, amountY + 15);
+  pdf.text("MONTANT REÇU", 25, amountY + 11.5);
   pdf.setTextColor(20, 40, 92);
   pdf.setFontSize(17);
-  pdf.text(formatMoney(payment.montant), 185, amountY + 16, { align: "right" });
+  pdf.text(pdfSafe(formatMoney(payment.montant)), 185, amountY + 12.5, { align: "right" });
 
-  const signatureY = amountY + 43;
+  // Situation du dossier : ce que l'étudiant doit encore payer ou fournir.
+  let y = amountY + 28;
+  const generatedBy = generatedByLine();
+  const footer = () => {
+    pdf.setDrawColor(200, 148, 27);
+    pdf.line(18, 285.5, 192, 285.5);
+    pdf.setTextColor(102, 114, 140);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7);
+    pdf.text(`Référence de transaction : ${payment.id}`, 18, 290);
+    pdf.text("IPAIM UNIVERSITY", 192, 290, { align: "right" });
+    // Traçabilité du document : qui l'a édité, quel jour et à quelle heure.
+    pdf.text(pdfSafe(generatedBy), 105, 294, { align: "center" });
+  };
+  const ensureSpace = (height: number, limit = 280) => {
+    if (y + height <= limit) return;
+    footer();
+    pdf.addPage();
+    y = 22;
+  };
+  if (situation) {
+    const settled = situation.totalReste <= 0;
+    const complete = situation.pieces.length === 0;
+    pdf.setTextColor(20, 40, 92);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8);
+    pdf.text("SITUATION DU DOSSIER À LA DATE DE CE REÇU", 18, y);
+    y += 4;
+    pdf.setFillColor(...((settled && complete ? [230, 243, 236] : [251, 243, 223]) as [number, number, number]));
+    pdf.roundedRect(18, y, 174, 11, 2, 2, "F");
+    pdf.setTextColor(...((settled && complete ? [25, 116, 88] : [143, 103, 28]) as [number, number, number]));
+    pdf.setFontSize(9);
+    pdf.text(pdfSafe(situationHeadline(situation)), 22, y + 7);
+    y += 17;
+
+    if (situation.obligations.length) {
+      ensureSpace(12 + situation.obligations.length * 6.5);
+      pdf.setTextColor(102, 114, 140);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7);
+      pdf.text("OBLIGATION FINANCIÈRE", 20, y);
+      pdf.text("ATTENDU", 128, y, { align: "right" });
+      pdf.text("PAYÉ", 158, y, { align: "right" });
+      pdf.text("RESTE À PAYER", 190, y, { align: "right" });
+      pdf.setDrawColor(226, 232, 242);
+      pdf.line(18, y + 2, 192, y + 2);
+      y += 7;
+      for (const obligation of situation.obligations) {
+        pdf.setTextColor(36, 51, 76);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8.5);
+        pdf.text(pdf.splitTextToSize(obligation.nom, 80)[0], 20, y);
+        pdf.text(pdfSafe(formatMoney(obligation.attendu)), 128, y, { align: "right" });
+        pdf.text(pdfSafe(formatMoney(obligation.paye)), 158, y, { align: "right" });
+        pdf.setFont("helvetica", "bold");
+        if (obligation.reste > 0) pdf.setTextColor(170, 60, 50);
+        else pdf.setTextColor(25, 116, 88);
+        pdf.text(obligation.reste > 0 ? pdfSafe(formatMoney(obligation.reste)) : "Soldé", 190, y, { align: "right" });
+        y += 6.5;
+      }
+      y += 3;
+    }
+
+    ensureSpace(12 + Math.max(1, Math.ceil(situation.pieces.length / 2)) * 5.5);
+    pdf.setTextColor(102, 114, 140);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(7);
+    pdf.text("PIÈCES ET FOURNITURES RESTANT À FOURNIR", 20, y);
+    pdf.setDrawColor(226, 232, 242);
+    pdf.line(18, y + 2, 192, y + 2);
+    y += 7;
+    pdf.setFontSize(8.5);
+    if (!situation.pieces.length) {
+      pdf.setTextColor(25, 116, 88);
+      pdf.text("Toutes les pièces demandées ont été fournies.", 20, y);
+      y += 5.5;
+    }
+    // Liste sur deux colonnes pour tenir sur une seule page.
+    for (let index = 0; index < situation.pieces.length; index += 2) {
+      ensureSpace(6);
+      pdf.setTextColor(36, 51, 76);
+      for (const [offset, piece] of situation.pieces.slice(index, index + 2).entries()) {
+        const label = `•  ${piece.nom}${piece.obligatoire ? "" : " (facultatif)"}`;
+        pdf.text(pdf.splitTextToSize(label, 82)[0], 20 + offset * 88, y);
+      }
+      y += 5.5;
+    }
+    y += 4;
+  }
+
+  // Visa en bas de page : signature de la comptabilité et emplacement du cachet.
+  ensureSpace(19, 284);
+  const signatureY = Math.max(y, 264);
   pdf.setDrawColor(155, 168, 187);
   pdf.line(18, signatureY + 13, 88, signatureY + 13);
-  pdf.line(122, signatureY + 13, 192, signatureY + 13);
+  pdf.setLineDashPattern([1.6, 1.4], 0);
+  pdf.roundedRect(122, signatureY, 70, 18, 2, 2, "S");
+  pdf.setLineDashPattern([], 0);
   pdf.setTextColor(102, 114, 140);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(7.5);
-  pdf.text("Le service de comptabilité", 18, signatureY + 19);
-  pdf.text("Cachet de l’établissement", 122, signatureY + 19);
-  pdf.setDrawColor(200, 148, 27);
-  pdf.line(18, 287, 192, 287);
-  pdf.setTextColor(102, 114, 140);
-  pdf.setFontSize(7);
-  pdf.text(`Référence de transaction : ${payment.id}`, 18, 293);
-  pdf.text("IPAIM UNIVERSITY", 192, 293, { align: "right" });
+  pdf.text("Le service de comptabilité", 18, signatureY + 17.5);
+  pdf.text("Cachet de l’établissement", 157, signatureY + 4.5, { align: "center" });
+  footer();
   pdf.save(receiptFileName(payment));
 }
 
 function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onClose: () => void }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  // null = en cours de chargement, "indisponible" = lecture impossible (hors ligne, droits).
+  const [situation, setSituation] = useState<DossierSituation | "indisponible" | null>(null);
+  useEffect(() => {
+    let active = true;
+    const resource = payment.dossierType === "demande-bourse" ? "demandes-bourse" : "inscriptions";
+    void apiFetch<RequiredElement[]>(`/${resource}/${payment.dossierId}/elements`)
+      .then((elements) => { if (active) setSituation(dossierSituation(elements)); })
+      .catch(() => { if (active) setSituation("indisponible"); });
+    return () => { active = false; };
+  }, [payment.dossierId, payment.dossierType]);
+  const knownSituation = situation && situation !== "indisponible" ? situation : null;
+  const [generatedBy] = useState(() => generatedByLine());
+  const recordPrint = (mode: "IMPRESSION" | "PDF") =>
+    logPrint({ typeDocument: "RECU_PAIEMENT", mode, dossierType: payment.dossierType, dossierId: payment.dossierId, libelle: `${fullName(payment.personne)} · ${formatMoney(payment.montant)}`, reference: payment.id.slice(0, 8).toUpperCase() });
   const createPdf = async () => {
     setPdfBusy(true);
     setPdfError("");
     try {
-      await downloadPaymentReceiptPdf(payment);
+      await downloadPaymentReceiptPdf(payment, knownSituation);
+      recordPrint("PDF");
     } catch (failure) {
       setPdfError(failure instanceof Error ? failure.message : "Impossible de générer le PDF.");
     } finally {
@@ -1368,25 +1813,56 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
             <div><span>État d’affectation</span><strong>{payment.affecte ? "Affecté au dossier" : "En attente d’affectation"}</strong></div>
           </section>
           <div className="receipt-amount"><span>Montant reçu</span><strong>{formatMoney(payment.montant)}</strong></div>
+          <section className="receipt-situation" aria-label="Situation du dossier">
+            <h3>Situation du dossier à la date de ce reçu</h3>
+            {situation === null && <p className="receipt-situation-note">Chargement de la situation du dossier…</p>}
+            {situation === "indisponible" && <p className="receipt-situation-note">La situation du dossier n’a pas pu être chargée ; elle ne figure pas sur ce reçu.</p>}
+            {knownSituation && (
+              <>
+                <p className={`receipt-situation-headline ${knownSituation.totalReste <= 0 && !knownSituation.pieces.length ? "settled" : ""}`}>{situationHeadline(knownSituation)}</p>
+                {knownSituation.obligations.length > 0 && (
+                  <table className="receipt-obligations">
+                    <thead><tr><th>Obligation financière</th><th>Attendu</th><th>Payé</th><th>Reste à payer</th></tr></thead>
+                    <tbody>
+                      {knownSituation.obligations.map((obligation) => (
+                        <tr key={obligation.nom}>
+                          <td>{obligation.nom}</td>
+                          <td>{formatMoney(obligation.attendu)}</td>
+                          <td>{formatMoney(obligation.paye)}</td>
+                          <td className={obligation.reste > 0 ? "due" : "paid"}>{obligation.reste > 0 ? formatMoney(obligation.reste) : "Soldé"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <h4>Pièces et fournitures restant à fournir</h4>
+                {knownSituation.pieces.length ? (
+                  <ul className="receipt-missing">{knownSituation.pieces.map((piece) => <li key={piece.nom}>{piece.nom}{!piece.obligatoire && " (facultatif)"}</li>)}</ul>
+                ) : (
+                  <p className="receipt-situation-note paid">Toutes les pièces demandées ont été fournies.</p>
+                )}
+              </>
+            )}
+          </section>
           <p className="receipt-thanks">Nous vous remercions pour votre paiement.</p>
           <footer className="receipt-signature">
             <div><span>Le service de comptabilité</span><i /></div>
             <div><span>Cachet de l’établissement</span><i /></div>
           </footer>
-          <div className="receipt-footer">IPAIM UNIVERSITY · Référence de transaction : {payment.id}</div>
+          <div className="receipt-footer">IPAIM UNIVERSITY · Référence de transaction : {payment.id}<br />{generatedBy}</div>
         </article>
         {pdfError && <p className="form-error receipt-pdf-error" role="alert">{pdfError}</p>}
         <div className="receipt-print-actions">
           <button className="secondary-button" onClick={onClose}>Fermer</button>
-          <button className="outline-button" onClick={() => void createPdf()} disabled={pdfBusy}>{pdfBusy ? "Génération..." : "Télécharger le PDF"}</button>
-          <button className="primary-button compact" onClick={() => window.print()}>Imprimer le reçu</button>
+          <button className="outline-button" onClick={() => void createPdf()} disabled={pdfBusy || situation === null}>{pdfBusy ? "Génération..." : "Télécharger le PDF"}</button>
+          <button className="primary-button compact" disabled={situation === null} onClick={() => { recordPrint("IMPRESSION"); window.print(); }}>Imprimer le reçu</button>
         </div>
       </section>
     </div>
   ), document.body);
 }
 
-function PaymentHistory({ refreshKey }: { refreshKey: number }) {
+function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange }: { refreshKey: number; dateOrder: DateOrder; onDateOrderChange: (value: DateOrder) => void }) {
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1395,12 +1871,12 @@ function PaymentHistory({ refreshKey }: { refreshKey: number }) {
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentTransaction | null>(null);
   useEffect(() => {
     let active = true;
-    void apiFetch<PaymentTransaction[]>("/paiements")
+    void apiFetch<PaymentTransaction[]>(`/paiements?ordreDate=${dateOrder}`)
       .then((result) => { if (active) { setPayments(result); setError(""); } })
       .catch((failure) => { if (active) setError(failure instanceof Error ? failure.message : "Historique indisponible."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [refreshKey]);
+  }, [refreshKey, dateOrder]);
   const total = payments.reduce((sum, payment) => sum + Number(payment.montant), 0);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredPayments = payments.filter((payment) => {
@@ -1424,7 +1900,7 @@ function PaymentHistory({ refreshKey }: { refreshKey: number }) {
         <div><p className="eyebrow">Journal des encaissements</p><h3>{filteredPayments.length} transaction(s) affichée(s)</h3></div>
         <div className="payment-history-total">Total encaissé <strong>{formatMoney(total)}</strong></div>
       </div>
-      <div className="payment-search-toolbar">
+        <div className="payment-search-toolbar">
         <label className="payment-search-field">Rechercher une transaction
           <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nom, prénom, téléphone, dossier ou référence..." />
         </label>
@@ -1435,12 +1911,13 @@ function PaymentHistory({ refreshKey }: { refreshKey: number }) {
             <option value="inscription">Inscriptions</option>
           </select>
         </label>
+        <DateOrderControl value={dateOrder} onChange={onDateOrderChange} />
         {(search || dossierFilter) && <button className="text-button payment-clear-filter" onClick={() => { setSearch(""); setDossierFilter(""); }}>Effacer</button>}
       </div>
       {error && <p className="form-error">{error}</p>}
       {loading && <p className="empty-state">Chargement de l&apos;historique...</p>}
       {!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Payeur</th><th>Dossier</th><th>Obligation / échéance</th><th>Type</th><th>Montant</th><th>État</th><th>Reçu</th></tr></thead><tbody>
-        {filteredPayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td><span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span></td><td><button className="row-action" onClick={() => setSelectedReceipt(payment)}>Imprimer</button></td></tr>)}
+        {filteredPayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td><span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span></td><td><button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label="Imprimer le reçu"><ActionIcon name="print" /></button></td></tr>)}
         {!filteredPayments.length && <tr><td colSpan={8} className="empty-state">{payments.length ? "Aucune transaction ne correspond à cette recherche." : "Aucune transaction enregistrée."}</td></tr>}
       </tbody></table></div>}
     </section>
@@ -1598,7 +2075,7 @@ export function DossierDetailsPage({
               </> : <button className="outline-button small" onClick={() => setAction("status")}>Modifier</button>}
               <button className="outline-button small" onClick={() => setAction("elements")}>Pièces</button>
               <button className="outline-button small" onClick={() => setAction("finance")}>Finance</button>
-              <button className="row-action danger-row-action" onClick={() => { setDeleteError(""); setAction("delete"); }}>Supprimer</button>
+              <button className="row-action icon-action danger-row-action" onClick={() => { setDeleteError(""); setAction("delete"); }} aria-label="Supprimer"><ActionIcon name="delete" /></button>
             </div>
           </div>
 
@@ -1606,6 +2083,7 @@ export function DossierDetailsPage({
             <div className="dossier-section-heading"><h3>Personne</h3><button className="row-action" onClick={() => setAction("person")}>Modifier les informations</button></div>
             <dl className="dossier-detail-fields">
               <DetailField label="Nom complet" value={fullName(person)} />
+              <DetailField label="Matricule" value={person?.matricule} />
               <DetailField label="Téléphone" value={person?.telephone} />
               <DetailField label="Quartier" value={person?.quartier} />
               <DetailField label="Date de naissance" value={fullDate(person?.dateNaissance)} />
@@ -1655,6 +2133,11 @@ export function DossierDetailsPage({
             {payments.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Échéance</th><th>Montant</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{fullDate(payment.datePaiement)}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{payment.echeance?.libelle ?? "-"}</td><td>{formatMoney(payment.montant)}</td></tr>)}</tbody></table></div> : <p className="panel-subtitle">Aucun paiement enregistré pour ce dossier.</p>}
           </section>
 
+          <section className="dossier-detail-section">
+            <div className="dossier-section-heading"><div><h3>Pièces numérisées</h3><p>Scans des pièces du dossier, conservés avec lui.</p></div></div>
+            <DocumentsPanel target={isApplication ? "DEMANDE_BOURSE" : "INSCRIPTION"} id={reference.id} canEdit suggestions={elements.map((element) => element.elementRequis.nom)} />
+          </section>
+
           <section className="dossier-detail-section dossier-next-actions"><h3>À faire</h3>
             {missingElements.length > 0 && <button className="row-action" onClick={() => setAction("elements")}>Compléter les pièces manquantes ({missingElements.length})</button>}
             {unpaidAmount > 0 && <button className="row-action debt-action" onClick={() => setAction("finance")}>Suivre les paiements en attente ({formatMoney(unpaidAmount)})</button>}
@@ -1666,7 +2149,7 @@ export function DossierDetailsPage({
       )}
 
       {action === "elements" && <ElementsModal dossierType={reference.type} dossierId={reference.id} onClose={() => setAction(null)} onCompletenessChange={() => refreshDetails()} />}
-      {action === "finance" && <FinanceModal dossierType={reference.type} dossierId={reference.id} onClose={() => setAction(null)} />}
+      {action === "finance" && <FinanceModal dossierType={reference.type} dossierId={reference.id} onClose={() => setAction(null)} onChanged={() => { refreshDetails(); onRefresh(); }} />}
       {action === "person" && person && <PersonForm person={person} onClose={() => setAction(null)} onSaved={saveAction} />}
       {action === "status" && isApplication && dossier && <EditStatus title="Décision de la demande" endpoint={`/demandes-bourse/${reference.id}/decision`} field="statut" initial={dossier.statut} options={["EN_DELIBERATION", "ACCEPTEE", "REFUSEE"]} scholarshipTypes={scholarshipTypes} onClose={() => setAction(null)} onSaved={saveAction} />}
       {action === "status" && !isApplication && dossier && <EditStatus title="Modifier l'inscription" endpoint={`/inscriptions/${reference.id}`} field="statut" initial={dossier.statut} options={["EN_COURS", "COMPLETE", "ABANDONNEE"]} onClose={() => setAction(null)} onSaved={saveAction} />}
@@ -1678,6 +2161,8 @@ export function DossierDetailsPage({
 
 export function OperationsPage({
   view,
+  dateOrder,
+  onDateOrderChange,
   applications,
   enrollments,
   prospects,
@@ -1694,6 +2179,8 @@ export function OperationsPage({
   enrollmentStatus,
   enrollmentsLoading,
   onEnrollmentStatusChange,
+  applicationTypeBourseId,
+  onApplicationTypeBourseChange,
   enrollmentTypeBourseId,
   onEnrollmentTypeBourseChange,
   onEnrollmentSearch,
@@ -1706,6 +2193,8 @@ export function OperationsPage({
   onOpenDossier,
 }: {
   view: Exclude<ViewName, "Vue d'ensemble">;
+  dateOrder: DateOrder;
+  onDateOrderChange: (value: DateOrder) => void;
   applications: Application[];
   enrollments: Enrollment[];
   prospects: Prospect[];
@@ -1722,6 +2211,8 @@ export function OperationsPage({
   enrollmentStatus: string;
   enrollmentsLoading: boolean;
   onEnrollmentStatusChange: (value: string) => void;
+  applicationTypeBourseId: string;
+  onApplicationTypeBourseChange: (typeBourseId: string) => void;
   enrollmentTypeBourseId: string;
   onEnrollmentTypeBourseChange: (typeBourseId: string) => void;
   onEnrollmentSearch: (value: string) => void;
@@ -1742,6 +2233,7 @@ export function OperationsPage({
     | "prospect"
     | "payment"
     | "status"
+    | "relance"
     | "interview"
     | "finance"
     | "elements"
@@ -1843,7 +2335,15 @@ export function OperationsPage({
           <p className="eyebrow">Gestion opérationnelle</p>
           <h2>{view}</h2>
           <p>
-            Consultez et modifiez les dossiers directement depuis le backend.
+            {view === "Demandes de bourse"
+              ? "Suivez chaque demande, du dépôt à la décision : pièces, entretien, paiements."
+              : view === "Inscriptions"
+                ? "Suivez les inscriptions, leurs pièces et leurs règlements."
+                : view === "Paiements"
+                  ? "Enregistrez les versements et affectez-les aux obligations des dossiers."
+                  : view === "Prospects"
+                    ? "Suivez les personnes intéressées et planifiez leurs relances."
+                    : "Consultez et mettez à jour les dossiers."}
           </p>
         </div>
         {addButton}
@@ -1893,11 +2393,11 @@ export function OperationsPage({
                 <button className="outline-button small">Rechercher</button>
               </form>
             )}
-            {view === "Inscriptions" && (
+            {(view === "Inscriptions" || view === "Demandes de bourse") && (
               <select
                 aria-label="Filtrer par type de bourse"
-                value={enrollmentTypeBourseId}
-                onChange={(event) => onEnrollmentTypeBourseChange(event.target.value)}
+                value={view === "Inscriptions" ? enrollmentTypeBourseId : applicationTypeBourseId}
+                onChange={(event) => (view === "Inscriptions" ? onEnrollmentTypeBourseChange : onApplicationTypeBourseChange)(event.target.value)}
               >
                 <option value="">Tous les types de bourse</option>
                 {scholarshipTypes.map((type) => <option key={type.id} value={type.id}>{type.nom}</option>)}
@@ -1948,6 +2448,9 @@ export function OperationsPage({
                 ))}
               </select>
             )}
+            {view !== "Paiements" && (
+              <DateOrderControl value={dateOrder} onChange={onDateOrderChange} />
+            )}
             <button className="outline-button small" onClick={onRefresh}>
               Actualiser
             </button>
@@ -1994,35 +2497,19 @@ export function OperationsPage({
                     <td>{formatDate(item.dateDepot)}</td>
                     <td className="action-group">
                       <button
-                        className="row-action"
-                        onClick={() => open("status", item.id)}
-                      >
-                        Décider
-                      </button>
+                        className="row-action icon-action"
+                        onClick={() => open("status", item.id)} aria-label="Prendre une décision"><ActionIcon name="decide" /></button>
                       <button
-                        className="row-action"
-                        onClick={() => open("elements", item.id)}
-                      >
-                        Pièces
-                      </button>
-                      <button className="row-action" onClick={() => open("finance", item.id)}>
-                        Finance
-                      </button>
+                        className="row-action icon-action"
+                        onClick={() => open("elements", item.id)} aria-label="Gérer les pièces"><ActionIcon name="pieces" /></button>
+                      <button className="row-action icon-action" onClick={() => open("finance", item.id)} aria-label="Situation financière"><ActionIcon name="finance" /></button>
                       <button
-                        className="row-action"
-                        onClick={() => open("interview", item.id)}
-                      >
-                        Entretien
-                      </button>
-                      <button className="row-action" onClick={() => open("person", item.id)}>
-                        Étudiant
-                      </button>
+                        className="row-action icon-action"
+                        onClick={() => open("interview", item.id)} aria-label="Planifier l'entretien"><ActionIcon name="interview" /></button>
+                      <button className="row-action icon-action" onClick={() => open("person", item.id)} aria-label="Modifier les informations de l'étudiant"><ActionIcon name="person" /></button>
                       <button
-                        className="row-action danger-row-action"
-                        onClick={() => open("deleteApplication", item.id)}
-                      >
-                        Supprimer
-                      </button>
+                        className="row-action icon-action danger-row-action"
+                        onClick={() => open("deleteApplication", item.id)} aria-label="Supprimer"><ActionIcon name="delete" /></button>
                     </td>
                   </tr>
                 ))}
@@ -2080,26 +2567,15 @@ export function OperationsPage({
                     </td>
                     <td className="action-group">
                       <button
-                        className="row-action"
-                        onClick={() => open("status", item.id)}
-                      >
-                        Modifier
-                      </button>
+                        className="row-action icon-action"
+                        onClick={() => open("status", item.id)} aria-label="Modifier"><ActionIcon name="edit" /></button>
                       <button
-                        className="row-action"
-                        onClick={() => open("elements", item.id)}
-                      >
-                        Pièces
-                      </button>
-                      <button className="row-action" onClick={() => open("person", item.id)}>
-                        Étudiant
-                      </button>
+                        className="row-action icon-action"
+                        onClick={() => open("elements", item.id)} aria-label="Gérer les pièces"><ActionIcon name="pieces" /></button>
+                      <button className="row-action icon-action" onClick={() => open("person", item.id)} aria-label="Modifier les informations de l'étudiant"><ActionIcon name="person" /></button>
                       <button
-                        className="row-action danger-row-action"
-                        onClick={() => open("deleteEnrollment", item.id)}
-                      >
-                        Supprimer
-                      </button>
+                        className="row-action icon-action danger-row-action"
+                        onClick={() => open("deleteEnrollment", item.id)} aria-label="Supprimer"><ActionIcon name="delete" /></button>
                     </td>
                   </tr>
                 ))}
@@ -2123,6 +2599,7 @@ export function OperationsPage({
                   <th>Téléphone</th>
                   <th>Filière</th>
                   <th>Intention</th>
+                  <th>Dernier compte rendu</th>
                   <th>Statut</th>
                   <th>Action</th>
                 </tr>
@@ -2141,6 +2618,11 @@ export function OperationsPage({
                     <td>{item.personne?.telephone ?? "-"}</td>
                     <td>{item.filiereSouhaitee ?? "-"}</td>
                     <td>{item.intention ?? "-"}</td>
+                    <td title={item.relances?.[0]?.commentaire ?? undefined}>
+                      {item.relances?.[0]?.commentaire
+                        ? `${item.relances[0].commentaire.slice(0, 55)}${item.relances[0].commentaire.length > 55 ? "..." : ""}`
+                        : "-"}
+                    </td>
                     <td>
                       <span className="status status-en_attente">
                         {statusLabels[item.statutRelance]}
@@ -2148,17 +2630,15 @@ export function OperationsPage({
                     </td>
                     <td>
                       <button
-                        className="row-action"
-                        onClick={() => open("status", item.id)}
-                      >
-                        Modifier
-                      </button>
+                        className="row-action icon-action"
+                        onClick={() => open("status", item.id)} aria-label="Modifier"><ActionIcon name="edit" /></button>
+                      <button className="row-action icon-action" onClick={() => open("relance", item.id)} aria-label="Enregistrer une relance"><ActionIcon name="relance" /></button>
                     </td>
                   </tr>
                 ))}
                 {!filteredProspects.length && (
                   <tr>
-                    <td colSpan={6} className="empty-state">
+                    <td colSpan={7} className="empty-state">
                       Aucun prospect.
                     </td>
                   </tr>
@@ -2169,7 +2649,7 @@ export function OperationsPage({
         )}
         {view === "Paiements" && (
           <>
-            <PaymentHistory refreshKey={paymentsRefreshKey} />
+            <PaymentHistory refreshKey={paymentsRefreshKey} dateOrder={dateOrder} onDateOrderChange={onDateOrderChange} />
             <div className="payment-summary">
               <strong>{latePayments.length}</strong>
               <span>échéance(s) en retard</span>
@@ -2302,7 +2782,6 @@ export function OperationsPage({
       )}
       {modal === "enrollment" && (
         <CreateEnrollment
-          people={people}
           applications={applications}
           onClose={() => setModal(null)}
           onSaved={onRefresh}
@@ -2356,6 +2835,7 @@ export function OperationsPage({
           dossierType="demande-bourse"
           dossierId={selectedApplication.id}
           onClose={() => setModal(null)}
+          onChanged={onRefresh}
         />
       )}
       {modal === "finance" && selectedEnrollment && (
@@ -2363,6 +2843,7 @@ export function OperationsPage({
           dossierType="inscription"
           dossierId={selectedEnrollment.id}
           onClose={() => setModal(null)}
+          onChanged={onRefresh}
         />
       )}
       {modal === "status" && selectedApplication && (
@@ -2390,6 +2871,9 @@ export function OperationsPage({
       )}
       {modal === "status" && selectedProspect && (
         <EditProspectForm prospect={selectedProspect} onClose={() => setModal(null)} onSaved={onRefresh} />
+      )}
+      {modal === "relance" && selectedProspect && (
+        <ProspectRelanceForm prospect={selectedProspect} onClose={() => setModal(null)} onSaved={onRefresh} />
       )}
       {modal === "person" && selectedId && (selectedApplication?.personne || selectedEnrollment?.personne) && (
         <PersonForm

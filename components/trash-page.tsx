@@ -1,5 +1,8 @@
 "use client";
 
+import { ActionIcon } from "@/components/action-icon";
+import { askConfirm } from "@/components/feedback";
+
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { statusLabels } from "@/lib/types";
@@ -73,6 +76,7 @@ const snapshotFieldLabels: Record<string, string> = {
   niveauApplicable: "Niveau applicable",
   statutRelance: "Statut de relance",
   intention: "Intention",
+  sourceConnaissance: "A connu l'IPAIM par",
   elementRequisId: "Identifiant de l’élément requis",
   elementSubstitutUtiliseId: "Identifiant du substitut",
   montantAttendu: "Montant attendu",
@@ -182,7 +186,7 @@ export function TrashPage() {
   };
 
   const purge = async (entry: TrashEntry) => {
-    if (!window.confirm(`Supprimer définitivement « ${entry.libelle} » ? Cette action est irréversible.`)) return;
+    if (!(await askConfirm({ title: "Supprimer définitivement ?", message: `« ${entry.libelle} » sera effacé de la corbeille. Cette action est irréversible.`, confirmLabel: "Supprimer définitivement", danger: true }))) return;
     setPurgingId(entry.id);
     setError("");
     try {
@@ -197,7 +201,7 @@ export function TrashPage() {
   };
 
   const restore = async (entry: TrashEntry) => {
-    if (!window.confirm(`Restaurer « ${entry.libelle} » dans les données actives ?`)) return;
+    if (!(await askConfirm({ title: "Restaurer cet élément ?", message: `« ${entry.libelle} » reviendra dans les données actives.`, confirmLabel: "Restaurer" }))) return;
     setRestoringId(entry.id);
     setError("");
     try {
@@ -254,9 +258,9 @@ export function TrashPage() {
                     <td>{displayDate(entry.dateSuppression)}</td>
                     <td className="trash-reason-cell">{entry.motif}</td>
                     <td className="action-group trash-actions">
-                      <button className="row-action" onClick={() => void inspect(entry)}>Détails</button>
-                      <button className="row-action" disabled={restoringId === entry.id} onClick={() => void restore(entry)}>{restoringId === entry.id ? "Restauration..." : "Restaurer"}</button>
-                      <button className="danger-button" disabled={purgingId === entry.id} onClick={() => void purge(entry)}>{purgingId === entry.id ? "Purge..." : "Purger"}</button>
+                      <button className="row-action icon-action" onClick={() => void inspect(entry)} aria-label="Voir le détail archivé"><ActionIcon name="details" /></button>
+                      <button className={`row-action icon-action ${restoringId === entry.id ? "busy" : ""}`} disabled={restoringId === entry.id} aria-label={restoringId === entry.id ? "Restauration en cours…" : "Restaurer"} onClick={() => void restore(entry)}><ActionIcon name="restore" /></button>
+                      <button className={`row-action icon-action danger-row-action ${purgingId === entry.id ? "busy" : ""}`} disabled={purgingId === entry.id} aria-label={purgingId === entry.id ? "Suppression en cours…" : "Supprimer définitivement"} onClick={() => void purge(entry)}><ActionIcon name="delete" /></button>
                     </td>
                   </tr>
                 ))}

@@ -1,17 +1,24 @@
 "use client";
 
+import { Search } from "lucide-react";
+import { ActionIcon } from "@/components/action-icon";
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { logPrint } from "@/lib/print-log";
+import { navigateTo, pathForDossier } from "@/lib/routes";
 import { ModalChoice } from "@/components/modal-choice";
+import { DateOrderControl } from "@/components/date-order-control";
 import { COLOR_PRESETS, readColorPreset } from "@/lib/theme";
 import {
   CatalogElement,
+    DateOrder,
   Echeance,
   IncompleteReport,
   Person,
   ScholarshipType,
   formatDate,
   formatMoney,
+  pdfSafe,
   fullName,
   statusLabels,
 } from "@/lib/types";
@@ -26,7 +33,7 @@ function Modal({
   children: React.ReactNode;
 }) {
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
+    <div className="modal-backdrop">
       <section
         className="modal"
         onMouseDown={(event) => event.stopPropagation()}
@@ -63,6 +70,7 @@ export function PersonForm({
     quartier: person?.quartier ?? "",
     dateNaissance: person?.dateNaissance?.slice(0, 10) ?? "",
     lieuNaissance: person?.lieuNaissance ?? "",
+    sexe: person?.sexe ?? "",
     tuteurNom: person?.tuteurNom ?? "",
     tuteurPrenom: person?.tuteurPrenom ?? "",
     tuteurTelephone: person?.tuteurTelephone ?? "",
@@ -162,6 +170,14 @@ export function PersonForm({
             />
           </label>
         </div>
+        <label>
+          Sexe
+          <select value={form.sexe} onChange={(event) => setForm({ ...form, sexe: event.target.value })}>
+            <option value="">Non renseigné</option>
+            <option value="F">Femme</option>
+            <option value="M">Homme</option>
+          </select>
+        </label>
         <p className="eyebrow form-section-label">Tuteur</p>
         <div className="form-grid">
           <label>
@@ -298,12 +314,16 @@ async function loadPersonHistory(id: string) {
 export function PeoplePage({
   people,
   peopleMeta,
+  dateOrder,
+  onDateOrderChange,
   onPeopleSearch,
   onPeoplePage,
   onRefresh,
 }: {
   people: Person[];
   peopleMeta: { page: number; total: number; totalPages: number };
+  dateOrder: DateOrder;
+  onDateOrderChange: (value: DateOrder) => void;
   onPeopleSearch: (value: string) => void;
   onPeoplePage: (page: number) => void;
   onRefresh: () => void;
@@ -381,6 +401,7 @@ export function PeoplePage({
             <button className="outline-button small" onClick={onRefresh}>
               Actualiser
             </button>
+            <DateOrderControl value={dateOrder} onChange={onDateOrderChange} />
           </div>
         </div>
         <div className="table-wrap">
@@ -410,23 +431,14 @@ export function PeoplePage({
                   <td>{formatDate(person.dateEnregistrement)}</td>
                   <td className="action-group">
                     <button
-                      className="row-action"
-                      onClick={() => open("history", person)}
-                    >
-                      Historique
-                    </button>
+                      className="row-action icon-action"
+                      onClick={() => open("history", person)} aria-label="Voir l'historique"><ActionIcon name="history" /></button>
                     <button
-                      className="row-action"
-                      onClick={() => open("edit", person)}
-                    >
-                      Modifier
-                    </button>
+                      className="row-action icon-action"
+                      onClick={() => open("edit", person)} aria-label="Modifier"><ActionIcon name="edit" /></button>
                     <button
-                      className="row-action danger-row-action"
-                      onClick={() => open("delete", person)}
-                    >
-                      Supprimer
-                    </button>
+                      className="row-action icon-action danger-row-action"
+                      onClick={() => open("delete", person)} aria-label="Supprimer"><ActionIcon name="delete" /></button>
                   </td>
                 </tr>
               ))}
@@ -617,6 +629,7 @@ function ReferenceForm({
               choices={[
                 { value: "TOUS", label: "Tous" },
                 { value: "PREMIERE_ANNEE", label: "Première année" },
+                { value: "DEUXIEME_ANNEE", label: "Deuxième année (L2)" },
                 {
                   value: "DEUXIEME_ANNEE_PLUS",
                   label: "Deuxième année et plus",
@@ -805,6 +818,13 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
   >(null);
   const [selectedElement, setSelectedElement] = useState<CatalogElement>();
   const [selectedType, setSelectedType] = useState<ScholarshipType>();
+  const [deleteTarget, setDeleteTarget] = useState<{
+    kind: "element" | "scholarship";
+    id: string;
+    label: string;
+  } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const load = async () => {
     try {
       const [elementData, typeData] = await Promise.all([
@@ -850,6 +870,22 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
   const saved = () => {
     void load();
     onRefresh();
+  };
+  const removeReference = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      const resource = deleteTarget.kind === "element" ? "elements-requis" : "types-bourse";
+      await apiFetch(`/${resource}/${deleteTarget.id}`, { method: "DELETE" });
+      setDeleteTarget(null);
+      await load();
+      onRefresh();
+    } catch (failure) {
+      setDeleteError(failure instanceof Error ? failure.message : "Suppression impossible.");
+    } finally {
+      setDeleteBusy(false);
+    }
   };
   return (
     <div className="content-scroll">
@@ -909,14 +945,17 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                     <td>{item.obligatoire ? "Oui" : "Non"}</td>
                     <td>
                       <button
-                        className="row-action"
+                        className="row-action icon-action"
                         onClick={() => {
                           setSelectedElement(item);
                           setModal("element");
-                        }}
-                      >
-                        Modifier
-                      </button>
+                        }} aria-label="Modifier"><ActionIcon name="edit" /></button>
+                      <button
+                        className="row-action icon-action danger-row-action"
+                        onClick={() => {
+                          setDeleteError("");
+                          setDeleteTarget({ kind: "element", id: item.id, label: item.nom });
+                        }} aria-label="Supprimer"><ActionIcon name="delete" /></button>
                     </td>
                   </tr>
                 ))}
@@ -949,14 +988,17 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                   </span>
                 </div>
                 <button
-                  className="row-action"
+                  className="row-action icon-action"
                   onClick={() => {
                     setSelectedType(type);
                     setModal("schedule");
-                  }}
-                >
-                  + Échéance
-                </button>
+                  }} aria-label="Ajouter une échéance"><ActionIcon name="schedule" /></button>
+                <button
+                  className="row-action icon-action danger-row-action"
+                  onClick={() => {
+                    setDeleteError("");
+                    setDeleteTarget({ kind: "scholarship", id: type.id, label: type.nom });
+                  }} aria-label="Supprimer"><ActionIcon name="delete" /></button>
                 <div className="schedule-list">
                   {type.echeances?.map((echeance: Echeance) => (
                     <span key={echeance.id}>
@@ -1000,6 +1042,40 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
           onSaved={saved}
         />
       )}
+      {deleteTarget && (
+        <Modal
+          title="Supprimer ce référentiel ?"
+          onClose={() => {
+            if (!deleteBusy) setDeleteTarget(null);
+          }}
+        >
+          <div className="entity-form">
+            <p>
+              Supprimer « {deleteTarget.label} » ? Cette action est définitive.
+              Une référence déjà utilisée ne pourra pas être supprimée.
+            </p>
+            <ErrorMessage error={deleteError} />
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={deleteBusy}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="danger-solid-button"
+                disabled={deleteBusy}
+                onClick={() => void removeReference()}
+              >
+                {deleteBusy ? "Suppression..." : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -1014,6 +1090,7 @@ function OperationalReportsPage() {
         typeBourse?: { nom: string };
       };
       resteAPayer: string;
+      dossiers?: Array<{ demandeBourseId: string; personne?: Person; resteAPayer: string }>;
     }>
   >([]);
   const [error, setError] = useState("");
@@ -1036,6 +1113,19 @@ function OperationalReportsPage() {
         ),
       );
   }, []);
+  const [search, setSearch] = useState("");
+  const [kind, setKind] = useState<"all" | "demande-bourse" | "inscription">("all");
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase();
+  const term = normalize(search.trim());
+  const matches = (...parts: Array<string | null | undefined>) => !term || normalize(parts.filter(Boolean).join(" ")).includes(term);
+  const dossiers = (report?.dossiers ?? []).filter((item) =>
+    (kind === "all" || item.dossierType === kind) &&
+    matches(fullName(item.personne), item.personne?.telephone, item.dossierType === "demande-bourse" ? "demande de bourse" : "inscription", ...item.elementsManquants.map((element) => element.elementRequis.nom)),
+  );
+  const retards = latePayments.filter((item) =>
+    matches(item.echeance.libelle, item.echeance.typeBourse?.nom, ...(item.dossiers ?? []).map((dossier) => fullName(dossier.personne))),
+  );
+  const filtered = Boolean(term) || kind !== "all";
   return (
     <div className="content-scroll">
       <div className="page-intro">
@@ -1046,77 +1136,94 @@ function OperationalReportsPage() {
         </div>
       </div>
       <ErrorMessage error={error} />
+      <div className="report-toolbar">
+        <label className="report-search">
+          <Search aria-hidden="true" focusable="false" />
+          <input type="search" value={search} placeholder="Rechercher un nom, un téléphone, une pièce, une échéance…" aria-label="Rechercher dans les rapports" onChange={(event) => setSearch(event.target.value)} />
+        </label>
+        <div className="segmented compact">
+          <div className="segmented-options" role="radiogroup" aria-label="Type de dossier">
+            {([["all", "Tous les dossiers"], ["demande-bourse", "Demandes de bourse"], ["inscription", "Inscriptions"]] as const).map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={kind === value} className="segmented-option" onClick={() => setKind(value)}>{label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
       <div className="report-grid">
         <section className="panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Pièces manquantes</p>
-              <h3>{report?.total ?? "--"} dossier(s) incomplet(s)</h3>
+              <h3>{report ? dossiers.length : "--"} dossier(s) incomplet(s){filtered && report ? ` sur ${report.total}` : ""}</h3>
             </div>
           </div>
-          <div className="report-list">
-            {report?.dossiers.map((item) => (
-              <article
-                className="report-row"
-                key={`${item.dossierType}-${item.dossierId}`}
-              >
-                <div>
-                  <strong>{fullName(item.personne)}</strong>
-                  <span>
-                    {item.dossierType === "demande-bourse"
-                      ? "Demande de bourse"
-                      : "Inscription"}
-                  </span>
-                </div>
-                <div className="report-tags">
+          <div className="report-cards">
+            {dossiers.map((item) => (
+              <article className="report-card" key={`${item.dossierType}-${item.dossierId}`}>
+                <header>
+                  <div>
+                    <strong>{fullName(item.personne)}</strong>
+                    <span>{item.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}{item.personne?.telephone ? ` · ${item.personne.telephone}` : ""}</span>
+                  </div>
+                  <span className="report-card-count" title="Pièces manquantes">{item.elementsManquants.length}</span>
+                </header>
+                <div className="report-bubbles">
                   {item.elementsManquants.map((element) => (
-                    <span className="tag" key={element.id}>
+                    <span className={`report-bubble ${element.statut === "MANQUANT" ? "missing" : ""}`} key={element.id}>
+                      <small>{element.statut === "MANQUANT" ? "Manquant" : "Attendu"}{element.elementRequis.obligatoire === false ? " · facultatif" : ""}</small>
                       {element.elementRequis.nom}
                     </span>
                   ))}
                 </div>
+                <footer>
+                  <button type="button" className="row-action icon-action" onClick={() => navigateTo(pathForDossier({ type: item.dossierType, id: item.dossierId }))} aria-label="Ouvrir le dossier"><ActionIcon name="open" /></button>
+                </footer>
               </article>
             ))}
-            {report && !report.dossiers.length && (
-              <p className="empty-state">Tous les dossiers sont complets.</p>
-            )}
           </div>
+          {!report && !error && <p className="empty-state">Chargement des dossiers…</p>}
+          {report && !dossiers.length && (
+            <p className="empty-state">{filtered ? "Aucun dossier incomplet ne correspond à cette recherche." : "Tous les dossiers sont complets."}</p>
+          )}
         </section>
         <section className="panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Recouvrement</p>
-              <h3>{latePayments.length} échéance(s) en retard</h3>
+              <h3>{retards.length} échéance(s) en retard</h3>
             </div>
           </div>
-          <div className="report-list">
-            {latePayments.map((item, index) => (
-              <div
-                className="report-row"
-                key={`${item.echeance.libelle}-${index}`}
-              >
-                <div>
-                  <strong>{item.echeance.libelle}</strong>
-                  <span>
-                    {item.echeance.typeBourse?.nom ?? "Bourse"} ·{" "}
-                    {formatDate(item.echeance.dateEcheance)}
-                  </span>
-                </div>
-                <strong className="report-amount">
-                  {formatMoney(item.resteAPayer)}
-                </strong>
-              </div>
+          <div className="report-cards single">
+            {retards.map((item, index) => (
+              <article className="report-card late" key={`${item.echeance.libelle}-${index}`}>
+                <header>
+                  <div>
+                    <strong>{item.echeance.libelle}</strong>
+                    <span>{item.echeance.typeBourse?.nom ?? "Bourse"} · échue le {formatDate(item.echeance.dateEcheance)}</span>
+                  </div>
+                  <strong className="report-amount">{formatMoney(item.resteAPayer)}</strong>
+                </header>
+                {(item.dossiers ?? []).length > 0 && (
+                  <div className="report-bubbles">
+                    {(item.dossiers ?? []).map((dossier) => (
+                      <button type="button" className="report-bubble missing" key={dossier.demandeBourseId} title="Ouvrir la demande de bourse" onClick={() => navigateTo(pathForDossier({ type: "demande-bourse", id: dossier.demandeBourseId }))}>
+                        <small>Reste {formatMoney(dossier.resteAPayer)}</small>
+                        {fullName(dossier.personne)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </article>
             ))}
-            {!latePayments.length && (
-              <p className="empty-state">Aucun retard de paiement.</p>
-            )}
           </div>
+          {!retards.length && (
+            <p className="empty-state">{term && latePayments.length ? "Aucune échéance ne correspond à cette recherche." : "Aucun retard de paiement."}</p>
+          )}
         </section>
       </div>
     </div>
   );
 }
-
 type ActivityReport = {
   synthese: {
     nombrePaiements: number;
@@ -1266,7 +1373,7 @@ function PeriodicReport() {
 
       const summary = [
         ["Paiements", String(report.synthese.nombrePaiements)],
-        ["Montant encaissé", formatMoney(report.synthese.montantEncaisse)],
+        ["Montant encaissé", pdfSafe(formatMoney(report.synthese.montantEncaisse))],
         ["Demandes", String(report.synthese.nouvellesDemandes)],
         ["Inscriptions", String(report.synthese.nouvellesInscriptions)],
         ["Prospects", String(report.synthese.nouveauxProspects)],
@@ -1325,6 +1432,7 @@ function PeriodicReport() {
         pdf.text(`IPAIM  |  ${page}/${pageCount}`, width - margin, height - 6, { align: "right" });
       }
       pdf.save(`rapport-ipaim-${dateDebut}-${dateFin}.pdf`);
+      logPrint({ typeDocument: "RAPPORT_ACTIVITE", mode: "PDF", libelle: `Rapport d'activité du ${dateDebut} au ${dateFin}` });
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Impossible de générer le PDF.");
     }

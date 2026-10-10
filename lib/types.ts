@@ -1,4 +1,5 @@
 export type User = { id?: string; nom: string; prenom?: string | null; email: string; role: string; posteId?: string | null; poste?: { id: string; nom: string } | null; permissions?: string[] };
+export type DateOrder = "asc" | "desc";
 export type JobPosition = { id: string; nom: string; permissions: string[]; _count?: { utilisateurs: number } };
 export type Person = {
   id: string;
@@ -8,6 +9,8 @@ export type Person = {
   quartier?: string;
   dateNaissance?: string;
   lieuNaissance?: string;
+  sexe?: string | null;
+  matricule?: string | null;
   tuteurNom?: string;
   tuteurPrenom?: string;
   tuteurTelephone?: string;
@@ -76,7 +79,19 @@ export type Prospect = {
   statutRelance: string;
   filiereSouhaitee?: string;
   intention?: string;
+  sourceConnaissance?: string | null;
   personne?: Person;
+  relances?: ProspectRelance[];
+};
+export type ProspectRelance = {
+  id: string;
+  commentaire: string;
+  intention?: string | null;
+  statutRelance: string;
+  date: string;
+  dateProchaineRelance?: string | null;
+  utilisateurNom: string;
+  _offline?: boolean;
 };
 export type ProspectPage = {
   data: Prospect[];
@@ -92,6 +107,7 @@ export type LatePayment = {
   montantAttendu: string;
   montantPaye: string;
   resteAPayer: string;
+  dossiers?: Array<{ demandeBourseId: string; personne?: Person; montantPaye: string; resteAPayer: string }>;
 };
 export type UnassignedPayment = {
   id: string;
@@ -200,7 +216,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Profil" | "Paramètres" | "À propos du SGI";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "Dépenses" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI";
 
 export type DailyActivityReport = {
   date: string;
@@ -219,21 +235,21 @@ export type DailyActivityReport = {
 
 export const statusLabels: Record<string, string> = {
   EN_ATTENTE: "En attente",
-  ENTRETIEN_PROGRAMME: "Entretien programme",
-  EN_DELIBERATION: "En deliberation",
-  ACCEPTEE: "Acceptee",
-  REFUSEE: "Refusee",
+  ENTRETIEN_PROGRAMME: "Entretien programmé",
+  EN_DELIBERATION: "En délibération",
+  ACCEPTEE: "Acceptée",
+  REFUSEE: "Refusée",
   EN_COURS: "En cours",
-  COMPLETE: "Complete",
-  ABANDONNEE: "Abandonnee",
-  A_RELANCER: "A relancer",
-  RELANCE: "Relance",
+  COMPLETE: "Complète",
+  ABANDONNEE: "Abandonnée",
+  A_RELANCER: "À relancer",
+  RELANCE: "Relancé",
   CONVERTI: "Converti",
-  ABANDONNE: "Abandonne",
+  ABANDONNE: "Abandonné",
   ATTENDU: "Attendu",
   FOURNI: "Fourni",
   MANQUANT: "Manquant",
-  SUBSTITUE: "Substitue",
+  SUBSTITUE: "Substitué",
   DEPOSE: "Dossier déposé",
   ENTRETIEN_REALISE: "Entretien réalisé",
   RETENU: "Retenu",
@@ -245,9 +261,85 @@ export const formatDate = (date?: string) =>
     ? new Intl.DateTimeFormat("fr-FR", {
         day: "2-digit",
         month: "short",
+        year: "numeric",
       }).format(new Date(date))
     : "-";
 export const formatMoney = (value: string | number) =>
   `${Number(value).toLocaleString("fr-FR", { minimumFractionDigits: 0 })} F`;
 export const fullName = (person?: Person) =>
   person ? `${person.prenom} ${person.nom}` : "Personne inconnue";
+// Les polices standard des PDF ne connaissent pas les espaces insécables du format fr-FR :
+// sans ce remplacement, les montants s'impriment avec des caractères parasites.
+export const pdfSafe = (text: string) => text.replace(/[\u202f\u00a0]/g, " ");
+
+// ---------- Dépenses ----------
+export type ExpenseActions = {
+  modifier: boolean;
+  soumettre: boolean;
+  reprendre: boolean;
+  valider: boolean;
+  blocageValidation: string | null;
+  receptionner: boolean;
+  facturer: boolean;
+  payer: boolean;
+  blocagePaiement: string | null;
+  annuler: boolean;
+};
+export type ExpenseCategory = { id: string; nom: string; livraisonRequise: boolean; actif: boolean; compteNumero?: string | null };
+export type Supplier = { id: string; nom: string; telephone?: string | null; email?: string | null; adresse?: string | null; identifiantFiscal?: string | null; actif: boolean };
+export type FiscalYear = { id: string; libelle: string; dateDebut: string; dateFin: string; cloture: boolean };
+export type FinanceRules = { seuilDoubleValidation: string; budgetBloquant: boolean; separationPaiement: boolean };
+export type ExpenseSummary = {
+  id: string;
+  numero: string;
+  objet: string;
+  justification: string;
+  statut: string;
+  montant: string;
+  montantFacture?: string | null;
+  niveauxRequis: number;
+  horsBudget: boolean;
+  initiateurId: string;
+  initiateurNom: string;
+  dateCreation: string;
+  dateSoumission?: string | null;
+  numeroBonCommande?: string | null;
+  dateBonCommande?: string | null;
+  categorieId: string;
+  categorie: ExpenseCategory;
+  fournisseurId?: string | null;
+  fournisseur?: Supplier | null;
+  totalPaye: string;
+  resteAPayer: string;
+  actions: ExpenseActions;
+};
+export type ExpensePiece = { id: string; type: string; nom: string; url: string; ajouteParNom: string; date: string };
+export type ExpenseDetail = ExpenseSummary & {
+  exercice?: FiscalYear | null;
+  validation1ParNom?: string | null;
+  dateValidation1?: string | null;
+  validation2ParNom?: string | null;
+  dateValidation2?: string | null;
+  motifRejet?: string | null;
+  motifAnnulation?: string | null;
+  numeroBonLivraison?: string | null;
+  dateReception?: string | null;
+  receptionParNom?: string | null;
+  receptionConforme?: boolean | null;
+  receptionCommentaire?: string | null;
+  numeroFacture?: string | null;
+  dateFacture?: string | null;
+  factureParNom?: string | null;
+  lignes: Array<{ id: string; designation: string; quantite: string; prixUnitaire: string }>;
+  pieces: ExpensePiece[];
+  decaissements: Array<{ id: string; numero: string; montant: string; mode: string; reference?: string | null; datePaiement: string; payeParNom: string }>;
+  historique: Array<{ id: string; action: string; statut: string; utilisateurNom: string; commentaire?: string | null; date: string }>;
+  budget: { budget: string; disponibleAvant: string } | null;
+};
+export type ExpensePage = { data: ExpenseSummary[]; meta: { page: number; limit: number; total: number; totalPages: number } };
+export type BudgetReport = {
+  exercice: FiscalYear | null;
+  exercices: FiscalYear[];
+  lignes: Array<{ categorieId: string; categorie: string; actif: boolean; budget: string; reserve: string; engage: string; paye: string; disponible: string; taux: number | null }>;
+  totaux: { budget: string; reserve: string; engage: string; paye: string; disponible: string; recettes: string; solde: string } | null;
+};

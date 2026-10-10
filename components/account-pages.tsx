@@ -1,5 +1,7 @@
 "use client";
 
+import { askReason } from "@/components/feedback";
+
 import { FormEvent, useEffect, useState, useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api";
 import { ModalChoice } from "@/components/modal-choice";
@@ -145,6 +147,7 @@ export function SettingsPage({
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     nom: "",
+    prenom: "",
     email: "",
     motDePasse: "",
     role: "employe",
@@ -193,7 +196,7 @@ export function SettingsPage({
         method: "POST",
         body: JSON.stringify({ ...form, permissions: positions.find((position) => position.id === form.posteId)?.permissions ?? [] }),
       });
-      setForm({ nom: "", email: "", motDePasse: "", role: "employe", posteId: "" });
+      setForm({ nom: "", prenom: "", email: "", motDePasse: "", role: "employe", posteId: "" });
       setModalOpen(false);
       await loadUsers();
       await loadPositions();
@@ -246,13 +249,14 @@ export function SettingsPage({
   };
   const removeUser = async (id: string) => {
     if (id === currentUser?.id) return;
-    const motif = window.prompt("Motif de suppression (5 caractères minimum)")?.trim();
+    const motif = await askReason({
+      title: "Supprimer cet utilisateur ?",
+      message: "Le compte sera déplacé vers la corbeille et pourra être restauré.",
+      confirmLabel: "Déplacer vers la corbeille",
+      danger: true,
+      reason: { label: "Motif de suppression", minLength: 5, placeholder: "5 caractères minimum" },
+    });
     if (!motif) return;
-    if (motif.length < 5) {
-      setError("Le motif doit contenir au moins 5 caractères.");
-      return;
-    }
-    if (!window.confirm("Déplacer cet utilisateur vers la corbeille ?")) return;
     setError("");
     try {
       await apiFetch(`/utilisateurs/${id}`, {
@@ -369,7 +373,7 @@ export function SettingsPage({
                   </td>
                   <td className="user-access-actions">
                     {item.role !== "admin" && <button className="outline-button small" onClick={() => { setAccessUser(item); setAccessForm({ posteId: item.posteId ?? "", permissions: [...(item.permissions ?? [])] }); }}>Accès</button>}
-                    {item.id === currentUser?.id ? <span className="muted-action">Session actuelle</span> : <button className="danger-button" onClick={() => void removeUser(item.id ?? "")}>Supprimer</button>}
+                    {item.id === currentUser?.id ? <span className="muted-action">Session actuelle</span> : item.role !== "admin" && <button className="danger-button" onClick={() => void removeUser(item.id ?? "")}>Supprimer</button>}
                   </td>
                 </tr>
               ))}
@@ -400,6 +404,7 @@ export function SettingsPage({
               </button>
             </div>
             <form className="entity-form" onSubmit={createUser}>
+              <label>Prénom<input value={form.prenom} onChange={(event) => setForm({ ...form, prenom: event.target.value })} /></label>
               <label>
                 Nom
                 <input

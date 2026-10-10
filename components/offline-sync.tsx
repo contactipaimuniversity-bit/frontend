@@ -232,6 +232,8 @@ function operationIcon(path: string) {
 }
 
 function operationLabel(operation: OfflineOperation) {
+  if (operation.method === "POST" && /^\/prospects\/[^/]+\/relances$/.test(operation.path))
+    return "Compte rendu de relance prospect";
   if (operation.method === "PATCH") {
     const resource = operation.path.split("/")[1];
     const labels: Record<string, string> = {
@@ -277,6 +279,9 @@ const fieldLabels: Record<string, string> = {
   demandeBourseId: "Demande associée",
   elementDossierId: "Obligation du dossier",
   intention: "Intention",
+  sourceConnaissance: "A connu l'IPAIM par",
+  commentaire: "Compte rendu",
+  dateProchaineRelance: "Prochaine relance",
   montant: "Montant",
   typePaiement: "Type de paiement",
   inscriptionId: "Inscription associée",

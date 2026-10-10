@@ -1,15 +1,24 @@
 import {
+  API_URL,
   cacheResponse,
   currentOfflineSession,
   enqueueOperation,
   listOfflineOperations,
   mergeOfflineRecords,
+  readCachedProspectRelances,
   readCachedResponse,
   responseCacheKey,
 } from "./offline";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+import { toast } from "../components/feedback";
+
 const GET_TIMEOUT_MS = 5000;
+const OFFLINE_SAVED = "Enregistré sur cet appareil. L’envoi se fera au retour de la connexion.";
+const SUCCESS_MESSAGES: Record<string, string> = {
+  POST: "Enregistrement effectué.",
+  PATCH: "Modification enregistrée.",
+  DELETE: "Suppression effectuée.",
+};
 const offlineCreatablePaths = new Set([
   "/personnes",
   "/demandes-bourse",
@@ -19,7 +28,15 @@ const offlineCreatablePaths = new Set([
   "/candidatures-personnel",
 ]);
 const offlineEditablePath = /^\/(?:(?:personnes|demandes-bourse|inscriptions|prospects|candidatures-personnel)\/[^/]+|(?:demandes-bourse|inscriptions)\/[^/]+\/elements\/[^/]+|paiements\/[^/]+\/affectation)$/;
+const offlineProspectRelancePath = /^\/prospects\/[^/]+\/relances$/;
 const referenceWritePath = /^\/(elements-requis|types-bourse)(?:\/.*)?$/;
+
+function supportsOfflineWrite(method: string, path: string) {
+  return (
+    (method === "POST" && (offlineCreatablePaths.has(path) || offlineProspectRelancePath.test(path))) ||
+    (method === "PATCH" && offlineEditablePath.test(path))
+  );
+}
 
 function emptyOfflineResponse(path: string) {
   if (
@@ -51,6 +68,8 @@ async function getOfflineFinance(path: string, token: string | null) {
     if (operation.path !== "/paiements" || operation.method !== "POST") return [];
     const body = typeof operation.body === "object" && operation.body !== null ? operation.body as Record<string, unknown> : null;
     if (!body || body[collection === "demandes-bourse" ? "demandeBourseId" : "inscriptionId"] !== dossierId) return [];
+    // Comme côté serveur, les échéances de bourse ne font pas partie des obligations du dossier.
+    if (body.echeanceId) return [];
     return [{ montant: Number(body.montant ?? 0), elementDossierId: String(body.elementDossierId ?? "") }];
   });
   const obligations = elements.map((element) => {
@@ -60,7 +79,7 @@ async function getOfflineFinance(path: string, token: string | null) {
     return {
       id: element.id,
       nom: element.elementRequis.nom,
-      categorie: element.categorie ?? "DOCUMENT",
+      categorie: (element.elementRequis as { categorie?: string }).categorie ?? element.categorie ?? "DOCUMENT",
       statut: element.statut,
       montantAttendu: montantAttendu.toFixed(2),
       montantPaye: montantPaye.toFixed(2),
@@ -130,12 +149,22 @@ async function getCachedGet<T>(path: string, token: string | null) {
       const niveau = query.get("niveauApplicable");
       return base.filter((element) =>
         (!contexte || element.contexte === contexte || element.contexte === "TOUS") &&
-        (!niveau || element.niveauApplicable === niveau || element.niveauApplicable === "TOUS"),
+        (!niveau || element.niveauApplicable === niveau || element.niveauApplicable === "TOUS" ||
+          (niveau === "DEUXIEME_ANNEE" && element.niveauApplicable === "DEUXIEME_ANNEE_PLUS")),
       ) as T;
     }
   }
   const cached = await readCachedResponse<T>(responseCacheKey(`${API_URL}${path}`, token));
   if (cached !== undefined) return mergeOfflineRecords(path, cached);
+  const prospectRelanceMatch = path.match(/^\/prospects\/([^/]+)\/relances$/);
+  if (prospectRelanceMatch) {
+    const cachedRelances = await readCachedProspectRelances(
+      prospectRelanceMatch[1],
+      token,
+    );
+    if (cachedRelances !== undefined)
+      return mergeOfflineRecords(path, cachedRelances as T);
+  }
   const localPage = await mergeOfflineRecords(path, emptyOfflineResponse(path) as T);
   if (
     path === "/paiements/non-affectes" ||
@@ -148,6 +177,10 @@ async function getCachedGet<T>(path: string, token: string | null) {
 type RequestOptions<T> = RequestInit & {
   token?: string | null;
   bypassOffline?: boolean;
+  /** N'affiche pas la notification de succès (l'appelant donne son propre retour). */
+  silent?: boolean;
+  /** Lecture ponctuelle (recherche) : ne pas la conserver pour le mode hors ligne. */
+  skipCache?: boolean;
   onCached?: (value: T) => void;
 };
 
@@ -155,14 +188,17 @@ export async function apiFetch<T>(
   path: string,
   options: RequestOptions<T> = {},
 ): Promise<T> {
+  // `token: null` demande explicitement une requête sans session.
   const token =
-    options.token ??
-    (typeof window === "undefined"
-      ? null
-      : window.sessionStorage.getItem("ipaim-token"));
+    options.token !== undefined
+      ? options.token
+      : typeof window === "undefined"
+        ? null
+        : window.sessionStorage.getItem("ipaim-token");
   const offlineSession = currentOfflineSession();
   const headers = new Headers(options.headers);
-  if (!headers.has("Content-Type") && options.body)
+  // Un envoi de fichier (FormData) fixe lui-même son en-tête multipart.
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData))
     headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const method = (options.method ?? "GET").toUpperCase();
@@ -182,12 +218,10 @@ export async function apiFetch<T>(
       if (cached !== undefined) return cached;
       throw new Error("Vous êtes hors ligne et cette donnée n’est pas disponible sur cet appareil.");
     }
-    if (
-      (method === "POST" && offlineCreatablePaths.has(path)) ||
-      (method === "PATCH" && offlineEditablePath.test(path))
-    ) {
+    if (supportsOfflineWrite(method, path)) {
       const body = typeof options.body === "string" ? JSON.parse(options.body) : options.body;
       const queued = await enqueueOperation(path, method as "POST" | "PATCH", body, idempotencyKey ?? crypto.randomUUID(), token);
+      toast(OFFLINE_SAVED, "info");
       return { id: queued.temporaryId } as T;
     }
     throw new Error("Cette action nécessite une connexion en ligne.");
@@ -199,12 +233,10 @@ export async function apiFetch<T>(
       if (cached !== undefined) return cached;
       throw new Error("Cette donnée n’a pas encore été téléchargée sur cet appareil.");
     }
-    if (
-      (method === "POST" && offlineCreatablePaths.has(path)) ||
-      (method === "PATCH" && offlineEditablePath.test(path))
-    ) {
+    if (supportsOfflineWrite(method, path)) {
       const body = typeof options.body === "string" ? JSON.parse(options.body) : options.body;
       const queued = await enqueueOperation(path, method as "POST" | "PATCH", body, crypto.randomUUID(), null);
+      toast(OFFLINE_SAVED, "info");
       return { id: queued.temporaryId } as T;
     }
     throw new Error("Cette action nécessite une connexion en ligne.");
@@ -221,6 +253,8 @@ export async function apiFetch<T>(
     const fetchOptions: RequestInit = { ...options };
     delete (fetchOptions as RequestInit & { token?: string | null }).token;
     delete (fetchOptions as RequestInit & { bypassOffline?: boolean }).bypassOffline;
+    delete (fetchOptions as RequestInit & { silent?: boolean }).silent;
+    delete (fetchOptions as RequestInit & { skipCache?: boolean }).skipCache;
     delete (fetchOptions as RequestInit & { onCached?: (value: T) => void }).onCached;
     if (method === "GET") {
       const timeoutSignal = AbortSignal.timeout(GET_TIMEOUT_MS);
@@ -234,12 +268,10 @@ export async function apiFetch<T>(
       const cached = await getCachedGet<T>(path, token);
       if (cached !== undefined) return cached;
     }
-    if (token && (
-      (method === "POST" && offlineCreatablePaths.has(path) && idempotencyKey) ||
-      (method === "PATCH" && offlineEditablePath.test(path))
-    )) {
+    if (token && supportsOfflineWrite(method, path)) {
       const body = typeof options.body === "string" ? JSON.parse(options.body) : options.body;
       const queued = await enqueueOperation(path, method as "POST" | "PATCH", body, idempotencyKey ?? crypto.randomUUID(), token);
+      toast(OFFLINE_SAVED, "info");
       return { id: queued.temporaryId } as T;
     }
     throw failure;
@@ -250,15 +282,20 @@ export async function apiFetch<T>(
   if (!response.ok) {
     if (response.status === 401 && typeof window !== "undefined")
       window.dispatchEvent(new Event("ipaim-session-expired"));
+    // Session refusée : une fenêtre dédiée l'explique, le message technique du serveur n'apporte rien.
+    if (response.status === 401 && token)
+      throw new Error("Votre session a expiré. Reconnectez-vous pour continuer.");
     const message = Array.isArray(payload?.message)
       ? payload.message.join(", ")
       : payload?.message;
     throw new Error(message || "Une erreur est survenue avec le serveur.");
   }
+  if (method === "GET" && options.skipCache) return payload as T;
   if (method === "GET") {
     await cacheResponse(responseCacheKey(`${API_URL}${path}`, token), payload).catch(() => {});
     return mergeOfflineRecords(path, payload as T);
   }
+  if (!options.bypassOffline && !options.silent) toast(SUCCESS_MESSAGES[method] ?? "Opération effectuée.");
   return payload as T;
 }
 
@@ -283,17 +320,19 @@ export async function downloadOfflineReferenceData() {
     return ids;
   };
 
-  const [, , applications, enrollments] = await Promise.allSettled([
+  const [, , applications, enrollments, prospects] = await Promise.allSettled([
     apiFetch<unknown[]>("/elements-requis"),
     apiFetch<unknown[]>("/types-bourse"),
     loadDossierIds("demandes-bourse"),
     loadDossierIds("inscriptions"),
+    loadDossierIds("prospects"),
     loadDossierIds("demandes-bourse", "statut=ACCEPTEE"),
     apiFetch<unknown>("/paiements"),
   ]);
   await import("jspdf").catch(() => undefined);
   const applicationIds = applications.status === "fulfilled" ? applications.value : [];
   const enrollmentIds = enrollments.status === "fulfilled" ? enrollments.value : [];
+  const prospectIds = prospects.status === "fulfilled" ? prospects.value : [];
   const detailPaths = [
     ...applicationIds.map((id) => `/demandes-bourse/${id}`),
     ...applicationIds.map((id) => `/demandes-bourse/${id}/elements`),
@@ -301,6 +340,7 @@ export async function downloadOfflineReferenceData() {
     ...enrollmentIds.map((id) => `/inscriptions/${id}`),
     ...enrollmentIds.map((id) => `/inscriptions/${id}/elements`),
     ...enrollmentIds.map((id) => `/inscriptions/${id}/finance`),
+    ...prospectIds.map((id) => `/prospects/${id}/relances`),
   ];
 
   for (let index = 0; index < detailPaths.length; index += 20) {

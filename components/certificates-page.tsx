@@ -1,8 +1,12 @@
 "use client";
 
+import { generatedByLine } from "@/lib/session";
 import { useEffect, useState } from "react";
+import { Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { Application, ApplicationFinance, Enrollment, formatDate, formatMoney, fullName } from "@/lib/types";
+import { logPrint, PrintRecord } from "@/lib/print-log";
+import { DateOrderControl } from "@/components/date-order-control";
+import { Application, ApplicationFinance, DateOrder, Enrollment, formatDate, formatMoney, fullName, pdfSafe } from "@/lib/types";
 
 type Paginated<T> = { data: T[]; meta: { totalPages: number } };
 type Balance = {
@@ -74,15 +78,15 @@ function addField(
   value: string,
 ) {
   pdf.setFillColor(245, 247, 250);
-  pdf.roundedRect(x, y, width, 19, 2, 2, "F");
+  pdf.roundedRect(x, y, width, 16, 2, 2, "F");
   pdf.setTextColor(102, 114, 140);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(7.5);
-  pdf.text(label.toUpperCase(), x + 4, y + 6);
+  pdf.text(label.toUpperCase(), x + 4, y + 5.5);
   pdf.setTextColor(20, 40, 92);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(9);
-  pdf.text(pdf.splitTextToSize(value || "-", width - 8), x + 4, y + 12);
+  pdf.text(pdf.splitTextToSize(value || "-", width - 8)[0], x + 4, y + 11.5);
 }
 
 function addCertificateFrame(
@@ -119,20 +123,51 @@ function addStudentName(pdf: import("jspdf").jsPDF, name: string, y: number) {
   pdf.text(name, 105, y, { align: "center" });
 }
 
+// Zone de visa : emplacement du cachet de l'administration et de la signature.
+function addCertificateVisa(pdf: import("jspdf").jsPDF) {
+  pdf.setTextColor(78, 88, 108);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8.5);
+  pdf.text(`Délivré le ${displayDate(new Date().toISOString())}`, 18, 259);
+
+  pdf.setDrawColor(155, 168, 187);
+  pdf.setLineWidth(0.3);
+  pdf.setLineDashPattern([1.6, 1.4], 0);
+  pdf.roundedRect(18, 262, 66, 20, 2, 2, "S");
+  pdf.setLineDashPattern([], 0);
+  pdf.setTextColor(102, 114, 140);
+  pdf.setFontSize(7);
+  pdf.text("CACHET DE L’ADMINISTRATION", 51, 266.5, { align: "center" });
+
+  pdf.setTextColor(20, 40, 92);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8.5);
+  pdf.text("Pour l’administration", 157, 259, { align: "center" });
+  pdf.setTextColor(102, 114, 140);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(7);
+  pdf.text("Nom, qualité et signature", 157, 263.5, { align: "center" });
+  pdf.setDrawColor(155, 168, 187);
+  pdf.line(122, 281, 192, 281);
+}
+
 function addCertificateFooter(pdf: import("jspdf").jsPDF, identifier: string) {
   pdf.setDrawColor(200, 148, 27);
   pdf.setLineWidth(0.5);
-  pdf.line(18, 273, 192, 273);
+  pdf.line(18, 284.5, 192, 284.5);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(8);
   pdf.setTextColor(102, 114, 140);
-  pdf.text(`Référence : IPAIM-${identifier.slice(0, 8).toUpperCase()}`, 18, 280);
+  pdf.text(`Référence : IPAIM-${identifier.slice(0, 8).toUpperCase()}`, 18, 289.5);
   pdf.text(
     `IPAIM UNIVERSITY | ${new Date().getFullYear()} | Tous droits réservés`,
     192,
-    280,
+    289.5,
     { align: "right" },
   );
+  // Traçabilité du document : qui l'a édité, quel jour et à quelle heure.
+  pdf.setFontSize(7.5);
+  pdf.text(pdfSafe(generatedByLine()), 105, 293.8, { align: "center" });
 }
 
 function addStudentDetails(
@@ -142,46 +177,86 @@ function addStudentDetails(
   pdf.setTextColor(20, 40, 92);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
-  pdf.text("INFORMATIONS DE L’ÉTUDIANT", 18, 193);
-  addField(pdf, 18, 198, 84, "Date de naissance", displayDate(person?.dateNaissance));
-  addField(pdf, 108, 198, 84, "Lieu de naissance", person?.lieuNaissance ?? "-");
-  addField(pdf, 18, 220, 84, "Téléphone", person?.telephone ?? "-");
-  addField(pdf, 108, 220, 84, "Quartier", person?.quartier ?? "-");
+  pdf.text("INFORMATIONS DE L’ÉTUDIANT", 18, 189);
+  addField(pdf, 18, 193, 84, "Date de naissance", displayDate(person?.dateNaissance));
+  addField(pdf, 108, 193, 84, "Lieu de naissance", person?.lieuNaissance ?? "-");
+  addField(pdf, 18, 211, 84, "Téléphone", person?.telephone ?? "-");
+  addField(pdf, 108, 211, 84, "Quartier", person?.quartier ?? "-");
   const guardian = [person?.tuteurPrenom, person?.tuteurNom].filter(Boolean).join(" ");
-  addField(pdf, 18, 242, 84, "Tuteur légal", guardian || "-");
-  addField(pdf, 108, 242, 84, "Téléphone du tuteur", person?.tuteurTelephone ?? "-");
+  addField(pdf, 18, 229, 84, "Tuteur légal", guardian || "-");
+  addField(pdf, 108, 229, 84, "Téléphone du tuteur", person?.tuteurTelephone ?? "-");
 }
 
-function deliverCertificate(pdf: import("jspdf").jsPDF, fileName: string, shouldPrint = false) {
+const PRINT_FRAME_ATTRIBUTE = "data-certificate-print";
+
+// Ouvre la boîte d'impression du navigateur sur le PDF. L'impression est
+// déclenchée explicitement une fois le document chargé : le script d'impression
+// automatique intégré au PDF n'est pas exécuté par tous les navigateurs.
+function printPdf(pdf: import("jspdf").jsPDF): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Un seul document d'impression à la fois : on retire celui du clic précédent.
+    document.querySelectorAll(`iframe[${PRINT_FRAME_ATTRIBUTE}]`).forEach((frame) => frame.remove());
+    const objectUrl = URL.createObjectURL(pdf.output("blob"));
+    const printFrame = document.createElement("iframe");
+    printFrame.setAttribute(PRINT_FRAME_ATTRIBUTE, "");
+    printFrame.title = "Certificat à imprimer";
+    printFrame.setAttribute("aria-hidden", "true");
+    printFrame.tabIndex = -1;
+    printFrame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;";
+
+    let settled = false;
+    const cleanup = () => {
+      window.clearTimeout(expiry);
+      window.removeEventListener("focus", cleanupAfterDialog);
+      printFrame.remove();
+      URL.revokeObjectURL(objectUrl);
+    };
+    // La fenêtre reprend le focus à la fermeture de la boîte d'impression.
+    const cleanupAfterDialog = () => window.setTimeout(cleanup, 1000);
+    const expiry = window.setTimeout(cleanup, 300_000);
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error("L’impression n’a pas pu être lancée. Téléchargez le PDF puis imprimez-le."));
+    };
+
+    printFrame.onload = () => {
+      // Le lecteur PDF a besoin d'un court instant après le chargement du cadre.
+      window.setTimeout(() => {
+        if (settled) return;
+        try {
+          const target = printFrame.contentWindow;
+          if (!target) throw new Error("Cadre d’impression indisponible");
+          target.focus();
+          target.print();
+          settled = true;
+          window.setTimeout(() => window.addEventListener("focus", cleanupAfterDialog, { once: true }), 1500);
+          resolve();
+        } catch {
+          // Navigateur qui refuse l'impression d'un cadre : on ouvre le PDF dans un onglet.
+          const opened = window.open(objectUrl, "_blank");
+          if (!opened) return fail();
+          settled = true;
+          window.clearTimeout(expiry);
+          printFrame.remove();
+          window.setTimeout(() => URL.revokeObjectURL(objectUrl), 300_000);
+          resolve();
+        }
+      }, 400);
+    };
+    printFrame.onerror = fail;
+    printFrame.src = objectUrl;
+    document.body.appendChild(printFrame);
+  });
+}
+
+async function deliverCertificate(pdf: import("jspdf").jsPDF, fileName: string, shouldPrint = false) {
   if (!shouldPrint) {
     pdf.save(fileName);
     return;
   }
-  pdf.autoPrint();
-  const objectUrl = URL.createObjectURL(pdf.output("blob"));
-  const printFrame = document.createElement("iframe");
-  printFrame.title = "Certificat à imprimer";
-  printFrame.setAttribute("aria-hidden", "true");
-  printFrame.style.position = "fixed";
-  printFrame.style.inset = "0";
-  printFrame.style.width = "100vw";
-  printFrame.style.height = "100vh";
-  printFrame.style.opacity = "0";
-  printFrame.style.pointerEvents = "none";
-  printFrame.style.zIndex = "-1";
-  printFrame.style.border = "0";
-  let cleaned = false;
-  const cleanup = () => {
-    if (cleaned) return;
-    cleaned = true;
-    window.clearTimeout(fallbackTimeout);
-    printFrame.remove();
-    URL.revokeObjectURL(objectUrl);
-  };
-  const fallbackTimeout = window.setTimeout(cleanup, 300_000);
-  printFrame.onerror = cleanup;
-  printFrame.src = objectUrl;
-  document.body.appendChild(printFrame);
+  await printPdf(pdf);
 }
 
 async function downloadScholarshipCertificate(application: Application, shouldPrint = false) {
@@ -215,8 +290,8 @@ async function downloadScholarshipCertificate(application: Application, shouldPr
   pdf.text("PARCOURS ACADÉMIQUE", 18, 143);
   addField(pdf, 18, 148, 84, "Filière principale", current.filiereSouhaitee);
   addField(pdf, 108, 148, 84, "Filière secondaire", current.filiereSecondaireSouhaitee ?? "-");
-  addField(pdf, 18, 170, 84, "Niveau d’admission", current.niveauDemande.replaceAll("_", " "));
-  addField(pdf, 108, 170, 84, "Établissement d’origine", current.ecoleOrigine ?? "-");
+  addField(pdf, 18, 166, 84, "Niveau d’admission", current.niveauDemande.replaceAll("_", " "));
+  addField(pdf, 108, 166, 84, "Établissement d’origine", current.ecoleOrigine ?? "-");
   addStudentDetails(pdf, current.personne);
   pdf.setTextColor(78, 88, 108);
   pdf.setFont("helvetica", "normal");
@@ -224,11 +299,12 @@ async function downloadScholarshipCertificate(application: Application, shouldPr
   pdf.text(
     "Félicitations pour cette distinction. Votre inscription est désormais à portée de main.",
     105,
-    266,
+    252,
     { align: "center" },
   );
+  addCertificateVisa(pdf);
   addCertificateFooter(pdf, current.id);
-  deliverCertificate(pdf, `certificat-bourse-${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
+  await deliverCertificate(pdf, `certificat-bourse-${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
 }
 
 async function downloadEnrollmentCertificate(item: PaidEnrollment, shouldPrint = false) {
@@ -268,23 +344,24 @@ async function downloadEnrollmentCertificate(item: PaidEnrollment, shouldPrint =
   pdf.text("DÉTAILS DE L’INSCRIPTION", 18, 143);
   addField(pdf, 18, 148, 84, "Filière", current.filiere);
   addField(pdf, 108, 148, 84, "Niveau", current.niveau);
-  addField(pdf, 18, 170, 84, "Année universitaire", current.anneeScolaire);
-  addField(pdf, 108, 170, 84, "Date d’inscription", displayDate(current.dateInscription));
+  addField(pdf, 18, 166, 84, "Année universitaire", current.anneeScolaire);
+  addField(pdf, 108, 166, 84, "Date d’inscription", displayDate(current.dateInscription));
   addStudentDetails(pdf, current.personne);
   pdf.setTextColor(78, 88, 108);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(9);
   pdf.text(
-    `Frais intégralement réglés : ${formatMoney(balance.montantPayeCumule)}. Bienvenue à IPAIM University.`,
+    `Frais intégralement réglés : ${pdfSafe(formatMoney(balance.montantPayeCumule))}. Bienvenue à IPAIM University.`,
     105,
-    266,
+    252,
     { align: "center" },
   );
+  addCertificateVisa(pdf);
   addCertificateFooter(pdf, current.id);
-  deliverCertificate(pdf, `certificat-inscription-${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
+  await deliverCertificate(pdf, `certificat-inscription-${safeFileName(fullName(current.personne))}.pdf`, shouldPrint);
 }
 
-export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
+export function CertificatesPage({ refreshSignal, dateOrder, onDateOrderChange }: { refreshSignal: number; dateOrder: DateOrder; onDateOrderChange: (value: DateOrder) => void }) {
   const [tab, setTab] = useState<"bourses" | "inscriptions">("bourses");
   const [applications, setApplications] = useState<Application[]>([]);
   const [paidEnrollments, setPaidEnrollments] = useState<PaidEnrollment[]>([]);
@@ -293,6 +370,19 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
   const [error, setError] = useState("");
   const [downloadingId, setDownloadingId] = useState("");
   const [generatingAction, setGeneratingAction] = useState<"download" | "print">("download");
+  const [search, setSearch] = useState("");
+  // Recherche sans accents ni majuscules sur le nom, le téléphone, la filière, la bourse, le niveau et l'année.
+  const normalize = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase();
+  const term = normalize(search.trim());
+  const matches = (...parts: Array<string | null | undefined>) => !term || normalize(parts.filter(Boolean).join(" ")).includes(term);
+  const visibleApplications = applications.filter((item) =>
+    matches(fullName(item.personne), item.personne?.telephone, item.filiereSouhaitee, item.filiereSecondaireSouhaitee, item.typeBourse?.nom, item.niveauDemande.replaceAll("_", " "), item.ecoleOrigine),
+  );
+  const visibleEnrollments = paidEnrollments.filter((item) =>
+    matches(fullName(item.enrollment.personne), item.enrollment.personne?.telephone, item.enrollment.filiere, item.enrollment.niveau, item.enrollment.anneeScolaire),
+  );
+  const visibleCount = tab === "bourses" ? visibleApplications.length : visibleEnrollments.length;
+  const totalCount = tab === "bourses" ? applications.length : paidEnrollments.length;
 
   useEffect(() => {
     let active = true;
@@ -301,8 +391,8 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
       setError("");
       try {
         const [accepted, enrollments] = await Promise.all([
-          fetchAllPages<Application>("/demandes-bourse?statut=ACCEPTEE"),
-          fetchAllPages<Enrollment>("/inscriptions"),
+          fetchAllPages<Application>(`/demandes-bourse?statut=ACCEPTEE&ordreDate=${dateOrder}`),
+          fetchAllPages<Enrollment>(`/inscriptions?ordreDate=${dateOrder}`),
         ]);
         const candidates = enrollments.filter((item) => item.statut !== "ABANDONNEE");
         const eligible: PaidEnrollment[] = [];
@@ -334,14 +424,15 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
     };
     void load();
     return () => { active = false; };
-  }, [refreshSignal]);
+  }, [refreshSignal, dateOrder]);
 
-  const generate = async (id: string, mode: "download" | "print", action: (shouldPrint: boolean) => Promise<void>) => {
+  const generate = async (id: string, mode: "download" | "print", action: (shouldPrint: boolean) => Promise<void>, document: Pick<PrintRecord, "typeDocument" | "dossierType" | "libelle">) => {
     setDownloadingId(id);
     setGeneratingAction(mode);
     setError("");
     try {
       await action(mode === "print");
+      logPrint({ ...document, dossierId: id, mode: mode === "print" ? "IMPRESSION" : "PDF" });
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Le certificat n’a pas pu être généré.");
     } finally {
@@ -376,11 +467,18 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
             <p className="eyebrow">IPAIM University</p>
             <h3>{tab === "bourses" ? "Attributions confirmées" : "Paiement intégral confirmé"}</h3>
           </div>
-          <span className="certificate-count">{loading ? "Chargement…" : tab === "bourses" ? applications.length : paidEnrollments.length}</span>
+          <div className="toolbar">
+            <label className="report-search certificate-search">
+              <Search aria-hidden="true" focusable="false" />
+              <input type="search" value={search} placeholder="Nom, téléphone, filière, bourse, année…" aria-label="Rechercher un certificat" onChange={(event) => setSearch(event.target.value)} />
+            </label>
+            <DateOrderControl value={dateOrder} onChange={onDateOrderChange} />
+            <span className="certificate-count">{loading ? "Chargement…" : term ? `${visibleCount} sur ${totalCount}` : totalCount}</span>
+          </div>
         </div>
         {loading ? <p className="empty-state">Vérification des dossiers et des paiements…</p> : tab === "bourses" ? (
           <div className="certificate-list">
-            {applications.map((item) => (
+            {visibleApplications.map((item) => (
               <article className="certificate-row" key={item.id}>
                 <div className="certificate-person">
                   <strong>{fullName(item.personne)}</strong>
@@ -391,20 +489,20 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
                   <span>Décision · {formatDate(item.dateDecision ?? undefined)}</span>
                 </div>
                 <div className="certificate-actions">
-                  <button className="outline-button small certificate-download" disabled={downloadingId === item.id} onClick={() => void generate(item.id, "download", (printWindow) => downloadScholarshipCertificate(item, printWindow))}>
+                  <button className="outline-button small certificate-download" disabled={downloadingId === item.id} onClick={() => void generate(item.id, "download", (printWindow) => downloadScholarshipCertificate(item, printWindow), { typeDocument: "CERTIFICAT_BOURSE", dossierType: "demande-bourse", libelle: `${fullName(item.personne)} · ${item.filiereSouhaitee}` })}>
                     {downloadingId === item.id && generatingAction === "download" ? "Génération…" : "↓ PDF"}
                   </button>
-                  <button className="outline-button small certificate-print" disabled={downloadingId === item.id} onClick={() => void generate(item.id, "print", (printWindow) => downloadScholarshipCertificate(item, printWindow))}>
+                  <button className="outline-button small certificate-print" disabled={downloadingId === item.id} onClick={() => void generate(item.id, "print", (printWindow) => downloadScholarshipCertificate(item, printWindow), { typeDocument: "CERTIFICAT_BOURSE", dossierType: "demande-bourse", libelle: `${fullName(item.personne)} · ${item.filiereSouhaitee}` })}>
                     {downloadingId === item.id && generatingAction === "print" ? "Préparation…" : "Imprimer"}
                   </button>
                 </div>
               </article>
             ))}
-            {!applications.length && <p className="empty-state">Aucune demande avec bourse attribuée.</p>}
+            {!visibleApplications.length && <p className="empty-state">{term ? "Aucun certificat de bourse ne correspond à cette recherche." : "Aucune demande avec bourse attribuée."}</p>}
           </div>
         ) : (
           <div className="certificate-list">
-            {paidEnrollments.map((item) => (
+            {visibleEnrollments.map((item) => (
               <article className="certificate-row" key={item.enrollment.id}>
                 <div className="certificate-person">
                   <strong>{fullName(item.enrollment.personne)}</strong>
@@ -415,16 +513,16 @@ export function CertificatesPage({ refreshSignal }: { refreshSignal: number }) {
                   <span>Réglé · {formatMoney(item.balance.montantPayeCumule)}</span>
                 </div>
                 <div className="certificate-actions">
-                  <button className="outline-button small certificate-download" disabled={downloadingId === item.enrollment.id} onClick={() => void generate(item.enrollment.id, "download", (printWindow) => downloadEnrollmentCertificate(item, printWindow))}>
+                  <button className="outline-button small certificate-download" disabled={downloadingId === item.enrollment.id} onClick={() => void generate(item.enrollment.id, "download", (printWindow) => downloadEnrollmentCertificate(item, printWindow), { typeDocument: "CERTIFICAT_INSCRIPTION", dossierType: "inscription", libelle: `${fullName(item.enrollment.personne)} · ${item.enrollment.filiere}` })}>
                     {downloadingId === item.enrollment.id && generatingAction === "download" ? "Génération…" : "↓ PDF"}
                   </button>
-                  <button className="outline-button small certificate-print" disabled={downloadingId === item.enrollment.id} onClick={() => void generate(item.enrollment.id, "print", (printWindow) => downloadEnrollmentCertificate(item, printWindow))}>
+                  <button className="outline-button small certificate-print" disabled={downloadingId === item.enrollment.id} onClick={() => void generate(item.enrollment.id, "print", (printWindow) => downloadEnrollmentCertificate(item, printWindow), { typeDocument: "CERTIFICAT_INSCRIPTION", dossierType: "inscription", libelle: `${fullName(item.enrollment.personne)} · ${item.enrollment.filiere}` })}>
                     {downloadingId === item.enrollment.id && generatingAction === "print" ? "Préparation…" : "Imprimer"}
                   </button>
                 </div>
               </article>
             ))}
-            {!paidEnrollments.length && <p className="empty-state">Aucune inscription entièrement réglée.</p>}
+            {!visibleEnrollments.length && <p className="empty-state">{term ? "Aucun certificat d'inscription ne correspond à cette recherche." : "Aucune inscription entièrement réglée."}</p>}
           </div>
         )}
       </section>

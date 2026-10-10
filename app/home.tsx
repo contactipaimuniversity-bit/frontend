@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
+import { Clock } from "lucide-react";
 import { DashboardHome } from "@/components/dashboard-home";
 import { DailySummaryPage } from "@/components/daily-summary-page";
 import { OfflineSync, OfflineSyncPage } from "@/components/offline-sync";
@@ -8,11 +10,24 @@ import { CertificatesPage } from "@/components/certificates-page";
 import { DashboardLayout, AppHeader } from "@/components/dashboard-layout";
 import { ProfilePage, SettingsPage } from "@/components/account-pages";
 import { LoginScreen } from "@/components/login-screen";
-import { DossierDetailsPage, DossierReference, OperationsPage } from "@/components/operations-page";
+import { DossierDetailsPage, OperationsPage } from "@/components/operations-page";
 import { DeletionInfoPage } from "@/components/deletion-info-page";
 import { TrashPage } from "@/components/trash-page";
+import { AuditPage } from "@/components/audit-page";
+import { PrintsPage } from "@/components/prints-page";
+import { AcademicStructurePage } from "@/components/academic-structure-page";
+import { AcademicClassesPage } from "@/components/academic-classes-page";
+import { AcademicGradesPage, AcademicTeachingPage } from "@/components/academic-teaching-page";
+import { AcademicResultsPage, AcademicStatsPage } from "@/components/academic-results-page";
+import { HrPage } from "@/components/hr-page";
+import { PayrollPage } from "@/components/payroll-page";
+import { AccountingPage, BackupsPage } from "@/components/accounting-page";
+import { flushPrintLog } from "@/lib/print-log";
+import { usePageTimeTracker } from "@/lib/page-tracker";
+import { useClickTracker } from "@/lib/click-tracker";
 import { PersonnelPage } from "@/components/personnel-page";
 import { AboutSgiPage } from "@/components/about-sgi-page";
+import { BudgetPage, ExpenseApprovalPage, ExpenseExecutionPage, ExpensesPage, FinanceSettingsPage } from "@/components/expenses-pages";
 import {
   PeoplePage,
   ReferencesPage,
@@ -21,10 +36,13 @@ import {
 import { apiFetch, notifySessionChanged } from "@/lib/api";
 import { applyColorMode, applyColorPreset, readColorMode, readColorPreset } from "@/lib/theme";
 import { OfflineAccount } from "@/lib/offline";
-import { hasAccess, VIEW_ACCESS } from "@/lib/access";
+import { canAccessView, hasAccess } from "@/lib/access";
+import { navigateTo, parsePath, pathForDossier, pathForView } from "@/lib/routes";
+import { FeedbackHost } from "@/components/feedback";
 import {
   Application,
   ApplicationPage,
+  DateOrder,
   Enrollment,
   EnrollmentPage,
   LatePayment,
@@ -73,11 +91,15 @@ export default function Home() {
   const storedOfflineSession = useStoredValue("ipaim-offline-session");
   const [temporaryToken, setTemporaryToken] = useState<string | null>(null);
   const [temporaryUser, setTemporaryUser] = useState<User | null>(null);
-  const [view, setView] = useState<ViewName>("Vue d'ensemble");
+  const pathname = usePathname();
+  const route = parsePath(pathname);
+  const view = route.view;
+  const setView = (next: ViewName) => navigateTo(pathForView(next));
+  const dossierReference = route.dossier;
+  const dossierReturnView = route.dossier?.type === "inscription" ? "Inscriptions" as const : "Demandes de bourse" as const;
   const [deletionInfoReturnView, setDeletionInfoReturnView] = useState<"Demandes de bourse" | "Inscriptions">("Demandes de bourse");
-  const [dossierReference, setDossierReference] = useState<DossierReference | null>(null);
-  const [dossierReturnView, setDossierReturnView] = useState<"Demandes de bourse" | "Inscriptions">("Demandes de bourse");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [dateOrder, setDateOrder] = useState<DateOrder>("desc");
   const [summary, setSummary] = useState<Summary | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [applicationMeta, setApplicationMeta] = useState<ApplicationPage["meta"]>({
@@ -88,6 +110,7 @@ export default function Home() {
   });
   const [applicationSearch, setApplicationSearch] = useState("");
   const [applicationStatus, setApplicationStatus] = useState("");
+  const [applicationTypeBourseId, setApplicationTypeBourseId] = useState("");
   const [applicationPage, setApplicationPage] = useState(1);
   const [loadedApplicationRequest, setLoadedApplicationRequest] = useState("");
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -133,6 +156,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [dismissedNoticeKey, setDismissedNoticeKey] = useState<string | null>(null);
   const [offlineAccessWarning, setOfflineAccessWarning] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const token = temporaryToken ?? storedToken;
   const user =
     temporaryUser ?? (storedUser ? (JSON.parse(storedUser) as User) : null) ??
@@ -143,13 +167,15 @@ export default function Home() {
   const canViewProspects = hasAccess(user, "prospects");
   const canViewPeople = hasAccess(user, "people");
   const canViewRecruiting = hasAccess(user, "recruiting");
-  const canViewReports = hasAccess(user, "reports");
-  const canViewReferences = hasAccess(user, "references");
+  // Mêmes règles que le backend (auth/access-control.ts) : les types de bourse
+  // servent aux décisions et aux inscriptions, les retards à la page Paiements.
+  const canViewScholarshipTypes = hasAccess(user, "references") || canViewScholarships || canViewEnrollments || hasAccess(user, "payments");
+  const canViewLatePayments = hasAccess(user, "reports") || hasAccess(user, "payments");
   const offlineAccount = storedOfflineSession
     ? JSON.parse(storedOfflineSession) as OfflineAccount
     : null;
-  const applicationEndpoint = `/demandes-bourse?page=${applicationPage}&limit=20${applicationSearch ? `&q=${encodeURIComponent(applicationSearch)}` : ""}${applicationStatus ? `&statut=${encodeURIComponent(applicationStatus)}` : ""}`;
-  const enrollmentEndpoint = `/inscriptions?page=${enrollmentPage}&limit=20${enrollmentSearch ? `&q=${encodeURIComponent(enrollmentSearch)}` : ""}${enrollmentTypeBourseId ? `&typeBourseId=${encodeURIComponent(enrollmentTypeBourseId)}` : ""}${enrollmentStatus ? `&statut=${encodeURIComponent(enrollmentStatus)}` : ""}`;
+  const applicationEndpoint = `/demandes-bourse?page=${applicationPage}&limit=20&ordreDate=${dateOrder}${applicationSearch ? `&q=${encodeURIComponent(applicationSearch)}` : ""}${applicationStatus ? `&statut=${encodeURIComponent(applicationStatus)}` : ""}${applicationTypeBourseId ? `&typeBourseId=${encodeURIComponent(applicationTypeBourseId)}` : ""}`;
+  const enrollmentEndpoint = `/inscriptions?page=${enrollmentPage}&limit=20&ordreDate=${dateOrder}${enrollmentSearch ? `&q=${encodeURIComponent(enrollmentSearch)}` : ""}${enrollmentTypeBourseId ? `&typeBourseId=${encodeURIComponent(enrollmentTypeBourseId)}` : ""}${enrollmentStatus ? `&statut=${encodeURIComponent(enrollmentStatus)}` : ""}`;
   const applicationRequestKey = `${applicationEndpoint}|refresh:${refreshKey}`;
   const enrollmentRequestKey = `${enrollmentEndpoint}|refresh:${refreshKey}`;
   const applicationLoading = Boolean((token || storedOfflineSession) && canViewScholarships && loadedApplicationRequest !== applicationRequestKey);
@@ -163,7 +189,14 @@ export default function Home() {
     },
     () => false,
   );
-  const activeView = VIEW_ACCESS[view] && !hasAccess(user, VIEW_ACCESS[view]!) ? "Profil" : view;
+  const adminOnlyView = view === "Audit" || view === "Corbeille" || view === "Impressions" || view === "Sauvegardes" || view === "Paramètres";
+  const activeView = !canAccessView(user, view) || (adminOnlyView && user?.role !== "admin") ? "Profil" : view;
+  usePageTimeTracker(pathname ?? "/", activeView, token);
+  // Impressions faites hors ligne ou session expirée : on les déclare dès la connexion.
+  useEffect(() => {
+    if (token) void flushPrintLog();
+  }, [token]);
+  useClickTracker(pathname ?? "/", activeView, token);
 
   useEffect(() => {
     const syncColorPreset = () => applyColorPreset(readColorPreset(), false);
@@ -202,22 +235,22 @@ export default function Home() {
         ] = await Promise.all([
           canViewDashboard ? apiFetch<Summary>("/rapports/synthese") : Promise.resolve(null),
           canViewProspects ? apiFetch<ProspectPage>(
-            `/prospects?page=${prospectPage}&limit=20${prospectSearch ? `&q=${encodeURIComponent(prospectSearch)}` : ""}`,
+            `/prospects?page=${prospectPage}&limit=20&ordreDate=${dateOrder}${prospectSearch ? `&q=${encodeURIComponent(prospectSearch)}` : ""}`,
           ) : Promise.resolve(null),
           canViewPeople ? apiFetch<PersonPage>(
-            `/personnes?page=${peoplePage}&limit=20${
+            `/personnes?page=${peoplePage}&limit=20&ordreDate=${dateOrder}${
               peopleSearch
                 ? `&q=${encodeURIComponent(peopleSearch)}`
                 : ""
             }`,
           ) : Promise.resolve(null),
           canViewRecruiting ? apiFetch<PersonnelApplicationPage>(
-            `/candidatures-personnel?page=${personnelPage}&limit=20${personnelSearch ? `&q=${encodeURIComponent(personnelSearch)}` : ""}`,
+            `/candidatures-personnel?page=${personnelPage}&limit=20&ordreDate=${dateOrder}${personnelSearch ? `&q=${encodeURIComponent(personnelSearch)}` : ""}`,
           ) : Promise.resolve(null),
-          canViewReports ? apiFetch<{ echeances: LatePayment[] }>(
+          canViewLatePayments ? apiFetch<{ echeances: LatePayment[] }>(
             "/rapports/paiements-en-retard",
           ) : Promise.resolve(null),
-          canViewReferences ? apiFetch<ScholarshipType[]>("/types-bourse") : Promise.resolve(null),
+          canViewScholarshipTypes ? apiFetch<ScholarshipType[]>("/types-bourse") : Promise.resolve(null),
         ]);
         if (summaryData) setSummary(summaryData);
         setProspects(prospectData?.data ?? []);
@@ -246,12 +279,13 @@ export default function Home() {
     peopleSearch,
     personnelPage,
     personnelSearch,
+    dateOrder,
     canViewDashboard,
     canViewPeople,
     canViewProspects,
     canViewRecruiting,
-    canViewReferences,
-    canViewReports,
+    canViewScholarshipTypes,
+    canViewLatePayments,
     token,
     storedOfflineSession,
     refreshKey,
@@ -306,6 +340,29 @@ export default function Home() {
   }, [canViewEnrollments, enrollmentEndpoint, enrollmentRequestKey, storedOfflineSession, token]);
 
   useEffect(() => {
+    // Un 401 signifie que le jeton n'est plus accepté. On l'explique dans une
+    // fenêtre avant de renvoyer vers la connexion, plutôt que de faire
+    // disparaître l'écran sans un mot.
+    const announceExpiredSession = () => {
+      if (window.sessionStorage.getItem("ipaim-token")) setSessionExpired(true);
+    };
+    window.addEventListener("ipaim-session-expired", announceExpiredSession);
+    return () => window.removeEventListener("ipaim-session-expired", announceExpiredSession);
+  }, []);
+
+  // Ferme la session expirée (les enregistrements hors ligne en attente restent
+  // sur l'appareil) ; l'adresse de la page est conservée pour y revenir.
+  const reconnect = () => {
+    window.sessionStorage.removeItem("ipaim-token");
+    window.sessionStorage.removeItem("ipaim-user");
+    setTemporaryToken(null);
+    setTemporaryUser(null);
+    setSessionExpired(false);
+    setError("");
+    notifySessionChanged();
+  };
+
+  useEffect(() => {
     if (!enteringApp) return;
     const timeoutId = window.setTimeout(() => setEnteringApp(false), 6000);
     return () => window.clearTimeout(timeoutId);
@@ -354,7 +411,7 @@ export default function Home() {
           </div>
           <p className="eyebrow">IPAIM</p>
           <h1>Préparation de votre espace</h1>
-          <p>Pour une meilleure expérience, utilisez votre ordinateur.</p>
+          <p>Chargement de vos dossiers et de vos données hors ligne.</p>
         </div>
       </main>
     );
@@ -369,7 +426,7 @@ export default function Home() {
       onProfile={() => setView("Profil")}
       onSettings={() => setView("Paramètres")}
     >
-      <AppHeader title={activeView} onRefresh={refresh} />
+      <AppHeader title={activeView} user={user} onRefresh={refresh} />
       <OfflineSync onOpenPage={() => setView("Synchronisation")} />
       {offlineAccessWarning && (
         <div className="api-error">
@@ -377,7 +434,7 @@ export default function Home() {
           <button onClick={() => setOfflineAccessWarning(false)}>Fermer</button>
         </div>
       )}
-      {error && (
+      {error && !sessionExpired && (
         <div className="api-error">
           <strong>Erreur de chargement.</strong> {error}
           <button onClick={refresh}>Réessayer</button>
@@ -393,6 +450,7 @@ export default function Home() {
           onOpen={setView}
           onOpenDaily={() => setView("Résumé de la journée")}
           scholarshipTypes={scholarshipTypes}
+          refreshSignal={refreshKey}
           onOpenScholarship={(typeBourseId) => {
             setEnrollmentTypeBourseId(typeBourseId);
             setEnrollmentSearch("");
@@ -412,6 +470,8 @@ export default function Home() {
         <PeoplePage
           people={people}
           peopleMeta={peopleMeta}
+          dateOrder={dateOrder}
+          onDateOrderChange={setDateOrder}
           onPeopleSearch={(value) => {
             setPeopleSearch(value);
             setPeoplePage(1);
@@ -424,6 +484,8 @@ export default function Home() {
           data={personnelApplications}
           meta={personnelMeta}
           search={personnelSearch}
+          dateOrder={dateOrder}
+          onDateOrderChange={setDateOrder}
           onSearch={(value) => {
             setPersonnelSearch(value);
             setPersonnelPage(1);
@@ -434,6 +496,30 @@ export default function Home() {
         />
       ) : activeView === "Référentiels" ? (
         <ReferencesPage onRefresh={refresh} />
+      ) : activeView === "Audit" ? (
+        <AuditPage refreshSignal={refreshKey} focusUserId={route.auditUserId} />
+      ) : activeView === "Structure académique" ? (
+        <AcademicStructurePage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Classes et étudiants" ? (
+        <AcademicClassesPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Enseignement" ? (
+        <AcademicTeachingPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Notes" ? (
+        <AcademicGradesPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Délibérations" ? (
+        <AcademicResultsPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Statistiques académiques" ? (
+        <AcademicStatsPage refreshSignal={refreshKey} />
+      ) : activeView === "Personnel" ? (
+        <HrPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Paie" ? (
+        <PayrollPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Comptabilité" ? (
+        <AccountingPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Sauvegardes" ? (
+        <BackupsPage refreshSignal={refreshKey} />
+      ) : activeView === "Impressions" ? (
+        <PrintsPage refreshSignal={refreshKey} />
       ) : activeView === "Corbeille" ? (
         <TrashPage />
       ) : activeView === "Synchronisation" ? (
@@ -447,10 +533,20 @@ export default function Home() {
             notifySessionChanged();
           }}
         />
+      ) : activeView === "Dépenses" ? (
+        <ExpensesPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Validation des dépenses" ? (
+        <ExpenseApprovalPage refreshSignal={refreshKey} />
+      ) : activeView === "Exécution des dépenses" ? (
+        <ExpenseExecutionPage refreshSignal={refreshKey} />
+      ) : activeView === "Budget" ? (
+        <BudgetPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Paramètres finances" ? (
+        <FinanceSettingsPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Rapports" ? (
         <ReportsPage />
       ) : activeView === "Certificats" ? (
-        <CertificatesPage refreshSignal={refreshKey} />
+        <CertificatesPage refreshSignal={refreshKey} dateOrder={dateOrder} onDateOrderChange={setDateOrder} />
       ) : activeView === "Suppression des dossiers" ? (
         <DeletionInfoPage onBack={() => setView(deletionInfoReturnView)} />
       ) : activeView === "Fiche dossier" && dossierReference ? (
@@ -468,6 +564,8 @@ export default function Home() {
       ) : (
         <OperationsPage
           view={activeView}
+          dateOrder={dateOrder}
+          onDateOrderChange={setDateOrder}
           applications={applications}
           enrollments={enrollments}
           prospects={prospects}
@@ -487,6 +585,8 @@ export default function Home() {
           enrollmentStatus={enrollmentStatus || "ALL"}
           enrollmentsLoading={enrollmentLoading}
           onEnrollmentStatusChange={(value) => { setEnrollmentStatus(value === "ALL" ? "" : value); setEnrollmentPage(1); }}
+          applicationTypeBourseId={applicationTypeBourseId}
+          onApplicationTypeBourseChange={(typeBourseId) => { setApplicationTypeBourseId(typeBourseId); setApplicationPage(1); }}
           enrollmentTypeBourseId={enrollmentTypeBourseId}
           onEnrollmentTypeBourseChange={(typeBourseId) => {
             setEnrollmentTypeBourseId(typeBourseId);
@@ -508,11 +608,7 @@ export default function Home() {
             setDeletionInfoReturnView(returnView);
             setView("Suppression des dossiers");
           }}
-          onOpenDossier={(reference) => {
-            setDossierReference(reference);
-            setDossierReturnView(view === "Inscriptions" ? "Inscriptions" : "Demandes de bourse");
-            setView("Fiche dossier");
-          }}
+          onOpenDossier={(reference) => navigateTo(pathForDossier(reference))}
         />
       )}
       {stableNoticeOpen && (
@@ -525,6 +621,20 @@ export default function Home() {
             <div className="stable-notice-actions">
               <button className="text-button" onClick={() => { dismissStableNotice(); setView("À propos du SGI"); }}>En savoir plus <span>→</span></button>
               <button className="primary-button compact" onClick={dismissStableNotice}>Continuer</button>
+            </div>
+          </section>
+        </div>
+      )}
+      <FeedbackHost />
+      {sessionExpired && (
+        <div className="modal-backdrop session-expired-backdrop">
+          <section className="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="session-expired-title" aria-describedby="session-expired-text">
+            <div className="confirm-icon" aria-hidden="true"><Clock /></div>
+            <h3 id="session-expired-title">Votre session a expiré</h3>
+            <p id="session-expired-text">Pour protéger les données, la connexion se ferme automatiquement après un certain temps. Reconnectez-vous pour reprendre là où vous en étiez.</p>
+            <p className="panel-subtitle">Une saisie en cours non enregistrée devra être refaite.</p>
+            <div className="form-actions">
+              <button autoFocus className="primary-button compact" onClick={reconnect}>Se reconnecter</button>
             </div>
           </section>
         </div>

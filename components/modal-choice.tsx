@@ -96,6 +96,31 @@ export function ModalChoice({
     setQuery("");
   };
 
+  // Une liste courte et connue d'avance se choisit directement dans le
+  // formulaire : la modale de recherche est réservée aux longues listes.
+  if (!loadChoices && choices && choices.length > 0 && choices.length <= 4) {
+    return (
+      <div className="segmented">
+        <span className="segmented-label">{label}</span>
+        <div className="segmented-options" role="radiogroup" aria-label={label} aria-required={required}>
+          {choices.map((item) => (
+            <button
+              type="button"
+              role="radio"
+              aria-checked={item.value === value}
+              className="segmented-option"
+              key={item.value}
+              onClick={() => onChange(item.value)}
+            >
+              {item.label}
+              {item.detail && <small>{item.detail}</small>}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <label>
@@ -110,14 +135,14 @@ export function ModalChoice({
         </button>
       </label>
       {open && (
-        <div className="modal-backdrop choice-backdrop" onMouseDown={close}>
-          <section className="modal choice-modal" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="modal-backdrop choice-backdrop" onMouseDown={close} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
+          <section className="modal choice-modal" role="dialog" aria-modal="true" aria-label={label} onMouseDown={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <div>
                 <p className="eyebrow">Sélection</p>
                 <h3>{label}</h3>
               </div>
-              <button className="modal-close" onClick={close}>
+              <button type="button" className="modal-close" aria-label="Fermer" onClick={close}>
                 ×
               </button>
             </div>

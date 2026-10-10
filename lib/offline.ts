@@ -16,6 +16,7 @@ type IdMapping = { temporaryId: string; realId: string };
 export type OfflineAccount = { userId: string; email: string; user: import("./types").User };
 type StoredOfflineAccount = OfflineAccount & { salt: string; verifier: string; iterations: number };
 
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
 const databaseName = "ipaim-offline-v1";
 let databasePromise: Promise<IDBDatabase> | undefined;
 
@@ -104,6 +105,32 @@ async function listCachedResponses() {
   return store<CachedResponse[]>("responses", "readonly", (objectStore) => objectStore.getAll());
 }
 
+export async function readCachedProspectRelances(
+  prospectId: string,
+  token: string | null,
+) {
+  const keyPrefix = `${scope(token)}:`;
+  const cachedResponses = (await listCachedResponses())
+    .filter((entry) => entry.key.startsWith(keyPrefix))
+    .sort((left, right) => right.savedAt - left.savedAt);
+
+  for (const entry of cachedResponses) {
+    const cachedUrl = new URL(
+      entry.key.slice(keyPrefix.length),
+      window.location.origin,
+    );
+    if (cachedUrl.pathname !== "/prospects") continue;
+    const cachedRows = asRecord(entry.value)?.data;
+    if (!Array.isArray(cachedRows)) continue;
+    const prospect = cachedRows
+      .map(asRecord)
+      .find((item) => item?.id === prospectId);
+    if (Array.isArray(prospect?.relances)) return prospect.relances;
+  }
+
+  return undefined;
+}
+
 export async function listOfflineOperations(token?: string | null) {
   const operations = await store<OfflineOperation[]>("queue", "readonly", (objectStore) => objectStore.getAll());
   return (token === undefined ? operations : operations.filter((operation) => operation.userId === scope(token)))
@@ -113,7 +140,10 @@ export async function listOfflineOperations(token?: string | null) {
 export async function enqueueOperation(path: string, method: "POST" | "PATCH", body: unknown, key: string, token: string | null) {
   const queue = await listOfflineOperations(token);
   const serialized = JSON.stringify(body);
-  const duplicate = queue.find((operation) => operation.method === method && operation.path === path && JSON.stringify(operation.body) === serialized);
+  const isProspectRelance = /^\/prospects\/[^/]+\/relances$/.test(path);
+  const duplicate = isProspectRelance
+    ? undefined
+    : queue.find((operation) => operation.method === method && operation.path === path && JSON.stringify(operation.body) === serialized);
   if (duplicate) return duplicate;
 
   const operation: OfflineOperation = {
@@ -163,18 +193,33 @@ function replaceIds(value: unknown, mappings: Map<string, string>): unknown {
 export async function syncOfflineQueue(token: string) {
   if (!navigator.onLine) return;
   const queue = await listOfflineOperations(token);
+  // Identifiants locaux des enregistrements refusés : ce qui en dépend ne peut pas être envoyé.
+  const rejectedLocalIds: string[] = [];
   for (const operation of queue) {
+    let rejected = false;
     try {
       const mappings = new Map((await idMappings()).map((mapping) => [mapping.temporaryId, mapping.realId]));
       const resolvedPath = [...mappings].reduce((path, [temporaryId, realId]) => path.replaceAll(temporaryId, realId), operation.path);
-        if (!navigator.onLine) break;
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000"}${resolvedPath}`, {
+      if (!navigator.onLine) break;
+      const serializedOperation = `${operation.path} ${JSON.stringify(operation.body)}`;
+      if (rejectedLocalIds.some((localId) => serializedOperation.includes(localId))) {
+        rejected = true;
+        throw new Error("Cet enregistrement dépend d’un autre enregistrement à vérifier.");
+      }
+      const response = await fetch(`${API_URL}${resolvedPath}`, {
         method: operation.method,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "Idempotency-Key": operation.key },
         body: JSON.stringify(replaceIds(operation.body, mappings)),
       });
       const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(typeof payload?.message === "string" ? payload.message : "Envoi impossible.");
+      if (!response.ok) {
+        // Un refus définitif du serveur ne doit pas bloquer le reste de la file ;
+        // une session expirée, une surcharge ou une panne serveur, si.
+        rejected = response.status >= 400 && response.status < 500 && ![401, 408, 429].includes(response.status);
+        if (response.status === 401) window.dispatchEvent(new Event("ipaim-session-expired"));
+        const message = Array.isArray(payload?.message) ? payload.message.join(", ") : payload?.message;
+        throw new Error(typeof message === "string" && message ? message : "Envoi impossible.");
+      }
       if (payload && typeof payload.id === "string")
         await store("mappings", "readwrite", (objectStore) => objectStore.put({ temporaryId: operation.temporaryId, realId: payload.id } satisfies IdMapping));
       const body = asRecord(operation.body);
@@ -210,7 +255,9 @@ export async function syncOfflineQueue(token: string) {
         ...operation,
         error: failure instanceof Error ? failure.message : "Synchronisation impossible.",
       });
-      break;
+      if (!rejected) break;
+      rejectedLocalIds.push(operation.temporaryId);
+      if (operation.temporaryRelatedId) rejectedLocalIds.push(operation.temporaryRelatedId);
     }
   }
   window.dispatchEvent(new Event("ipaim-offline-change"));
@@ -240,9 +287,62 @@ function localPerson(operation: OfflineOperation, body: Record<string, unknown>,
   };
 }
 
+function applyPendingProspectRelances(
+  prospects: unknown[],
+  operations: OfflineOperation[],
+) {
+  const pendingByProspect = new Map<string, Array<Record<string, unknown>>>();
+  for (const operation of operations) {
+    if (operation.method !== "POST") continue;
+    const match = operation.path.match(/^\/prospects\/([^/]+)\/relances$/);
+    const body = asRecord(operation.body);
+    if (!match || !body) continue;
+    const relances = pendingByProspect.get(match[1]) ?? [];
+    relances.push({
+      id: operation.temporaryId,
+      commentaire: body.commentaire,
+      intention: body.intention ?? null,
+      statutRelance: body.statutRelance,
+      date: new Date(operation.createdAt).toISOString(),
+      dateProchaineRelance: body.dateProchaineRelance ?? null,
+      utilisateurNom: "En attente de synchronisation",
+      _offline: true,
+    });
+    pendingByProspect.set(match[1], relances);
+  }
+
+  return prospects.map((prospect) => {
+    const item = asRecord(prospect);
+    const pendingRelances = item?.id
+      ? pendingByProspect.get(String(item.id))
+      : undefined;
+    if (!item || !pendingRelances?.length) return prospect;
+    const latest = pendingRelances[pendingRelances.length - 1];
+    return {
+      ...item,
+      statutRelance: latest.statutRelance ?? item.statutRelance,
+      ...(Object.prototype.hasOwnProperty.call(latest, "intention")
+        ? { intention: latest.intention }
+        : {}),
+      relances: [...pendingRelances.slice().reverse(), ...(Array.isArray(item.relances) ? item.relances : [])],
+      _offline: true,
+    };
+  });
+}
+
 export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T> {
   const parsedUrl = new URL(path, window.location.origin);
   const resource = parsedUrl.pathname;
+  const prospectRelanceMatch = resource.match(/^\/prospects\/([^/]+)\/relances$/);
+  if (prospectRelanceMatch && Array.isArray(value)) {
+    const token = window.sessionStorage.getItem("ipaim-token");
+    const operations = await listOfflineOperations(token);
+    const prospectWithPendingRelances = applyPendingProspectRelances(
+      [{ id: prospectRelanceMatch[1], relances: value }],
+      operations,
+    )[0];
+    return (asRecord(prospectWithPendingRelances)?.relances ?? value) as T;
+  }
   if (resource === "/paiements/non-affectes" && Array.isArray(value)) {
     const token = window.sessionStorage.getItem("ipaim-token");
     const operations = await listOfflineOperations(token);
@@ -265,7 +365,7 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
       if (assignedPaymentIds.has(operation.temporaryId)) return [];
       const body = asRecord(operation.body);
       if (!body) return [];
-      if (body.elementDossierId) return [];
+      if (body.elementDossierId || body.echeanceId) return [];
       const dossierId = body.demandeBourseId ?? body.inscriptionId;
       const dossier = cachedRows.find((item) => item.id === dossierId);
       const dossierOperation = operations.find((candidate) =>
@@ -345,7 +445,7 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
               : context === "INSCRIPTION_DIRECTE" || context === "TOUS";
             const levelMatches = firstYear
               ? applicableLevel === "PREMIERE_ANNEE" || applicableLevel === "TOUS"
-              : applicableLevel === "DEUXIEME_ANNEE_PLUS" || applicableLevel === "TOUS";
+              : applicableLevel === "DEUXIEME_ANNEE" || applicableLevel === "DEUXIEME_ANNEE_PLUS" || applicableLevel === "TOUS";
             return contextMatches && levelMatches;
           })
           .map((item) => ({
@@ -384,7 +484,16 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
       return status ? { ...item, statut: status } : element;
     }) as T;
   }
-  if (parsedUrl.searchParams.get("page") && parsedUrl.searchParams.get("page") !== "1") return value;
+  if (parsedUrl.searchParams.get("page") && parsedUrl.searchParams.get("page") !== "1") {
+    const page = asRecord(value);
+    if (resource !== "/prospects" || !Array.isArray(page?.data)) return value;
+    const token = window.sessionStorage.getItem("ipaim-token");
+    const operations = await listOfflineOperations(token);
+    return {
+      ...page,
+      data: applyPendingProspectRelances(page.data, operations),
+    } as T;
+  }
   const supported: Record<string, string> = {
     "/personnes": "/personnes",
     "/prospects": "/prospects",
@@ -461,6 +570,7 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
         statutRelance: body.statutRelance ?? "A_RELANCER",
         filiereSouhaitee: body.filiereSouhaitee,
         intention: body.intention,
+        sourceConnaissance: body.sourceConnaissance,
         personne: localPerson(operation, body, operation.temporaryRelatedId ?? operation.temporaryId),
         _offline: true,
       };
@@ -489,7 +599,7 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
         const context = catalogItem.contexte;
         const applicableLevel = catalogItem.niveauApplicable;
         return (isScholarship ? context === "BOURSE" || context === "TOUS" : context === "INSCRIPTION_DIRECTE" || context === "TOUS") &&
-          (firstYear ? applicableLevel === "PREMIERE_ANNEE" || applicableLevel === "TOUS" : applicableLevel === "DEUXIEME_ANNEE_PLUS" || applicableLevel === "TOUS");
+          (firstYear ? applicableLevel === "PREMIERE_ANNEE" || applicableLevel === "TOUS" : applicableLevel === "DEUXIEME_ANNEE" || applicableLevel === "DEUXIEME_ANNEE_PLUS" || applicableLevel === "TOUS");
       });
       const statusOperations = operations.filter((candidate) => candidate.method === "PATCH" && candidate.path.startsWith(`/${createPath.slice(1)}/${operation.temporaryId}/elements/`));
       const preparation = asRecord(body.preparation);
@@ -551,6 +661,9 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
     merged = merged.map((item) => asRecord(item)?.id === id
       ? { ...(asRecord(item) ?? {}), ...update, _offline: true }
       : item);
+  }
+  if (resource === "/prospects") {
+    merged = applyPendingProspectRelances(merged, operations).map(asRecord) as Record<string, unknown>[];
   }
   return {
     ...page,
