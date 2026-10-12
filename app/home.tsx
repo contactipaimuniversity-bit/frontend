@@ -16,6 +16,7 @@ import { TrashPage } from "@/components/trash-page";
 import { AuditPage } from "@/components/audit-page";
 import { PrintsPage } from "@/components/prints-page";
 import { AcademicStructurePage } from "@/components/academic-structure-page";
+import { AcademicDashboardPage } from "@/components/academic-dashboard-page";
 import { AcademicClassesPage } from "@/components/academic-classes-page";
 import { AcademicGradesPage, AcademicTeachingPage } from "@/components/academic-teaching-page";
 import { AcademicResultsPage, AcademicStatsPage } from "@/components/academic-results-page";
@@ -510,6 +511,7 @@ export default function Home() {
           }}
           onPeoplePage={setPeoplePage}
           onRefresh={refresh}
+          canOpenJourney={hasAccess(user, "academics") || hasAccess(user, "deliberations")}
         />
       ) : activeView === "Recrutement" ? (
         <PersonnelPage
@@ -530,14 +532,16 @@ export default function Home() {
         <ReferencesPage onRefresh={refresh} />
       ) : activeView === "Audit" ? (
         <AuditPage refreshSignal={refreshKey} focusUserId={route.auditUserId} />
+      ) : activeView === "Tableau de bord académique" ? (
+        <AcademicDashboardPage refreshSignal={refreshKey} />
       ) : activeView === "Structure académique" ? (
         <AcademicStructurePage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Classes et étudiants" ? (
-        <AcademicClassesPage user={user} refreshSignal={refreshKey} />
+        <AcademicClassesPage user={user} refreshSignal={refreshKey} classId={route.classId ?? null} classSection={route.classSection ?? null} studentId={route.studentId ?? null} />
       ) : activeView === "Enseignement" ? (
         <AcademicTeachingPage user={user} refreshSignal={refreshKey} />
-      ) : activeView === "Notes" ? (
-        <AcademicGradesPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Évaluations et notes" ? (
+        <AcademicGradesPage user={user} refreshSignal={refreshKey} courseId={route.gradeCourseId ?? null} evaluationId={route.gradeEvaluationId ?? null} />
       ) : activeView === "Délibérations" ? (
         <AcademicResultsPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Statistiques académiques" ? (

@@ -3,7 +3,8 @@ import { ViewName } from "@/lib/types";
 export type DossierRoute = { type: "demande-bourse" | "inscription"; id: string };
 export type SettingsSection = "apparence" | "postes" | "utilisateurs";
 export type HelpedView = Exclude<ViewName, "Aide de la page">;
-export type AppRoute = { view: ViewName; dossier: DossierRoute | null; auditUserId: string | null; settingsSection?: SettingsSection | null; helpFor?: HelpedView | null };
+export type ClassSection = "etudiants" | "cours" | "assiduite";
+export type AppRoute = { view: ViewName; dossier: DossierRoute | null; auditUserId: string | null; settingsSection?: SettingsSection | null; helpFor?: HelpedView | null; classId?: string | null; classSection?: ClassSection | null; studentId?: string | null; gradeCourseId?: string | null; gradeEvaluationId?: string | null };
 
 // Chaque écran a son adresse : actualiser, revenir en arrière et partager un
 // lien vers un dossier fonctionnent comme dans n'importe quel site.
@@ -26,10 +27,11 @@ const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page">,
   Rapports: "/rapports",
   Corbeille: "/corbeille",
   Impressions: "/impressions",
+  "Tableau de bord académique": "/academique/tableau-de-bord",
   "Structure académique": "/academique/structure",
   "Classes et étudiants": "/academique/classes",
   Enseignement: "/academique/enseignement",
-  Notes: "/academique/notes",
+  "Évaluations et notes": "/academique/notes",
   Délibérations: "/academique/deliberations",
   "Statistiques académiques": "/academique/statistiques",
   Personnel: "/personnel",
@@ -95,7 +97,28 @@ export function parsePath(pathname: string | null): AppRoute {
   // Page dédiée au profil d'activité d'un utilisateur dans l'audit.
   const auditUser = path.match(/^\/audit\/utilisateurs\/([^/]+)$/);
   if (auditUser) return { view: "Audit", dossier: null, auditUserId: decodeURIComponent(auditUser[1]) };
+  // Une classe a sa page, et chacune de ses rubriques la sienne.
+  const classe = path.match(/^\/academique\/classes\/([^/]+)(?:\/(etudiants|cours|assiduite))?$/);
+  if (classe) return { view: "Classes et étudiants", dossier: null, auditUserId: null, classId: decodeURIComponent(classe[1]), classSection: (classe[2] as ClassSection | undefined) ?? null };
+  // Parcours complet d'un étudiant, toutes années confondues.
+  const student = path.match(/^\/academique\/etudiants\/([^/]+)$/);
+  if (student) return { view: "Classes et étudiants", dossier: null, auditUserId: null, studentId: decodeURIComponent(student[1]) };
+  // Notes d'une matière, puis d'une de ses évaluations.
+  const grades = path.match(/^\/academique\/notes\/cours\/([^/]+)(?:\/evaluations\/([^/]+))?$/);
+  if (grades) return { view: "Évaluations et notes", dossier: null, auditUserId: null, gradeCourseId: decodeURIComponent(grades[1]), gradeEvaluationId: grades[2] ? decodeURIComponent(grades[2]) : null };
   return { view: PATH_VIEWS.get(path) ?? "Vue d'ensemble", dossier: null, auditUserId: null };
+}
+
+export function pathForGrades(courseId: string, evaluationId?: string | null): string {
+  return `/academique/notes/cours/${encodeURIComponent(courseId)}${evaluationId ? `/evaluations/${encodeURIComponent(evaluationId)}` : ""}`;
+}
+
+export function pathForClass(classId: string, section?: ClassSection | null): string {
+  return `/academique/classes/${encodeURIComponent(classId)}${section ? `/${section}` : ""}`;
+}
+
+export function pathForStudent(personId: string): string {
+  return `/academique/etudiants/${encodeURIComponent(personId)}`;
 }
 
 export function navigateTo(path: string) {

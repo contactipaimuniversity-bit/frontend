@@ -35,6 +35,8 @@ const DOCUMENT_LABELS: Record<string, string> = {
   BULLETIN_PAIE: "Bulletin de paie",
   CARTE_ETUDIANT: "Carte d'étudiant",
   RELEVE_NOTES: "Relevé de notes annuel",
+  FICHE_ANONYMAT: "Fiches d'anonymat",
+  CERTIFICAT_SCOLARITE: "Certificat de scolarité",
   ATTESTATION_REUSSITE: "Attestation de réussite",
   DIPLOME: "Diplôme",
 };

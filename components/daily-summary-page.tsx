@@ -91,11 +91,14 @@ export function DailySummaryPage({ onBack }: { onBack: () => void }) {
         <span className="daily-summary-date-mark" aria-hidden="true">{date.slice(-2)}</span>
       </section>
       <section className="daily-summary-stats" aria-label="Filtrer par catégorie">
-        {loading ? <div className="daily-summary-stat"><span>Opérations</span><strong>…</strong></div> : categories.length ? categories.map(([name, count]) => (
-          <button type="button" className={`daily-summary-stat ${category === name ? "active" : ""}`} aria-pressed={category === name} key={name} onClick={() => setCategory(category === name ? "" : name)}>
-            <span>{capitalize(name)}</span><strong>{count}</strong>
-          </button>
-        )) : <div className="daily-summary-stat"><span>Opérations</span><strong>0</strong></div>}
+        {loading ? <div className="daily-summary-stat"><span>Opérations</span><strong>…</strong></div> : categories.length ? categories.map(([name, count]) => {
+          const elements = currentReport?.elementsParCategorie?.[name] ?? count;
+          return (
+            <button type="button" className={`daily-summary-stat ${category === name ? "active" : ""}`} aria-pressed={category === name} key={name} onClick={() => setCategory(category === name ? "" : name)}>
+              <span>{capitalize(name)}</span><strong>{elements}</strong>{elements !== count && <small>{count} opérations</small>}
+            </button>
+          );
+        }) :<div className="daily-summary-stat"><span>Opérations</span><strong>0</strong></div>}
       </section>
       <section className="panel daily-activity-panel">
         <div className="panel-heading">

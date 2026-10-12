@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { Award, BadgeCheck, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
+import { Award, BadgeCheck, ClipboardList, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
 import { Summary, User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/student-photo";
@@ -32,6 +32,7 @@ const icons: Record<string, LucideIcon> = {
   audit: ShieldCheck,
   trash: Trash2,
   prints: Printer,
+  academicToday: ClipboardList,
   structure: School,
   classes: GraduationCap,
   teaching: CalendarDays,
@@ -65,10 +66,11 @@ const navGroups: { label: string; items: { label: ViewName; icon: string }[] }[]
   {
     label: "Académique",
     items: [
+      { label: "Tableau de bord académique", icon: "academicToday" },
       { label: "Structure académique", icon: "structure" },
       { label: "Classes et étudiants", icon: "classes" },
       { label: "Enseignement", icon: "teaching" },
-      { label: "Notes", icon: "grades" },
+      { label: "Évaluations et notes", icon: "grades" },
       { label: "Délibérations", icon: "deliberations" },
       { label: "Statistiques académiques", icon: "stats" },
     ],

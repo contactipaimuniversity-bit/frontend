@@ -8,7 +8,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { confirmNewPerson } from "@/lib/duplicates";
 import { logPrint } from "@/lib/print-log";
-import { navigateTo, pathForDossier } from "@/lib/routes";
+import { navigateTo, pathForDossier, pathForStudent } from "@/lib/routes";
 import { ModalChoice } from "@/components/modal-choice";
 import { DateOrderControl } from "@/components/date-order-control";
 import { COLOR_PRESETS, readColorPreset } from "@/lib/theme";
@@ -323,7 +323,10 @@ export function PeoplePage({
   onPeopleSearch,
   onPeoplePage,
   onRefresh,
+  canOpenJourney,
 }: {
+  // Droit de consulter le parcours académique d'un étudiant.
+  canOpenJourney: boolean;
   people: Person[];
   peopleMeta: { page: number; total: number; totalPages: number };
   dateOrder: DateOrder;
@@ -396,7 +399,7 @@ export function PeoplePage({
             >
               <input
                 aria-label="Rechercher une personne"
-                placeholder="Nom, téléphone, quartier..."
+                placeholder="Nom, matricule, téléphone, quartier..."
                 value={searchDraft}
                 onChange={(event) => setSearchDraft(event.target.value)}
               />
@@ -413,6 +416,7 @@ export function PeoplePage({
             <thead>
               <tr>
                 <th>Nom complet</th>
+                <th>Matricule</th>
                 <th>Téléphone</th>
                 <th>Quartier</th>
                 <th>Enregistrement</th>
@@ -430,13 +434,14 @@ export function PeoplePage({
                       {fullName(person)}
                     </div>
                   </td>
+                  <td>{person.matricule ?? "-"}</td>
                   <td>{person.telephone ?? "-"}</td>
                   <td>{person.quartier ?? "-"}</td>
                   <td>{formatDate(person.dateEnregistrement)}</td>
                   <td className="action-group">
                     <button
                       className="row-action icon-action"
-                      onClick={() => open("history", person)} aria-label="Voir l'historique"><ActionIcon name="history" /></button>
+                      onClick={() => (person.matricule && canOpenJourney ? navigateTo(pathForStudent(person.id)) : open("history", person))} aria-label={person.matricule && canOpenJourney ? "Voir le parcours de l'étudiant" : "Voir l'historique"}><ActionIcon name="history" /></button>
                     <button
                       className="row-action icon-action"
                       onClick={() => open("edit", person)} aria-label="Modifier"><ActionIcon name="edit" /></button>
@@ -448,7 +453,7 @@ export function PeoplePage({
               ))}
               {!people.length && (
                 <tr>
-                  <td colSpan={5} className="empty-state">
+                  <td colSpan={6} className="empty-state">
                     Aucune personne enregistrée.
                   </td>
                 </tr>

@@ -8,7 +8,7 @@ import { BookOpen, BookOpenCheck, CalendarDays, DoorOpen, GraduationCap, Layers,
 import { Badge, Empty, FieldHelp, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, send, useAction, useForm, useLoad } from "@/components/ui-kit";
 
 export type Level = { id: string; code: string; libelle: string; cycle: string; rang: number; diplome?: string | null; actif: boolean };
-export type AcademicYear = { id: string; libelle: string; dateDebut: string; dateFin: string; statut: string; _count?: { classes: number } };
+export type AcademicYear = { id: string; libelle: string; dateDebut: string; dateFin: string; finSemestre1?: string | null; statut: string; _count?: { classes: number } };
 export type Program = { id: string; code: string; nom: string; actif: boolean; poleId?: string | null; pole?: { id: string; nom: string } | null; niveauFinal?: string | null };
 export type Pole = { id: string; nom: string; description?: string | null; ordre: number; actif: boolean; filieres: Program[] };
 export type Room = { id: string; nom: string; capacite?: number | null; actif: boolean };
@@ -26,7 +26,7 @@ export function useLevels(signal = 0) {
 
 // Dernier niveau de son cycle : il termine le parcours.
 const endsCycle = (level: Level, all: Level[]) => !all.some((other) => other.actif && other.cycle === level.cycle && other.rang > level.rang);
-type Rules = { poidsControleContinu: string; moyenneValidation: string; noteEliminatoire: string | null; compensationSemestre: boolean; compensationAnnuelle: boolean; creditsPassage: number; seuilAbsences: string; blocageImpayes: boolean };
+type Rules = { poidsControleContinu: string; moyenneValidation: string; noteEliminatoire: string | null; compensationSemestre: boolean; compensationAnnuelle: boolean; creditsPassage: number; seuilAbsences: string; blocageImpayes: boolean; anonymatObligatoire: boolean };
 
 const YEAR_STATUS: Record<string, { label: string; tone: "ok" | "wait" | "off" }> = {
   PREPARATION: { label: "En préparation", tone: "wait" },
@@ -36,14 +36,20 @@ const YEAR_STATUS: Record<string, { label: string; tone: "ok" | "wait" | "off" }
 
 function YearsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
   const years = useLoad<AcademicYear[]>("/academique/annees", signal);
-  const form = useForm({ libelle: "", dateDebut: "", dateFin: "" });
+  const form = useForm({ libelle: "", dateDebut: "", dateFin: "", finSemestre1: "" });
   const action = useAction();
+  const setSemesterEnd = (year: AcademicYear, value: string) =>
+    action.run(async () => {
+      await send(`/academique/annees/${year.id}`, "PATCH", { finSemestre1: value }, true);
+      toast(value ? "Fin du premier semestre enregistrée." : "Fin du premier semestre retirée.");
+      years.reload();
+    });
   const create = (event: FormEvent) => {
     event.preventDefault();
     void action.run(async () => {
       const created = await send<{ libelle: string; maquettesReprises: number }>("/academique/annees", "POST", form.values);
       if (created.maquettesReprises) toast(`Année ${created.libelle} ouverte : ${created.maquettesReprises} unité(s) d'enseignement reprises des maquettes existantes.`);
-      form.setValues({ libelle: "", dateDebut: "", dateFin: "" });
+      form.setValues({ libelle: "", dateDebut: "", dateFin: "", finSemestre1: "" });
       years.reload();
     });
   };
@@ -67,6 +73,7 @@ function YearsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
           <input required placeholder="Libellé (ex. 2026-2027)" aria-label="Libellé de l'année" pattern="\d{4}-\d{4}" {...form.bind("libelle")} />
           <label>Rentrée<input required type="date" {...form.bind("dateDebut")} /></label>
           <label>Fin<input required type="date" min={form.values.dateDebut} {...form.bind("dateFin")} /></label>
+          <label>Fin du semestre 1 (facultatif)<input type="date" min={form.values.dateDebut} max={form.values.dateFin} {...form.bind("finSemestre1")} /></label>
           <button className="outline-button small" disabled={action.busy}>Ouvrir l&apos;année</button>
           <button type="button" className="row-action" disabled={action.busy} onClick={importExisting}>Reprendre les années et filières des inscriptions existantes</button>
         </form>
@@ -74,12 +81,13 @@ function YearsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
       {(action.error || years.error) && <p className="form-error">{action.error || years.error}</p>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Année</th><th>Période</th><th>Classes</th><th>État</th><th /></tr></thead>
+          <thead><tr><th>Année</th><th>Période</th><th>Fin du semestre 1</th><th>Classes</th><th>État</th><th /></tr></thead>
           <tbody>
             {(years.data ?? []).map((year) => (
               <tr key={year.id}>
                 <td className="strong-cell">{year.libelle}</td>
                 <td>{formatDate(year.dateDebut)} → {formatDate(year.dateFin)}</td>
+                <td>{canEdit && year.statut !== "CLOTUREE" ? <input className="expense-select" type="date" aria-label={`Fin du semestre 1 de ${year.libelle}`} min={year.dateDebut.slice(0, 10)} max={year.dateFin.slice(0, 10)} key={year.finSemestre1 ?? ""} defaultValue={year.finSemestre1?.slice(0, 10) ?? ""} onBlur={(event) => { if (event.target.value !== (year.finSemestre1?.slice(0, 10) ?? "")) void setSemesterEnd(year, event.target.value); }} /> : year.finSemestre1 ? formatDate(year.finSemestre1) : "—"}</td>
                 <td>{year._count?.classes ?? 0}</td>
                 <td><Badge tone={YEAR_STATUS[year.statut]?.tone ?? "off"}>{YEAR_STATUS[year.statut]?.label ?? year.statut}</Badge></td>
                 <td className="action-group">
@@ -88,10 +96,11 @@ function YearsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
                 </td>
               </tr>
             ))}
-            {!years.data?.length && <Empty columns={5}>{years.data ? "Aucune année académique : ouvrez-en une pour créer des classes." : "Chargement..."}</Empty>}
+            {!years.data?.length && <Empty columns={6}>{years.data ? "Aucune année académique : ouvrez-en une pour créer des classes." : "Chargement..."}</Empty>}
           </tbody>
         </table>
       </div>
+      <p className="panel-subtitle">La fin du semestre 1 sépare les deux semestres. C&apos;est un repère : elle ne déclenche aucun paiement. Les enseignants rémunérés « par semestre » sont payés quand la RH clique « Payer dans cette paie ».</p>
     </>
   );
 }
@@ -764,6 +773,7 @@ function RulesTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
           </label>
         </div>
         <label className="check-row"><input type="checkbox" disabled={!canEdit} checked={current.blocageImpayes} onChange={(event) => set({ blocageImpayes: event.target.checked })} /><span><span className="field-title">Retenir les bulletins des étudiants qui n&apos;ont pas soldé leur scolarité<FieldHelp text="Cochée : le bulletin d'un étudiant qui a encore un reste à payer ne peut pas être édité ; il redevient disponible dès que tout est réglé. Ses notes sont quand même calculées et délibérées normalement. Décochée : tous les bulletins s'éditent, quel que soit l'état des paiements." /></span><small>Le bulletin redevient disponible dès que le reste à payer est nul.</small></span></label>
+        <label className="check-row"><input type="checkbox" disabled={!canEdit} checked={current.anonymatObligatoire} onChange={(event) => set({ anonymatObligatoire: event.target.checked })} /><span><span className="field-title">Corriger toutes les évaluations sous anonymat<FieldHelp text="Cochée : aucune note ne peut être saisie au nom d'un étudiant, pour les contrôles comme pour les examens. La scolarité génère les fiches d'anonymat de l'épreuve, le correcteur saisit les notes par code, et les noms n'apparaissent qu'à la validation. Décochée : l'anonymat se décide épreuve par épreuve." /></span><small>Le correcteur ne voit que des codes ; il n&apos;a jamais accès aux fiches ni à la table d&apos;anonymat.</small></span></label>
         {action.error && <p className="form-error">{action.error}</p>}
         {canEdit && <div className="form-actions"><button className="primary-button compact" disabled={!draft || action.busy}>Enregistrer les règles</button></div>}
       </form>

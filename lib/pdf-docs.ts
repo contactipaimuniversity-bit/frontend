@@ -248,7 +248,7 @@ export type Transcript = {
   retenu?: undefined;
 };
 
-const unitOutcome = (unit: TranscriptUnit) =>
+export const unitOutcome = (unit: TranscriptUnit) =>
   unit.statut === "DETTE"
     ? "À rattraper"
     : unit.statut !== "ACQUISE"
@@ -317,6 +317,398 @@ export async function transcriptsPdf(list: Transcript[], fileName: string) {
     if (index > 0) pdf.addPage();
     transcriptPage(pdf, data);
   });
+  pdf.save(fileName);
+}
+
+// ---------- Relevé cumulé : tout le cursus sur un seul document ----------
+
+export type Journey = {
+  etudiant: Transcript["etudiant"] & { id: string; telephone?: string | null };
+  annees: Array<{
+    inscriptionId: string;
+    annee: string;
+    niveau: string;
+    filiere: string;
+    statut: string;
+    classe: { id: string; nom: string } | null;
+    semestres: Transcript["semestres"];
+    resultat: (Transcript["resultat"] & { effectif: number }) | null;
+    absences: Transcript["absences"];
+    // Scolarité impayée : les documents de cette année ne sont pas remis.
+    retenue: string | null;
+  }>;
+  credits: { acquis: number; dettes: Transcript["dettes"] };
+};
+
+export async function journeyPdf(data: Journey, fileName: string) {
+  const pdf = await createPdf();
+  const years = data.annees.filter((year) => year.semestres.length || year.resultat);
+  header(pdf, "RELEVÉ DE NOTES CUMULÉ", years.length > 1 ? `Années ${years[0].annee} à ${years[years.length - 1].annee}` : `Année académique ${years[0]?.annee ?? "-"}`);
+  pdf.setFont("helvetica", "bold").setFontSize(12);
+  pdf.text(pdfSafe(`${data.etudiant.nom} ${data.etudiant.prenom}`), 15, 38);
+  pdf.setFont("helvetica", "normal").setFontSize(9.5);
+  pdf.text(pdfSafe(`Matricule : ${data.etudiant.matricule ?? "-"}`), 15, 44);
+  pdf.text(pdfSafe(bornLine(data.etudiant)), 15, 49);
+  pdf.text(pdfSafe(`Filière : ${years[years.length - 1]?.filiere ?? "-"}`), 195, 38, { align: "right" });
+  pdf.text(pdfSafe(`Années délibérées : ${years.length}`), 195, 44, { align: "right" });
+  const rows: Array<{ cells: string[]; bold?: boolean; fill?: boolean }> = [];
+  for (const year of years) {
+    rows.push({
+      cells: [
+        `${year.annee} · ${year.niveau} · ${year.classe?.nom ?? year.filiere}`,
+        year.resultat ? `${year.resultat.creditsAcquis} / ${year.resultat.creditsTotal}` : "",
+        year.resultat ? note(year.resultat.moyenne) : "",
+        year.resultat ? `${DECISION_LABELS[year.resultat.decision] ?? year.resultat.decision}${year.resultat.mention ? ` · ${year.resultat.mention}` : ""}` : "Année non délibérée",
+      ],
+      bold: true,
+      fill: true,
+    });
+    for (const semester of year.semestres) {
+      rows.push({ cells: [`Semestre ${semester.semestre}`, `${semester.creditsAcquis} / ${semester.creditsTotal}`, note(semester.moyenne), DECISION_LABELS[semester.decision] ?? semester.decision], bold: true });
+      for (const unit of semester.unites) {
+        rows.push({ cells: [`   ${unit.code} · ${unit.nom}`, String(unit.credits), note(unit.moyenne), unitOutcome(unit)] });
+        for (const subject of unit.matieres) rows.push({ cells: [`         ${subject.nom}`, String(subject.coefficient), note(subject.moyenne), ""] });
+      }
+    }
+  }
+  let y = table(pdf, 56, [{ label: "Année / unité d'enseignement / matière", width: 90 }, { label: "Créd./Coef.", width: 24, align: "center" }, { label: "Moyenne", width: 22, align: "center" }, { label: "Résultat", width: 44 }], rows);
+  const debts = data.credits.dettes.length ? (pdf.splitTextToSize(pdfSafe(`Crédits restant à rattraper : ${data.credits.dettes.map((debt) => `${debt.code} ${debt.nom} (${debt.credits} cr., ${debt.niveau} ${debt.annee})`).join(" ; ")}`), 170) as string[]) : [];
+  const box = 19 + debts.length * 4.5;
+  if (y + box + 50 > pdf.internal.pageSize.getHeight()) {
+    footer(pdf);
+    pdf.addPage();
+    y = 14;
+  }
+  y += 8;
+  const absences = years.reduce((total, year) => ({ total: total.total + year.absences.total, injustifiees: total.injustifiees + year.absences.injustifiees }), { total: 0, injustifiees: 0 });
+  pdf.setFillColor(248, 243, 228).roundedRect(15, y, 180, box, 2, 2, "F");
+  pdf.setFont("helvetica", "bold").setFontSize(11);
+  pdf.text(pdfSafe(`Crédits acquis sur le cursus : ${data.credits.acquis}`), 20, y + 8);
+  pdf.setFont("helvetica", "normal").setFontSize(9.5);
+  pdf.text(pdfSafe(`Absences : ${Math.round(absences.total * 10) / 10} h, dont ${Math.round(absences.injustifiees * 10) / 10} h non justifiées`), 20, y + 15);
+  if (debts.length) pdf.text(debts, 20, y + 21);
+  y += box + 10;
+  pdf.setFontSize(9);
+  pdf.text(pdfSafe(`Établi le ${longDate(new Date().toISOString())} d'après les délibérations clôturées.`), 15, y);
+  pdf.text("Le responsable de la scolarité", 150, y + 12, { align: "center" });
+  pdf.setDrawColor(150, 160, 180).line(120, y + 28, 180, y + 28);
+  footer(pdf);
+  pdf.save(fileName);
+}
+
+// ---------- Fiches d'anonymat : 18 par feuille A4 ordinaire ----------
+
+export type AnonymityTable = {
+  evaluation: string;
+  type: string;
+  date?: string | null;
+  matiere: string;
+  classe: string;
+  annee: string;
+  lignes: Array<{ code: string; nom: string; prenom: string; matricule?: string | null }>;
+};
+
+// Chaque fiche se découpe en deux : le talon nominatif sert à remettre la fiche
+// au bon étudiant, la partie codée (sans aucun nom) se colle ou s'agrafe sur la copie.
+export async function anonymitySlipsPdf(table: AnonymityTable, fileName: string) {
+  const pdf = await createPdf();
+  const QRCode = (await import("qrcode")).default;
+  const columns = 3;
+  const rows = 6;
+  // Marge de 6 mm : la plupart des imprimantes n'impriment pas jusqu'au bord de la feuille.
+  const margin = 6;
+  const width = (210 - 2 * margin) / columns;
+  const height = (297 - 2 * margin) / rows;
+  const stub = 32;
+  const clip = (text: string, max: number) => (pdf.splitTextToSize(pdfSafe(text), max)[0] as string) ?? "";
+  const exam = table.date ? `${table.evaluation} · ${formatDate(table.date)}` : table.evaluation;
+  for (const [index, line] of table.lignes.entries()) {
+    const slot = index % (columns * rows);
+    if (index > 0 && slot === 0) pdf.addPage();
+    const x = margin + (slot % columns) * width;
+    const y = margin + Math.floor(slot / columns) * height;
+    // Traits de coupe : le contour de la fiche et la séparation talon / copie.
+    pdf.setDrawColor(150, 160, 180).setLineWidth(0.15).setLineDashPattern([1.2, 1.2], 0);
+    pdf.rect(x, y, width, height);
+    pdf.line(x + stub, y + 3, x + stub, y + height - 3);
+    pdf.setLineDashPattern([], 0);
+
+    pdf.setTextColor(110, 120, 135).setFont("helvetica", "normal").setFontSize(5.5);
+    pdf.text("TALON - A GARDER", x + 2.5, y + 5);
+    pdf.setTextColor(30, 40, 60).setFont("helvetica", "bold").setFontSize(8);
+    const name = pdf.splitTextToSize(pdfSafe(`${line.nom} ${line.prenom}`), stub - 5) as string[];
+    pdf.text(name.slice(0, 3), x + 2.5, y + 11);
+    pdf.setFont("helvetica", "normal").setFontSize(6.5);
+    pdf.text(pdfSafe(line.matricule ?? ""), x + 2.5, y + 23);
+    pdf.text(clip(table.classe, stub - 5), x + 2.5, y + 28);
+    pdf.text(clip(table.matiere, stub - 5), x + 2.5, y + 32);
+    pdf.text(clip(table.evaluation, stub - 5), x + 2.5, y + 36);
+    pdf.setFont("helvetica", "bold").setFontSize(7.5);
+    pdf.text(line.code, x + 2.5, y + 43);
+
+    const copy = x + stub;
+    const center = copy + (width - stub) / 2;
+    pdf.setTextColor(110, 120, 135).setFont("helvetica", "normal").setFontSize(5.5);
+    pdf.text("A COLLER SUR LA COPIE", center, y + 5, { align: "center" });
+    // QR code dessiné en vecteur : net à l'impression, et un fichier léger même pour 200 fiches.
+    const qr = QRCode.create(line.code, { errorCorrectionLevel: "M" }).modules;
+    const cell = 20 / qr.size;
+    pdf.setFillColor(0, 0, 0);
+    for (let row = 0; row < qr.size; row += 1)
+      for (let column = 0; column < qr.size; column += 1)
+        if (qr.data[row * qr.size + column]) pdf.rect(center - 10 + column * cell, y + 7 + row * cell, cell + 0.02, cell + 0.02, "F");
+    pdf.setTextColor(20, 40, 92).setFont("helvetica", "bold").setFontSize(12);
+    pdf.text(line.code, center, y + 33.5, { align: "center" });
+    pdf.setTextColor(60, 70, 90).setFont("helvetica", "normal").setFontSize(6);
+    pdf.text(clip(table.matiere, width - stub - 4), center, y + 38.5, { align: "center" });
+    pdf.text(clip(`${table.classe} · ${exam}`, width - stub - 4), center, y + 42, { align: "center" });
+    pdf.setTextColor(30, 40, 60);
+  }
+  pdf.save(fileName);
+}
+
+// ---------- Emploi du temps hebdomadaire ----------
+
+export type TimetableSlot = { jour: number; heureDebut: string; heureFin: string; lignes: string[] };
+
+// Grille de la semaine, en paysage : une colonne par jour, une ligne par plage horaire.
+export async function timetablePdf(options: { title: string; subtitle: string; slots: TimetableSlot[]; fileName: string }) {
+  const pdf = await createPdf(true);
+  const days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+  const left = 15;
+  const hourWidth = 27;
+  const dayWidth = (267 - hourWidth) / days.length;
+  const lineHeight = 4.2;
+  header(pdf, options.title, options.subtitle);
+  let y = 36;
+  const head = () => {
+    pdf.setFillColor(20, 40, 92).rect(left, y, 267, 8, "F");
+    pdf.setFont("helvetica", "bold").setFontSize(9).setTextColor(255, 255, 255);
+    pdf.text("Horaire", left + 2, y + 5.4);
+    days.forEach((day, index) => pdf.text(day, left + hourWidth + index * dayWidth + dayWidth / 2, y + 5.4, { align: "center" }));
+    pdf.setTextColor(30, 40, 60);
+    y += 8;
+  };
+  head();
+  const ranges = [...new Set(options.slots.map((slot) => `${slot.heureDebut}-${slot.heureFin}`))].sort();
+  for (const range of ranges) {
+    const [start, end] = range.split("-");
+    // Texte de chaque jour pour cette plage ; deux cours simultanés se suivent dans la case.
+    const cells = days.map((_, index) =>
+      options.slots
+        .filter((slot) => slot.jour === index + 1 && slot.heureDebut === start && slot.heureFin === end)
+        .flatMap((slot, position) => [...(position ? [""] : []), ...slot.lignes.flatMap((line, row) => (pdf.setFont("helvetica", row ? "normal" : "bold").setFontSize(8), pdf.splitTextToSize(pdfSafe(line), dayWidth - 4) as string[]).map((text) => ({ text, bold: !row })))]),
+    ) as Array<Array<{ text: string; bold: boolean } | "">>;
+    const height = Math.max(12, Math.max(...cells.map((cell) => cell.length)) * lineHeight + 5);
+    if (y + height > pdf.internal.pageSize.getHeight() - 14) {
+      footer(pdf);
+      pdf.addPage();
+      y = 18;
+      head();
+    }
+    pdf.setDrawColor(200, 210, 228).setLineWidth(0.2);
+    pdf.setFillColor(232, 238, 248).rect(left, y, hourWidth, height, "FD");
+    pdf.setFont("helvetica", "bold").setFontSize(9);
+    pdf.text(`${start} - ${end}`, left + hourWidth / 2, y + height / 2 + 1.2, { align: "center" });
+    cells.forEach((cell, index) => {
+      const x = left + hourWidth + index * dayWidth;
+      pdf.rect(x, y, dayWidth, height);
+      cell.forEach((line, row) => {
+        if (!line) return;
+        pdf.setFont("helvetica", line.bold ? "bold" : "normal").setFontSize(8);
+        pdf.text(line.text, x + 2, y + 5 + row * lineHeight);
+      });
+    });
+    y += height;
+  }
+  if (!ranges.length) {
+    pdf.setFont("helvetica", "normal").setFontSize(10);
+    pdf.text("Aucun cours n'est encore place dans l'emploi du temps.", left, y + 10);
+  }
+  footer(pdf);
+  pdf.save(options.fileName);
+}
+
+// ---------- Liste de classe et feuille d'émargement ----------
+
+// Liste nominative en portrait, avec des lignes assez hautes pour signer.
+export async function rosterPdf(options: { title: string; subtitle: string; infos?: string[]; columns: PdfColumn[]; rows: Array<Array<string | number | null | undefined>>; rowHeight?: number; note?: string; fileName: string }) {
+  const pdf = await createPdf();
+  const rowHeight = options.rowHeight ?? 7;
+  const total = options.columns.reduce((sum, column) => sum + column.width, 0);
+  const left = (210 - total) / 2;
+  header(pdf, options.title, options.subtitle);
+  let y = 35;
+  pdf.setFont("helvetica", "normal").setFontSize(9.5);
+  for (const info of options.infos ?? []) {
+    pdf.text(pdfSafe(info), left, y);
+    y += 5;
+  }
+  y += 2;
+  const head = () => {
+    pdf.setFillColor(20, 40, 92).rect(left, y, total, 7.5, "F");
+    pdf.setFont("helvetica", "bold").setFontSize(8.5).setTextColor(255, 255, 255);
+    let x = left;
+    for (const column of options.columns) {
+      pdf.text(pdfSafe(column.label), column.align === "center" ? x + column.width / 2 : x + 2, y + 5, { align: column.align === "center" ? "center" : "left" });
+      x += column.width;
+    }
+    pdf.setTextColor(30, 40, 60);
+    y += 7.5;
+  };
+  head();
+  for (const row of options.rows) {
+    if (y + rowHeight > pdf.internal.pageSize.getHeight() - 16) {
+      footer(pdf);
+      pdf.addPage();
+      y = 18;
+      head();
+    }
+    pdf.setDrawColor(190, 200, 220).setLineWidth(0.2);
+    let x = left;
+    options.columns.forEach((column, index) => {
+      pdf.rect(x, y, column.width, rowHeight);
+      const value = row[index];
+      if (value !== null && value !== undefined && value !== "") {
+        pdf.setFont("helvetica", "normal").setFontSize(9);
+        const text = (pdf.splitTextToSize(pdfSafe(String(value)), column.width - 3)[0] as string) ?? "";
+        pdf.text(text, column.align === "center" ? x + column.width / 2 : x + 2, y + rowHeight / 2 + 1.3, { align: column.align === "center" ? "center" : "left" });
+      }
+      x += column.width;
+    });
+    y += rowHeight;
+  }
+  if (options.note) {
+    pdf.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(90, 100, 120);
+    pdf.text(pdf.splitTextToSize(pdfSafe(options.note), total) as string[], left, Math.min(y + 8, pdf.internal.pageSize.getHeight() - 20));
+    pdf.setTextColor(30, 40, 60);
+  }
+  footer(pdf);
+  pdf.save(options.fileName);
+}
+
+// ---------- Certificat de scolarité ----------
+
+export type EnrollmentCertificate = {
+  etudiant: { nom: string; prenom: string; matricule?: string | null; dateNaissance?: string | null; lieuNaissance?: string | null };
+  annee: string;
+  niveau: string;
+  filiere: string;
+  classe: string;
+};
+
+export const enrollmentCertificateNumber = (data: EnrollmentCertificate) => `CS-${data.annee.slice(2, 4)}${data.annee.slice(7)}-${data.etudiant.matricule ?? "SANS-MATRICULE"}`;
+
+// Logo de l'établissement pour les documents ; absent hors navigateur ou sans réseau.
+async function logoData(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const blob = await (await fetch("/WhatsApp%20Image%202026-07-17%20at%2018.26.50.jpeg")).blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+// Atteste qu'un étudiant est inscrit et affecté à une classe pour l'année en cours.
+// Mise en page administrative, volontairement différente des certificats de
+// bourse et d'inscription : bandeau vertical, texte en caractères à empattements,
+// lignes de formation et QR code de référence.
+export async function enrollmentCertificatePdf(data: EnrollmentCertificate, fileName: string) {
+  const pdf = await createPdf();
+  const [logo, QRCode] = await Promise.all([logoData(), import("qrcode").then((module) => module.default)]);
+  const number = enrollmentCertificateNumber(data);
+  const band = 40;
+  const left = band + 14;
+  const right = 194;
+  const width = right - left;
+
+  // Bandeau vertical : logo, intitulé couché, année.
+  pdf.setFillColor(20, 40, 92).rect(0, 0, band, 297, "F");
+  pdf.setFillColor(200, 148, 27).rect(band, 0, 1.4, 297, "F");
+  pdf.setFillColor(255, 255, 255).roundedRect(7, 12, 26, 26, 2, 2, "F");
+  if (logo) pdf.addImage(logo, "JPEG", 8.5, 13.5, 23, 23);
+  else {
+    pdf.setFont("helvetica", "bold").setFontSize(9).setTextColor(20, 40, 92);
+    pdf.text("IPAIM", 20, 26.5, { align: "center" });
+  }
+  pdf.setFont("times", "bold").setFontSize(30).setTextColor(255, 255, 255);
+  pdf.text("CERTIFICAT DE SCOLARITÉ", 25, 250, { angle: 90 });
+  pdf.setFont("helvetica", "normal").setFontSize(9).setTextColor(228, 177, 59);
+  pdf.text(pdfSafe(`ANNÉE ACADÉMIQUE ${data.annee}`), 32, 250, { angle: 90 });
+  pdf.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(222, 232, 247);
+  pdf.text("IPAIM UNIVERSITY", 20, 284, { align: "center" });
+
+  // En-tête de la page.
+  pdf.setFont("helvetica", "bold").setFontSize(13).setTextColor(20, 40, 92);
+  pdf.text("IPAIM UNIVERSITY", left, 22);
+  pdf.setFont("helvetica", "normal").setFontSize(9).setTextColor(102, 114, 140);
+  pdf.text("Direction des études · Service de la scolarité", left, 28);
+  pdf.text(pdfSafe(`N° ${number}`), right, 22, { align: "right" });
+  pdf.setDrawColor(215, 222, 235).setLineWidth(0.3).line(left, 34, right, 34);
+
+  pdf.setFont("times", "bold").setFontSize(27).setTextColor(20, 40, 92);
+  pdf.text("Certificat de scolarité", left, 58);
+  pdf.setFillColor(200, 148, 27).rect(left, 62.5, 34, 1.2, "F");
+  pdf.setFont("times", "italic").setFontSize(13).setTextColor(102, 114, 140);
+  pdf.text(pdfSafe(`Année académique ${data.annee}`), left, 72);
+
+  // Corps du certificat.
+  const paragraph = (text: string, y: number, size = 12.5) => {
+    pdf.setFont("times", "normal").setFontSize(size).setTextColor(40, 48, 66);
+    const lines = pdf.splitTextToSize(pdfSafe(text), width) as string[];
+    pdf.text(lines, left, y, { lineHeightFactor: 1.5 });
+    return y + lines.length * size * 0.3528 * 1.5;
+  };
+  let y = paragraph("La direction des études de l'IPAIM University, soussignée, certifie que l'étudiant(e)", 92) + 9;
+  pdf.setFont("times", "bold").setFontSize(21).setTextColor(20, 40, 92);
+  const name = pdf.splitTextToSize(pdfSafe(`${data.etudiant.nom.toUpperCase()} ${data.etudiant.prenom}`), width) as string[];
+  pdf.text(name, left, y);
+  y += name.length * 9 + 3;
+  y = paragraph(`${bornLine(data.etudiant).replace("Né(e)", "né(e)")}, immatriculé(e) sous le numéro ${data.etudiant.matricule ?? "-"},`, y) + 3;
+  y = paragraph(`est régulièrement inscrit(e) dans notre établissement et y poursuit ses études au titre de l'année académique ${data.annee}, dans la formation suivante :`, y) + 5;
+
+  // Formation : une ligne par information, l'intitulé à gauche, la valeur à droite.
+  for (const [label, value] of [["Filière", data.filiere], ["Niveau d'études", data.niveau], ["Classe", data.classe], ["Année académique", data.annee]]) {
+    pdf.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(102, 114, 140);
+    pdf.text(pdfSafe(label.toUpperCase()), left, y + 5);
+    pdf.setFont("times", "bold").setFontSize(13).setTextColor(20, 40, 92);
+    pdf.text((pdf.splitTextToSize(pdfSafe(value), width - 48)[0] as string) ?? "", right, y + 5.3, { align: "right" });
+    pdf.setDrawColor(215, 222, 235).setLineWidth(0.25).line(left, y + 8.5, right, y + 8.5);
+    y += 11.5;
+  }
+  y = paragraph("Le présent certificat est délivré à l'intéressé(e) pour servir et valoir ce que de droit.", y + 10);
+
+  // Référence vérifiable à gauche, signature à droite.
+  const base = 232;
+  const qr = QRCode.create(number, { errorCorrectionLevel: "M" }).modules;
+  const cell = 22 / qr.size;
+  pdf.setFillColor(20, 40, 92);
+  for (let row = 0; row < qr.size; row += 1)
+    for (let column = 0; column < qr.size; column += 1)
+      if (qr.data[row * qr.size + column]) pdf.rect(left + column * cell, base + row * cell, cell + 0.02, cell + 0.02, "F");
+  pdf.setFont("helvetica", "normal").setFontSize(7).setTextColor(102, 114, 140);
+  pdf.text(pdfSafe(`Référence ${number}`), left, base + 27);
+  pdf.text("Edition consignée dans le registre des impressions.", left, base + 31);
+
+  pdf.setFont("times", "normal").setFontSize(12).setTextColor(40, 48, 66);
+  pdf.text(pdfSafe(`Fait le ${longDate(new Date().toISOString())}`), right, base + 2, { align: "right" });
+  pdf.setFont("times", "bold").setFontSize(12).setTextColor(20, 40, 92);
+  pdf.text("La direction des études", right, base + 9, { align: "right" });
+  pdf.setDrawColor(150, 160, 180).setLineWidth(0.3).line(right - 62, base + 31, right, base + 31);
+  pdf.setFont("helvetica", "normal").setFontSize(7).setTextColor(102, 114, 140);
+  pdf.text("Nom, signature et cachet", right, base + 35, { align: "right" });
+
+  pdf.setDrawColor(215, 222, 235).setLineWidth(0.3).line(left, 279, right, 279);
+  pdf.setFontSize(7.5);
+  pdf.text("Ce certificat n'est valable que pour l'année académique indiquée.", left, 284);
+  pdf.text(pdfSafe(generatedByLine()), left, 288.5);
+  pdf.setTextColor(30, 40, 60);
   pdf.save(fileName);
 }
 

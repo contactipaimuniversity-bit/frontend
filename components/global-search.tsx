@@ -4,15 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { hasAccess } from "@/lib/access";
-import { navigateTo, pathForDossier, pathForView } from "@/lib/routes";
+import { navigateTo, pathForDossier, pathForStudent, pathForView } from "@/lib/routes";
 import { ApplicationPage, EnrollmentPage, ProspectPage, User, fullName, statusLabels } from "@/lib/types";
 
 type Result = { key: string; group: string; title: string; detail: string; badge: string; path: string };
+type StudentHit = { id: string; nom: string; prenom: string; matricule: string | null; classe: { nom: string; annee: string } | null };
 
 async function search(query: string, user: User | null): Promise<Result[]> {
   const q = encodeURIComponent(query);
   const options = { skipCache: true } as const;
-  const [applications, enrollments, prospects] = await Promise.all([
+  const [students, applications, enrollments, prospects] = await Promise.all([
+    hasAccess(user, "academics") || hasAccess(user, "deliberations")
+      ? apiFetch<StudentHit[]>(`/deliberations/etudiants?q=${q}`, options).catch(() => null)
+      : null,
     hasAccess(user, "scholarships")
       ? apiFetch<ApplicationPage>(`/demandes-bourse?page=1&limit=5&q=${q}`, options).catch(() => null)
       : null,
@@ -24,6 +28,15 @@ async function search(query: string, user: User | null): Promise<Result[]> {
       : null,
   ]);
   return [
+    // Un étudiant mène à son parcours complet, toutes années confondues.
+    ...(students ?? []).map((item) => ({
+      key: `etudiant:${item.id}`,
+      group: "Étudiants",
+      title: `${item.nom} ${item.prenom}`,
+      detail: [item.matricule, item.classe && `${item.classe.nom} · ${item.classe.annee}`].filter(Boolean).join(" · "),
+      badge: "Parcours",
+      path: pathForStudent(item.id),
+    })),
     ...(applications?.data ?? []).map((item) => ({
       key: `demande:${item.id}`,
       group: "Demandes de bourse",
@@ -116,7 +129,7 @@ export function GlobalSearch({ user }: { user: User | null }) {
           aria-expanded={open && term.length >= 2}
           aria-controls="global-search-results"
           aria-label="Rechercher une personne ou un dossier"
-          placeholder="Rechercher un nom, un téléphone, une filière…"
+          placeholder="Rechercher un nom, un matricule, un téléphone…"
           value={query}
           onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}

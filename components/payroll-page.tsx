@@ -6,7 +6,7 @@ import { hasAccess } from "@/lib/access";
 import { Payslip, monthLabel, payslipsPdf } from "@/lib/pdf-docs";
 import { logPrint } from "@/lib/print-log";
 import { ExpenseCategory, User, formatDate, formatMoney } from "@/lib/types";
-import { PAYMENT_MODES } from "@/components/hr-page";
+import { PAYMENT_MODES, PAY_RHYTHMS } from "@/components/hr-page";
 import { CalendarCheck, ListChecks, SlidersHorizontal } from "lucide-react";
 import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, downloadPdf, number, personName, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
 
@@ -26,6 +26,8 @@ type Period = {
   bulletins: Slip[];
   totaux: { brut: number; retenues: number; net: number; chargesPatronales: number; coutTotal: number };
   anomalies: string[];
+  // Enseignants payés à la séance dont l'échéance ne tombe pas ce mois.
+  echeances: Array<{ employe: { id: string; nom: string; prenom: string; matricule: string }; periodicitePaie: string; heures: number; montant: number; depuis: string; avancee: boolean }>;
 };
 type Rubric = { id: string; code: string; libelle: string; type: string; mode: string; valeur: string; plafond?: string | null; appliqueATous: boolean; compteNumero?: string | null; ordre: number; actif: boolean };
 type HrSettings = { joursCongeAnnuel: number; joursOuvresMois: number; categoriePaieId?: string | null };
@@ -127,6 +129,31 @@ function PeriodModal({ id, canEdit, canApprove, onClose, onChanged }: { id: stri
             <div className="expense-alert">
               <span>Points à vérifier</span>
               <ul>{data.anomalies.map((anomaly) => <li key={anomaly}>{anomaly}</li>)}</ul>
+            </div>
+          )}
+          {data.echeances.length > 0 && (
+            <div className="expense-panel">
+              <p className="form-section-label">Heures de cours en attente d&apos;échéance</p>
+              <p className="panel-subtitle">Ces enseignants ne sont pas payés chaque mois : leurs heures s&apos;accumulent jusqu&apos;à l&apos;échéance de leur contrat. « Payer dans cette paie » les verse maintenant (fin de semestre, départ, accord particulier).</p>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Enseignant</th><th>Rythme</th><th>Heures à payer</th><th>Montant</th><th /></tr></thead>
+                  <tbody>
+                    {data.echeances.map((item) => (
+                      <tr key={item.employe.id}>
+                        <td className="strong-cell">{personName(item.employe)}<small className="cell-detail">{item.employe.matricule}</small></td>
+                        <td>{PAY_RHYTHMS[item.periodicitePaie] ?? item.periodicitePaie}</td>
+                        <td>{number(item.heures)} h<small className="cell-detail">depuis le {formatDate(item.depuis)}</small></td>
+                        <td>{formatMoney(item.montant)}</td>
+                        <td className="action-group">
+                          {item.avancee ? <Badge tone="ok">Versé dans cette paie</Badge> : <Badge tone="wait">En attente</Badge>}
+                          {open && canEdit && <button className="row-action" disabled={action.busy} onClick={() => void post("echeances", { employeId: item.employe.id, payer: !item.avancee }, item.avancee ? "Heures remises en attente." : "Heures ajoutées à cette paie.")}>{item.avancee ? "Remettre en attente" : "Payer dans cette paie"}</button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
           <div className="table-wrap">
