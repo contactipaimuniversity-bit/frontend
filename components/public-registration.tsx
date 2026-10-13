@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, GraduationCap, HeartHandshake, PartyPopper, School, Sparkles, UserRound } from "lucide-react";
+import { Check, GraduationCap, HeartHandshake, School, UserRound } from "lucide-react";
 import { API_URL } from "@/lib/connectivity";
 
 type Fields = {
@@ -35,12 +35,6 @@ const DRAFT_KEY = "ipaim-enregistrement";
 const NAME = /^[\p{L}][\p{L}\s'’.-]*$/u;
 const LABEL = /^[\p{L}\p{N}][\p{L}\p{N}\s'’.,()/&°-]*$/u;
 const PHONE = /^\+?\d{8,15}$/;
-const STEPS = [
-  { key: "toi", label: "Toi", icon: UserRound },
-  { key: "lycee", label: "Ton lycée", icon: School },
-  { key: "tuteur", label: "Ton tuteur", icon: HeartHandshake },
-  { key: "projet", label: "Ton projet", icon: GraduationCap },
-];
 const clean = (value: string) => value.replace(/\s+/g, " ").trim();
 const digits = (value: string) => value.replace(/[\s().-]/g, "");
 const birthDate = (fields: Fields) => (fields.jour && fields.mois && fields.annee ? `${fields.annee}-${fields.mois.padStart(2, "0")}-${fields.jour.padStart(2, "0")}` : "");
@@ -112,12 +106,12 @@ function Choices({ label, values, value, onChange, error, wide }: { label: strin
   );
 }
 
-// Formulaire public des lycéens : quatre courtes étapes, pensé pour le téléphone.
+// Formulaire public des lycéens : quatre courtes étapes sur une page sobre et
+// stable (en-tête fixe, colonne centrée), pensée d'abord pour le téléphone.
 export function PublicRegistration() {
   const [fields, setFields] = useState<Fields>(EMPTY);
   // 0 accueil · 1 à 4 étapes · 5 récapitulatif · 6 merci
   const [step, setStep] = useState(0);
-  const [direction, setDirection] = useState<"next" | "back">("next");
   const [errors, setErrors] = useState<Errors>({});
   const [options, setOptions] = useState<Options>(DEFAULT_OPTIONS);
   const [sending, setSending] = useState(false);
@@ -165,7 +159,6 @@ export function PublicRegistration() {
     });
   };
   const go = (next: number) => {
-    setDirection(next > step ? "next" : "back");
     setFailure("");
     setStep(next);
   };
@@ -211,7 +204,6 @@ export function PublicRegistration() {
         throw new Error(message || "L'envoi n'a pas abouti. Réessaie dans un instant.");
       }
       try { window.sessionStorage.removeItem(DRAFT_KEY); } catch { /* Stockage indisponible. */ }
-      setDirection("next");
       setStep(6);
     } catch (error) {
       setFailure(error instanceof TypeError ? "Pas de connexion : vérifie ton réseau puis réessaie. Tes réponses sont conservées." : error instanceof Error ? error.message : "L'envoi n'a pas abouti.");
@@ -229,37 +221,19 @@ export function PublicRegistration() {
   const year = new Date().getFullYear();
   const years = Array.from({ length: 34 }, (_, index) => String(year - 12 - index));
   const series = fields.serie === "Autre" ? clean(fields.serieAutre) : fields.serie;
-  const progress = step === 0 ? 0 : Math.min(100, (Math.min(step, 5) / 5) * 100);
 
   return (
     <main className="reg">
-      <div className="reg-glow" aria-hidden="true" />
       <header className="reg-top">
-        <div className="reg-brand">
-          <img src="/WhatsApp%20Image%202026-07-17%20at%2018.26.50.jpeg" alt="" width={44} height={44} />
-          <div><strong>IPAIM University</strong><small>Innover · Former · Transformer</small></div>
-        </div>
-        {step >= 1 && step <= 5 && (
-          <div className="reg-progress" role="progressbar" aria-valuemin={0} aria-valuemax={5} aria-valuenow={Math.min(step, 5)} aria-label="Avancement du formulaire">
-            <span style={{ width: `${progress}%` }} />
-          </div>
-        )}
-        {step >= 1 && step <= 4 && (
-          <ol className="reg-steps">
-            {STEPS.map((item, index) => (
-              <li key={item.key} className={index + 1 === step ? "current" : index + 1 < step ? "done" : ""}>
-                <span>{index + 1 < step ? <Check size={14} aria-hidden="true" /> : <item.icon size={14} aria-hidden="true" />}</span>
-                {item.label}
-              </li>
-            ))}
-          </ol>
-        )}
+        <ol className="reg-dots" aria-label={step >= 1 && step <= 4 ? `Étape ${step} sur 4` : step >= 5 ? "Les 4 étapes sont remplies" : "4 étapes"}>
+          {[1, 2, 3, 4].map((item) => <li key={item} className={step >= item ? "on" : ""} aria-current={step === item ? "step" : undefined} />)}
+        </ol>
+        <img src="/WhatsApp%20Image%202026-07-17%20at%2018.26.50.jpeg" alt="IPAIM University" width={40} height={40} />
       </header>
 
-      <section className={`reg-card ${direction}`} key={step} ref={card} aria-live="polite">
+      <section className="reg-card" ref={card} aria-live="polite">
         {step === 0 && (
           <div className="reg-hero">
-            <span className="reg-badge"><Sparkles size={15} aria-hidden="true" /> Futurs étudiants</span>
             <h1>Ton avenir commence <em>ici</em>.</h1>
             <p>Tu es au lycée et l&apos;université t&apos;intéresse ? Dis-nous qui tu es : nous te tiendrons au courant des inscriptions, des bourses et des journées portes ouvertes.</p>
             <ul className="reg-promises">
@@ -267,7 +241,7 @@ export function PublicRegistration() {
               <li><Check size={16} aria-hidden="true" /> Gratuit et sans engagement</li>
               <li><Check size={16} aria-hidden="true" /> Tes informations restent à l&apos;université</li>
             </ul>
-            <button type="button" className="reg-primary big" onClick={() => go(1)}>Commencer <ArrowRight size={20} aria-hidden="true" /></button>
+            <button type="button" className="reg-primary" onClick={() => go(1)}>Commencer</button>
           </div>
         )}
 
@@ -278,11 +252,13 @@ export function PublicRegistration() {
 
             {step === 1 && (
               <>
-                <p className="reg-eyebrow">Étape 1 sur 4</p>
                 <h2>Faisons connaissance</h2>
-                <p className="reg-lead">Comment t&apos;appelles-tu ?</p>
+                <p className="reg-lead">Dis-nous comment tu t&apos;appelles. Cela ne prend que deux minutes.</p>
+                <div className="reg-box">
                 <Field label="Ton prénom" error={errors.prenom}><input autoComplete="given-name" autoCapitalize="words" maxLength={60} placeholder="Grâce" value={fields.prenom} onChange={(event) => set({ prenom: event.target.value })} /></Field>
                 <Field label="Ton nom" error={errors.nom}><input autoComplete="family-name" autoCapitalize="characters" maxLength={60} placeholder="NGOMA" value={fields.nom} onChange={(event) => set({ nom: event.target.value })} /></Field>
+                </div>
+                <div className="reg-box">
                 <fieldset className={`reg-field ${errors.sexe ? "invalid" : ""}`}>
                   <legend>Tu es</legend>
                   <div className="reg-duo">
@@ -304,53 +280,60 @@ export function PublicRegistration() {
                   </div>
                   {errors.naissance && <small className="reg-error" role="alert">{errors.naissance}</small>}
                 </fieldset>
+                </div>
               </>
             )}
 
             {step === 2 && (
               <>
-                <p className="reg-eyebrow">Étape 2 sur 4</p>
-                <h2>{firstName ? `Enchanté, ${firstName} !` : "Ton lycée"}</h2>
+                <h2>{firstName ? `Enchanté, ${firstName} !` : "Ton lycée"}</h2>
                 <p className="reg-lead">Où étudies-tu en ce moment ?</p>
+                <div className="reg-box">
                 <Field label="Ton établissement" error={errors.ecole}><input autoComplete="organization" maxLength={120} placeholder="Lycée Savorgnan de Brazza" value={fields.ecole} onChange={(event) => set({ ecole: event.target.value })} /></Field>
+                </div>
+                <div className="reg-box">
                 <Choices label="Ta classe" values={options.classes} value={fields.classe} onChange={(value) => set({ classe: value })} error={errors.classe} />
                 <Choices label="Ta série" values={SERIES} value={fields.serie} onChange={(value) => set({ serie: value })} error={fields.serie === "Autre" ? undefined : errors.serie} />
                 {fields.serie === "Autre" && <Field label="Précise ta série" error={errors.serie}><input maxLength={30} placeholder="F4, G2, R1..." value={fields.serieAutre} onChange={(event) => set({ serieAutre: event.target.value })} /></Field>}
+                </div>
               </>
             )}
 
             {step === 3 && (
               <>
-                <p className="reg-eyebrow">Étape 3 sur 4</p>
                 <h2>Ton parent ou tuteur</h2>
                 <p className="reg-lead">La personne que l&apos;université peut joindre pour toi.</p>
+                <div className="reg-box">
                 <Field label="Son prénom" error={errors.tuteurPrenom}><input autoCapitalize="words" maxLength={60} placeholder="Paul" value={fields.tuteurPrenom} onChange={(event) => set({ tuteurPrenom: event.target.value })} /></Field>
                 <Field label="Son nom" error={errors.tuteurNom}><input autoCapitalize="characters" maxLength={60} placeholder="NGOMA" value={fields.tuteurNom} onChange={(event) => set({ tuteurNom: event.target.value })} /></Field>
                 <Field label="Son numéro de téléphone" error={errors.tuteurTelephone} hint="Nous l'appellerons seulement pour te donner des nouvelles de l'université."><input type="tel" inputMode="tel" autoComplete="off" maxLength={20} placeholder="06 600 11 22" value={fields.tuteurTelephone} onChange={(event) => set({ tuteurTelephone: event.target.value })} /></Field>
+                </div>
               </>
             )}
 
             {step === 4 && (
               <>
-                <p className="reg-eyebrow">Étape 4 sur 4</p>
-                <h2>Et après le bac ?</h2>
+                <h2>Et après le bac{" "}?</h2>
                 <p className="reg-lead">Quelle filière aimerais-tu suivre à l&apos;université ?</p>
+                <div className="reg-box">
                 <Field label="La filière que tu veux faire" error={errors.filiereSouhaitee} hint="Écris-la avec tes mots : informatique, génie civil, comptabilité, agronomie..."><input autoCapitalize="sentences" maxLength={120} placeholder="Exemple : Informatique" value={fields.filiereSouhaitee} onChange={(event) => set({ filiereSouhaitee: event.target.value })} /></Field>
+                </div>
+                <div className="reg-box">
                 <Field label="Ton numéro (facultatif)" error={errors.telephone} hint="Si tu en as un, pour te joindre directement."><input type="tel" inputMode="tel" autoComplete="tel" maxLength={20} placeholder="05 500 33 44" value={fields.telephone} onChange={(event) => set({ telephone: event.target.value })} /></Field>
+                </div>
               </>
             )}
 
             <div className="reg-actions">
-              <button type="button" className="reg-ghost" onClick={() => go(step - 1)}><ArrowLeft size={18} aria-hidden="true" /> Retour</button>
-              <button className="reg-primary">{step === 4 ? "Vérifier" : "Continuer"} <ArrowRight size={18} aria-hidden="true" /></button>
+              <button className="reg-primary">{step === 4 ? "Vérifier" : "Continuer"}</button>
+              <button type="button" className="reg-ghost" onClick={() => go(step - 1)}>Retour</button>
             </div>
           </form>
         )}
 
         {step === 5 && (
           <div>
-            <p className="reg-eyebrow">Dernière vérification</p>
-            <h2>Tout est correct{firstName ? `, ${firstName}` : ""} ?</h2>
+            <h2>Tout est correct{firstName ? `, ${firstName}` : ""}{" "}?</h2>
             <p className="reg-lead">Relis tes réponses, puis envoie.</p>
             <dl className="reg-recap">
               <div><dt><UserRound size={16} aria-hidden="true" /> Toi</dt><dd>{clean(fields.prenom)} {clean(fields.nom).toUpperCase()}<small>{fields.sexe === "F" ? "Fille" : "Garçon"} · né(e) le {fields.jour} {MONTHS[Number(fields.mois) - 1]?.toLowerCase()} {fields.annee}</small></dd><button type="button" onClick={() => go(1)}>Modifier</button></div>
@@ -360,20 +343,19 @@ export function PublicRegistration() {
             </dl>
             {failure && <p className="reg-failure" role="alert">{failure}</p>}
             <div className="reg-actions">
-              <button type="button" className="reg-ghost" disabled={sending} onClick={() => go(4)}><ArrowLeft size={18} aria-hidden="true" /> Retour</button>
-              <button type="button" className="reg-primary" disabled={sending} onClick={() => void submit()}>{sending ? "Envoi en cours..." : "Envoyer"} {!sending && <Check size={18} aria-hidden="true" />}</button>
+              <button type="button" className="reg-primary" disabled={sending} onClick={() => void submit()}>{sending ? "Envoi en cours..." : "Envoyer"}</button>
+              <button type="button" className="reg-ghost" disabled={sending} onClick={() => go(4)}>Retour</button>
             </div>
           </div>
         )}
 
         {step === 6 && (
           <div className="reg-done">
-            <div className="reg-confetti" aria-hidden="true">{Array.from({ length: 14 }, (_, index) => <i key={index} />)}</div>
             <span className="reg-check"><Check size={44} aria-hidden="true" /></span>
-            <h2>Merci{firstName ? `, ${firstName}` : ""} !</h2>
+            <h2>Merci{firstName ? `, ${firstName}` : ""}{" "}!</h2>
             <p>C&apos;est bien enregistré. L&apos;université te contactera, ou contactera ton tuteur, dès qu&apos;il y aura du nouveau pour toi.</p>
-            <p className="reg-wish"><PartyPopper size={18} aria-hidden="true" /> Bon courage pour ton année, et à très bientôt.</p>
-            <button type="button" className="reg-ghost wide" onClick={restart}>Inscrire un(e) autre élève</button>
+            <p className="reg-wish">Bon courage pour ton année, et à très bientôt.</p>
+            <button type="button" className="reg-ghost" onClick={restart}>Inscrire un(e) autre élève</button>
           </div>
         )}
       </section>
