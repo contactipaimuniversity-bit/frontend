@@ -118,6 +118,24 @@ export function PublicRegistration() {
   const [failure, setFailure] = useState("");
   const [restored, setRestored] = useState(false);
   const card = useRef<HTMLElement>(null);
+  // Téléphone qui affiche la page « comme un ordinateur » (mode « version pour
+  // ordinateur » du navigateur) : la page est dessinée sur 980 px puis rétrécie,
+  // tout paraît minuscule et le navigateur zoome au moindre champ touché. On
+  // agrandit alors le formulaire pour qu'il occupe l'écran, comme en mode normal.
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const fit = () => {
+      const touch = window.matchMedia("(pointer: coarse)").matches;
+      const phone = Math.min(window.screen.width, window.screen.height) < 700;
+      setScale(touch && phone && window.innerWidth >= 720 ? window.innerWidth / 400 : 1);
+    };
+    const timer = window.setTimeout(fit, 0);
+    window.addEventListener("resize", fit);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("resize", fit);
+    };
+  }, []);
 
   // Une saisie interrompue (appel, changement d'application) se retrouve au retour.
   useEffect(() => {
@@ -144,7 +162,10 @@ export function PublicRegistration() {
   useEffect(() => {
     card.current?.scrollTo({ top: 0 });
     window.scrollTo({ top: 0 });
-    if (step >= 1 && step <= 4 && window.matchMedia("(min-width: 720px)").matches) card.current?.querySelector<HTMLElement>("input, select")?.focus();
+    // Le premier champ n'est préparé qu'avec une souris. Sur un écran tactile,
+    // y placer le curseur fait zoomer le téléphone sur le champ : la page
+    // « grossit » d'un coup, surtout s'il affiche le site en mode ordinateur.
+    if (step >= 1 && step <= 4 && window.matchMedia("(hover: hover) and (pointer: fine)").matches) card.current?.querySelector<HTMLElement>("input, select")?.focus();
   }, [step]);
 
   const set = (patch: Partial<Fields>) => {
@@ -223,7 +244,7 @@ export function PublicRegistration() {
   const series = fields.serie === "Autre" ? clean(fields.serieAutre) : fields.serie;
 
   return (
-    <main className="reg">
+    <main className="reg" style={scale === 1 ? undefined : { zoom: scale, minHeight: `calc(100dvh / ${scale})` }}>
       <header className="reg-top">
         <ol className="reg-dots" aria-label={step >= 1 && step <= 4 ? `Étape ${step} sur 4` : step >= 5 ? "Les 4 étapes sont remplies" : "4 étapes"}>
           {[1, 2, 3, 4].map((item) => <li key={item} className={step >= item ? "on" : ""} aria-current={step === item ? "step" : undefined} />)}
