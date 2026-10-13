@@ -8,10 +8,14 @@ export const metadata: Metadata = {
   description: "Tu es au lycée et l'université t'intéresse ? Laisse-nous tes coordonnées en deux minutes.",
 };
 
+// Échelle fixe : la page ne zoome pas toute seule quand on touche un champ, et
+// garde la même taille tout au long du formulaire.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#14285c",
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#ffffff",
 };
 
 export default function Page() {
