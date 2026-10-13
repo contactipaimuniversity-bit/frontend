@@ -40,6 +40,7 @@ export const VIEW_ACCESS: Partial<Record<ViewName, AccessArea | AccessArea[]>> =
   Certificats: "certificates",
   Paiements: "payments",
   Prospects: "prospects",
+  "Futurs étudiants": "prospects",
   Personnes: "people",
   Recrutement: "recruiting",
   Référentiels: "references",

@@ -1072,3 +1072,15 @@ button.daily-summary-stat.active { border-color: var(--brand-navy, #14285c); box
 
 /* Tableau de bord académique : les listes sous les cartes. */
 .dashboard-stack { margin-top: 24px; }
+
+/* Futurs étudiants : répartition des filières souhaitées. */
+.wish-bars { display: grid; gap: 6px; margin-bottom: 14px; }
+.wish-bars button { display: grid; grid-template-columns: minmax(120px, 240px) 1fr auto; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--ink); background: transparent; font-size: var(--text-sm); text-align: left; }
+.wish-bars button:hover, .wish-bars button.active { border-color: var(--line); background: var(--surface-blue, #e8eef8); }
+.wish-bars button > span:first-child { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.wish-bar { display: block; height: 8px; overflow: hidden; border-radius: 999px; background: var(--surface-blue, #e8eef8); }
+.wish-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brand-gold); }
+.stat-card > span:has(> svg) { display: flex; align-items: center; gap: 6px; }
+
+/* Boutons de page avec une icône devant le libellé. */
+.page-intro-actions > :is(a, button).outline-button { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; white-space: nowrap; text-decoration: none; }

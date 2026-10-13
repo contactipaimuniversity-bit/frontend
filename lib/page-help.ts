@@ -290,6 +290,31 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { question: "Les changements s'appliquent-ils aux dépenses en cours ?", answer: "Le nombre de validations est figé à la soumission ; les nouvelles règles valent pour les demandes soumises ensuite." },
     ],
   },
+  "Futurs étudiants": {
+    summary: "Les lycéens qui se sont signalés par le formulaire public de l'université.",
+    purpose: [
+      "Savoir quels élèves s'intéressent à l'université, avant même une demande de bourse ou une inscription.",
+      "Voir quelles filières attirent le plus, et de quels établissements viennent les élèves.",
+      "Garder le contact : joindre le tuteur et noter qui a déjà été appelé.",
+    ],
+    steps: [
+      { title: "Partager le formulaire", detail: "« Copier le lien du formulaire » donne l'adresse à envoyer aux lycéens (réseaux sociaux, affiche, QR code). Aucun compte n'est nécessaire pour le remplir." },
+      { title: "Ce que remplit l'élève", detail: "Quatre courtes étapes sur son téléphone : son identité, son lycée (classe et série), son parent ou tuteur, puis la filière qui l'attire." },
+      { title: "Lire la liste", detail: "Chaque envoi apparaît ici aussitôt. Recherchez par nom, lycée ou téléphone ; cliquez une filière dans la répartition pour filtrer." },
+      { title: "Suivre les appels", detail: "« Marquer contacté » une fois le tuteur joint. Le filtre « À contacter » montre ceux qui restent." },
+      { title: "Exporter", detail: "« Exporter (PDF) » produit la liste de la sélection en cours." },
+    ],
+    tips: [
+      "Cette liste est purement informative : un lycéen enregistré ici n'est ni une personne du répertoire, ni un prospect, ni un dossier. Le reste du système n'est pas touché.",
+      "Un élève qui remplit deux fois le formulaire ne crée pas de doublon : sa fiche est mise à jour.",
+    ],
+    faq: [
+      { question: "Le formulaire est-il protégé ?", answer: "Oui. Les saisies sont contrôlées, les envois en rafale depuis une même connexion (plus de 40 en 10 minutes) sont bloqués, les robots sont écartés, et le formulaire ne donne accès à aucune donnée du système." },
+      { question: "Un envoi fantaisiste est arrivé ?", answer: "Supprimez la fiche : elle disparaît de la liste." },
+      { question: "Qui voit cette page ?", answer: "Les comptes qui ont le droit « Prospects »." },
+      ACCESS_FAQ,
+    ],
+  },
   Prospects: {
     summary: "Le suivi des personnes intéressées par l'IPAIM et de leurs relances.",
     purpose: [

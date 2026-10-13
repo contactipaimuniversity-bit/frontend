@@ -17,6 +17,7 @@ import { AuditPage } from "@/components/audit-page";
 import { PrintsPage } from "@/components/prints-page";
 import { AcademicStructurePage } from "@/components/academic-structure-page";
 import { AcademicDashboardPage } from "@/components/academic-dashboard-page";
+import { FutureStudentsPage } from "@/components/future-students-page";
 import { AcademicClassesPage } from "@/components/academic-classes-page";
 import { AcademicGradesPage, AcademicTeachingPage } from "@/components/academic-teaching-page";
 import { AcademicResultsPage, AcademicStatsPage } from "@/components/academic-results-page";
@@ -532,6 +533,8 @@ export default function Home() {
         <ReferencesPage onRefresh={refresh} />
       ) : activeView === "Audit" ? (
         <AuditPage refreshSignal={refreshKey} focusUserId={route.auditUserId} />
+      ) : activeView === "Futurs étudiants" ? (
+        <FutureStudentsPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Tableau de bord académique" ? (
         <AcademicDashboardPage refreshSignal={refreshKey} />
       ) : activeView === "Structure académique" ? (

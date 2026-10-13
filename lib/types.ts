@@ -238,7 +238,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Aide de la page" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "Dépenses" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Tableau de bord académique" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Évaluations et notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Aide de la page" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "Dépenses" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Futurs étudiants" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Tableau de bord académique" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Évaluations et notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI";
 
 export type DailyActivityReport = {
   date: string;
