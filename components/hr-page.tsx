@@ -4,11 +4,12 @@ import { FormEvent, useState } from "react";
 import { askConfirm, askReason, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
 import { apiFetch } from "@/lib/api";
+import { queryParam } from "@/lib/routes";
 import { monthLabel } from "@/lib/pdf-docs";
 import { User, formatDate, formatMoney } from "@/lib/types";
 import { Clock, ClipboardCheck, Users } from "lucide-react";
 import { StaffAttendance, TeacherAttendance } from "@/components/attendance-pages";
-import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, Tabs, messageOf, personName, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, Tabs, messageOf, personName, send, today, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
 
 export const EMPLOYEE_CATEGORIES: Record<string, string> = {
   ENSEIGNANT_PERMANENT: "Enseignant permanent",
@@ -487,12 +488,12 @@ function HireModal({ user, onClose, onCreated }: { user: User | null; onClose: (
 export function HrPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   const canEdit = hasAccess(user, "hr", "edit");
   type Section = "dossiers" | "pointage" | "emargement";
-  const [section, setSection] = useState<Section | null>(null);
+  const [section, setSection] = useHubSection<Section>(["dossiers", "pointage", "emargement"]);
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState("");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("ACTIF");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(() => queryParam("employe"));
   const [hiring, setHiring] = useState(false);
   const dashboard = useLoad<Dashboard>("/rh/tableau-de-bord", refreshSignal);
   const pending = useLoad<Leave[]>("/rh/conges/en-attente", refreshSignal);

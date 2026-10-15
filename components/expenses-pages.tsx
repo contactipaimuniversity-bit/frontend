@@ -3,9 +3,10 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { Banknote, CalendarRange, CircleCheckBig, FileText, PackageCheck, ShieldCheck, Tags, Truck } from "lucide-react";
 import { ActionIcon } from "@/components/action-icon";
-import { HubBack, HubCard, HubCards, PageBar, usePaged } from "@/components/ui-kit";
+import { HubBack, HubCard, HubCards, PageBar, Tabs, usePaged, useHubSection } from "@/components/ui-kit";
 import { askConfirm, toast } from "@/components/feedback";
-import { hasAccess } from "@/lib/access";
+import { canAccessView, hasAccess } from "@/lib/access";
+import { navigateTo, pathForView, queryParam } from "@/lib/routes";
 import { apiFetch } from "@/lib/api";
 import { logPrint } from "@/lib/print-log";
 import {
@@ -18,6 +19,7 @@ import {
   FiscalYear,
   Supplier,
   User,
+  ViewName,
   formatDate,
   formatMoney,
   pdfSafe,
@@ -240,7 +242,7 @@ function ExpenseForm({ expense, onClose, onSaved }: { expense?: ExpenseDetail; o
   };
 
   return (
-    <Modal wide title={saved ? `Demande ${saved.numero}` : "Nouvelle demande de dépense"} onClose={onClose}>
+    <Modal wide title={saved ? `État de besoin ${saved.numero}` : "Nouvel état de besoin"} onClose={onClose}>
       <form
         className="entity-form"
         onSubmit={(event: FormEvent) => {
@@ -754,6 +756,19 @@ function ExpenseModals({ openId, editing, setOpenId, setEditing, onChanged }: { 
   );
 }
 
+// Les trois écrans du circuit de dépense, réunis derrière une seule entrée du menu.
+const CIRCUIT: Array<[ViewName, string]> = [
+  ["États de besoin", "États de besoin"],
+  ["Validation des dépenses", "À valider"],
+  ["Exécution des dépenses", "À exécuter"],
+];
+
+function CircuitTabs({ user, current }: { user: User | null; current: ViewName }) {
+  const tabs = CIRCUIT.filter(([view]) => canAccessView(user, view));
+  if (tabs.length < 2) return null;
+  return <Tabs label="Étapes du circuit de dépense" tabs={tabs} value={current} onChange={(view) => navigateTo(pathForView(view))} />;
+}
+
 export function ExpensesPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   const seesAll = (["expense-approval", "expense-final-approval", "expense-payment", "finance-settings"] as const).some((area) => hasAccess(user, area));
   const canCreate = hasAccess(user, "expenses", "edit");
@@ -762,7 +777,7 @@ export function ExpensesPage({ user, refreshSignal }: { user: User | null; refre
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(() => queryParam("depense"));
   const [editing, setEditing] = useState<ExpenseDetail | "new" | null>(null);
   const list = useLoad<ExpensePage>(`/depenses?vue=${scope}&page=${page}&limit=20${status ? `&statut=${status}` : ""}${search ? `&q=${encodeURIComponent(search)}` : ""}`, refreshSignal);
   const counters = useLoad<{ brouillons: number; rejetees: number }>("/depenses/compteurs", refreshSignal);
@@ -773,35 +788,36 @@ export function ExpensesPage({ user, refreshSignal }: { user: User | null; refre
   const meta = list.data?.meta;
   return (
     <div className="content-scroll">
+      <CircuitTabs user={user} current="États de besoin" />
       <div className="page-intro">
         <div>
           <p className="eyebrow">Finances</p>
-          <h2>Demandes de dépense</h2>
-          <p>Initiez une dépense, joignez la lettre de demande et le devis, puis suivez son circuit jusqu&apos;au paiement.</p>
+          <h2>États de besoin</h2>
+          <p>Exprimez un besoin, joignez la lettre de demande et le devis, puis suivez son circuit jusqu&apos;au paiement.</p>
         </div>
-        {canCreate && <button className="primary-button compact" onClick={() => setEditing("new")}>+ Nouvelle demande</button>}
+        {canCreate && <button className="primary-button compact" onClick={() => setEditing("new")}>+ Nouvel état de besoin</button>}
       </div>
       {counters.data && (counters.data.brouillons > 0 || counters.data.rejetees > 0) && (
         <div className="expense-reminders">
           {counters.data.brouillons > 0 && <button className="row-action" onClick={() => { setScope("mes"); setStatus("BROUILLON"); setPage(1); }}>{counters.data.brouillons} brouillon(s) à soumettre</button>}
-          {counters.data.rejetees > 0 && <button className="row-action debt-action" onClick={() => { setScope("mes"); setStatus("REJETEE"); setPage(1); }}>{counters.data.rejetees} demande(s) rejetée(s) à reprendre</button>}
+          {counters.data.rejetees > 0 && <button className="row-action debt-action" onClick={() => { setScope("mes"); setStatus("REJETEE"); setPage(1); }}>{counters.data.rejetees} état(s) de besoin rejeté(s) à reprendre</button>}
         </div>
       )}
       <section className="panel full-panel">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">{scope === "mes" ? "Mes demandes" : "Toutes les dépenses"}</p>
-            <h3>{meta?.total ?? "--"} dépense(s)</h3>
+            <p className="eyebrow">{scope === "mes" ? "Mes états de besoin" : "Tous les états de besoin"}</p>
+            <h3>{meta?.total ?? "--"} état(s) de besoin</h3>
           </div>
           <div className="toolbar">
             <form className="search-form" onSubmit={(event) => { event.preventDefault(); setSearch(draft.trim()); setPage(1); }}>
-              <input aria-label="Rechercher une dépense" placeholder="N°, objet, fournisseur..." value={draft} onChange={(event) => setDraft(event.target.value)} />
+              <input aria-label="Rechercher un état de besoin" placeholder="N°, objet, fournisseur..." value={draft} onChange={(event) => setDraft(event.target.value)} />
               <button className="outline-button small">Rechercher</button>
             </form>
             {seesAll && (
               <select aria-label="Périmètre" value={scope} onChange={(event) => { setScope(event.target.value as "mes" | "toutes"); setPage(1); }}>
-                <option value="mes">Mes demandes</option>
-                <option value="toutes">Toutes les dépenses</option>
+                <option value="mes">Mes états de besoin</option>
+                <option value="toutes">Tous les états de besoin</option>
               </select>
             )}
             <select aria-label="Statut" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}>
@@ -811,10 +827,10 @@ export function ExpensesPage({ user, refreshSignal }: { user: User | null; refre
           </div>
         </div>
         {list.error && <p className="form-error">{list.error}</p>}
-        <ExpenseTable expenses={list.data?.data ?? []} empty={list.data ? "Aucune dépense." : "Chargement..."} onOpen={setOpenId} />
+        <ExpenseTable expenses={list.data?.data ?? []} empty={list.data ? "Aucun état de besoin." : "Chargement..."} onOpen={setOpenId} />
         {meta && meta.totalPages > 1 && (
           <div className="pagination-bar">
-            <span>Page {meta.page} sur {meta.totalPages} · {meta.total} dépense(s)</span>
+            <span>Page {meta.page} sur {meta.totalPages} · {meta.total} état(s) de besoin</span>
             <div className="pagination-actions">
               <button className="outline-button small" disabled={meta.page <= 1} onClick={() => setPage(meta.page - 1)}>Précédente</button>
               <button className="outline-button small" disabled={meta.page >= meta.totalPages} onClick={() => setPage(meta.page + 1)}>Suivante</button>
@@ -827,14 +843,15 @@ export function ExpensesPage({ user, refreshSignal }: { user: User | null; refre
   );
 }
 
-export function ExpenseApprovalPage({ refreshSignal }: { refreshSignal: number }) {
-  const [openId, setOpenId] = useState<string | null>(null);
+export function ExpenseApprovalPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
+  const [openId, setOpenId] = useState<string | null>(() => queryParam("depense"));
   const [editing, setEditing] = useState<ExpenseDetail | "new" | null>(null);
   const queue = useLoad<ExpenseSummary[]>("/depenses/a-valider", refreshSignal);
   const expenses = queue.data ?? [];
   const total = expenses.reduce((sum, expense) => sum + Number(expense.montant), 0);
   return (
     <div className="content-scroll">
+      <CircuitTabs user={user} current="Validation des dépenses" />
       <div className="page-intro">
         <div>
           <p className="eyebrow">Finances</p>
@@ -918,10 +935,10 @@ function ExecutionQueue({ title, hint, items, loaded, toPay, onOpen }: { title: 
   );
 }
 
-export function ExpenseExecutionPage({ refreshSignal }: { refreshSignal: number }) {
-  const [openId, setOpenId] = useState<string | null>(null);
+export function ExpenseExecutionPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
+  const [openId, setOpenId] = useState<string | null>(() => queryParam("depense"));
   const [editing, setEditing] = useState<ExpenseDetail | "new" | null>(null);
-  const [section, setSection] = useState<ExecutionSection | null>(null);
+  const [section, setSection] = useHubSection<ExecutionSection>(["reception", "facture", "paiement", "payees"]);
   const [reloads, setReloads] = useState(0);
   const queue = useLoad<ExpenseSummary[]>("/depenses/a-executer", refreshSignal);
   const paid = useLoad<ExpensePage>("/depenses?vue=toutes&statut=PAYEE&page=1&limit=1", refreshSignal + reloads);
@@ -941,6 +958,7 @@ export function ExpenseExecutionPage({ refreshSignal }: { refreshSignal: number 
   const reload = () => { queue.reload(); setReloads((current) => current + 1); };
   return (
     <div className="content-scroll">
+      <CircuitTabs user={user} current="Exécution des dépenses" />
       <div className="page-intro">
         <div>
           <p className="eyebrow">Finances</p>
@@ -1298,7 +1316,7 @@ function FiscalYearsSettings({ canEdit, signal }: { canEdit: boolean; signal: nu
 
 export function FinanceSettingsPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   const canEdit = hasAccess(user, "finance-settings", "edit");
-  const [tab, setTab] = useState<SettingsTab | null>(null);
+  const [tab, setTab] = useHubSection<SettingsTab>(["regles", "categories", "fournisseurs", "exercices"]);
   // Chiffres clés des cartes.
   const rules = useLoad<FinanceRules>(tab ? null : "/finances/parametres", refreshSignal);
   const categories = useLoad<ExpenseCategory[]>(tab ? null : "/finances/categories", refreshSignal);

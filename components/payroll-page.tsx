@@ -8,7 +8,7 @@ import { logPrint } from "@/lib/print-log";
 import { ExpenseCategory, User, formatDate, formatMoney } from "@/lib/types";
 import { PAYMENT_MODES, PAY_RHYTHMS } from "@/components/hr-page";
 import { CalendarCheck, ListChecks, SlidersHorizontal } from "lucide-react";
-import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, downloadPdf, number, personName, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, downloadPdf, number, personName, send, today, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
 
 type PeriodRow = { id: string; annee: number; mois: number; statut: string; prepareParNom: string; valideParNom?: string | null; _count: { bulletins: number }; bulletins: Array<{ brut: string; net: string; chargesPatronales: string }> };
 type Slip = Payslip & { id: string; employeId: string; heuresVacation: string; tauxHoraire: string; joursAbsence: string; ajustements: Record<string, number> };
@@ -393,7 +393,7 @@ function SettingsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) 
 
 export function PayrollPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   type Tab = "periodes" | "rubriques" | "reglages";
-  const [tab, setTab] = useState<Tab | null>(null);
+  const [tab, setTab] = useHubSection<Tab>(["periodes", "rubriques", "reglages"]);
   const canEdit = hasAccess(user, "payroll", "edit");
   const canApprove = hasAccess(user, "payroll-approval", "edit");
   const canSettings = hasAccess(user, "hr", "edit");

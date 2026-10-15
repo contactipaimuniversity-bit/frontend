@@ -1,12 +1,14 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { Award, BadgeCheck, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
-import { Summary, User, ViewName } from "@/lib/types";
+import { Award, BadgeCheck, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
+import { User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/student-photo";
 import { GlobalSearch } from "@/components/global-search";
-import { canAccessView } from "@/lib/access";
+import { canAccessView, hasAccess } from "@/lib/access";
+import { MANUAL_BY_GROUP } from "@/lib/manuals";
+import { ManualSection, navigateTo, pathForManual } from "@/lib/routes";
 
 const MENU_EVENT = "ipaim-menu-toggle";
 const CLOSED_GROUPS_KEY = "ipaim-menu-sections-fermees";
@@ -46,6 +48,8 @@ const icons: Record<string, LucideIcon> = {
   ledger: BookOpenCheck,
   backups: DatabaseBackup,
   about: Info,
+  daily: CalendarCheck2,
+  cardScan: ScanLine,
   settings: Settings,
 };
 
@@ -53,8 +57,20 @@ function Icon({ name }: { name: string }) {
   const Glyph = icons[name] ?? Info;
   return <span className="nav-icon"><Glyph size={19} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span>;
 }
-const navGroups: { label: string; items: { label: ViewName; icon: string }[] }[] = [
-  { label: "Pilotage", items: [{ label: "Vue d'ensemble", icon: "home" }, { label: "Rapports", icon: "reports" }] },
+type NavItem = { label: ViewName; icon: string; title?: string; views?: ViewName[] };
+
+// Le menu suit le travail de chacun : une entrée par métier, les écrans voisins
+// d'un même circuit (la dépense) réunis derrière une seule entrée à onglets.
+export const EXPENSE_VIEWS: ViewName[] = ["États de besoin", "Validation des dépenses", "Exécution des dépenses"];
+export const navGroups: { label: string; items: NavItem[] }[] = [
+  {
+    label: "Pilotage",
+    items: [
+      { label: "Vue d'ensemble", icon: "home" },
+      { label: "Résumé de la journée", icon: "daily" },
+      { label: "Rapports", icon: "reports" },
+    ],
+  },
   {
     label: "Admissions",
     items: [
@@ -63,6 +79,7 @@ const navGroups: { label: string; items: { label: ViewName; icon: string }[] }[]
       { label: "Demandes de bourse", icon: "scholarships" },
       { label: "Inscriptions", icon: "enrollments" },
       { label: "Certificats", icon: "certificates" },
+      { label: "Personnes", icon: "people" },
     ],
   },
   {
@@ -71,6 +88,7 @@ const navGroups: { label: string; items: { label: ViewName; icon: string }[] }[]
       { label: "Tableau de bord académique", icon: "academicToday" },
       { label: "Structure académique", icon: "structure" },
       { label: "Classes et étudiants", icon: "classes" },
+      { label: "Contrôle des cartes", icon: "cardScan" },
       { label: "Enseignement", icon: "teaching" },
       { label: "Évaluations et notes", icon: "grades" },
       { label: "Délibérations", icon: "deliberations" },
@@ -81,9 +99,7 @@ const navGroups: { label: string; items: { label: ViewName; icon: string }[] }[]
     label: "Finances",
     items: [
       { label: "Paiements", icon: "payments" },
-      { label: "Dépenses", icon: "expenses" },
-      { label: "Validation des dépenses", icon: "approval" },
-      { label: "Exécution des dépenses", icon: "execution" },
+      { label: "États de besoin", icon: "expenses", title: "Dépenses", views: EXPENSE_VIEWS },
       { label: "Budget", icon: "budget" },
       { label: "Comptabilité", icon: "accounting" },
       { label: "Paramètres finances", icon: "finance" },
@@ -97,7 +113,6 @@ const navGroups: { label: string; items: { label: ViewName; icon: string }[] }[]
       { label: "Paie", icon: "payroll" },
     ],
   },
-  { label: "Répertoire", items: [{ label: "Personnes", icon: "people" }] },
   {
     label: "Administration",
     items: [
@@ -112,7 +127,12 @@ const navGroups: { label: string; items: { label: ViewName; icon: string }[] }[]
   },
 ];
 
-export function DashboardLayout({ activeView, setActiveView, user, summary, onLogout, onProfile, onSettings, children }: { activeView: ViewName; setActiveView: (view: ViewName) => void; user: User | null; summary: Summary | null; onLogout: () => void; onProfile: () => void; onSettings: () => void; children: ReactNode }) {
+// Section du menu d'un écran : sert à ouvrir le manuel qui le concerne.
+export function groupOfView(view: ViewName): string | null {
+  return navGroups.find((group) => group.items.some((item) => (item.views ?? [item.label]).includes(view)))?.label ?? null;
+}
+
+export function DashboardLayout({ activeView, activeManual, setActiveView, user, badges, onLogout, onProfile, onSettings, children }: { activeView: ViewName; activeManual: ManualSection | null; setActiveView: (view: ViewName) => void; user: User | null; badges: Partial<Record<ViewName, number>>; onLogout: () => void; onProfile: () => void; onSettings: () => void; children: ReactNode }) {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarPeek, setSidebarPeek] = useState(false);
@@ -145,10 +165,21 @@ export function DashboardLayout({ activeView, setActiveView, user, summary, onLo
   const go = (action: () => void) => { setMenuOpen(false); action(); };
   const canSee = (label: ViewName) =>
     label === "À propos du SGI" ||
-    (label === "Corbeille" || label === "Audit" || label === "Impressions" || label === "Sauvegardes" ? user?.role === "admin" : canAccessView(user, label));
+    (label === "Résumé de la journée" ? hasAccess(user, "dashboard") : label === "Corbeille" || label === "Audit" || label === "Impressions" || label === "Sauvegardes" ? user?.role === "admin" : canAccessView(user, label));
+  // Une entrée qui réunit plusieurs écrans ouvre le premier auquel l'utilisateur a accès.
   const groups = navGroups
-    .map((group) => ({ ...group, items: group.items.filter((item) => canSee(item.label)) }))
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .map((item) => {
+          const views = (item.views ?? [item.label]).filter(canSee);
+          return views.length ? { ...item, label: views[0], views } : null;
+        })
+        .filter((item): item is NavItem & { views: ViewName[] } => item !== null),
+    }))
     .filter((group) => group.items.length > 0);
+  // Le manuel proposé est celui de la section de l'écran affiché.
+  const manualSection = activeManual ?? MANUAL_BY_GROUP[groupOfView(activeView) ?? ""] ?? "pilotage";
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarCollapsed && sidebarPeek ? "sidebar-peek" : ""} ${menuOpen ? "menu-open" : ""}`}>
       {menuOpen && <button type="button" className="sidebar-scrim" aria-label="Fermer le menu" onClick={() => setMenuOpen(false)} />}
@@ -187,7 +218,7 @@ export function DashboardLayout({ activeView, setActiveView, user, summary, onLo
         <nav className="main-nav" aria-label="Navigation principale">
           {groups.map((group) => {
             // La section de la page affichée reste toujours dépliée.
-            const open = !closedGroups.includes(group.label) || group.items.some((item) => item.label === activeView);
+            const open = !closedGroups.includes(group.label) || group.items.some((item) => item.views.includes(activeView));
             return (
             <div className={`nav-group ${open ? "open" : ""}`} key={group.label}>
               <button type="button" className="nav-label nav-group-toggle" aria-expanded={open} onClick={() => toggleGroup(group.label)}>
@@ -195,19 +226,26 @@ export function DashboardLayout({ activeView, setActiveView, user, summary, onLo
                 <ChevronDown aria-hidden="true" focusable="false" />
               </button>
               <div className="nav-group-items"><div inert={!open && !(sidebarCollapsed && !sidebarPeek)}>
-              {group.items.map((item) => (
-                <button key={item.label} type="button" title={item.label} aria-current={activeView === item.label ? "page" : undefined} className={`nav-item ${activeView === item.label ? "active" : ""}`} onClick={() => go(() => setActiveView(item.label))}>
-                  <Icon name={item.icon} />
-                  <span className="nav-text">{item.label}</span>
-                  {item.label === "Demandes de bourse" && <span className="nav-count">{summary?.demandesEnCours ?? ""}</span>}
-                </button>
-              ))}
+              {group.items.map((item) => {
+                const active = item.views.includes(activeView);
+                // Pastille : nombre d'éléments qui attendent une action sur ces écrans.
+                const count = item.views.reduce((total, view) => total + (badges[view] ?? 0), 0);
+                const title = item.views.length > 1 ? item.title ?? item.label : item.label;
+                return (
+                  <button key={item.icon} type="button" title={count ? `${title} · ${count} à traiter` : title} aria-current={active ? "page" : undefined} className={`nav-item ${active ? "active" : ""}`} onClick={() => go(() => setActiveView(item.label))}>
+                    <Icon name={item.icon} />
+                    <span className="nav-text">{title}</span>
+                    {count > 0 && <span className="nav-count" aria-label={`${count} à traiter`}>{count > 99 ? "99+" : count}</span>}
+                  </button>
+                );
+              })}
               </div></div>
             </div>
             );
           })}
         </nav>
         <div className="sidebar-bottom">
+          <button type="button" title="Manuel d'utilisation de cette section" className={`nav-item ${activeView === "Manuel d'utilisation" ? "active" : ""}`} onClick={() => go(() => navigateTo(pathForManual(manualSection)))}><span className="nav-icon"><BookMarked size={19} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span><span className="nav-text">Manuel d&apos;utilisation</span></button>
           {user && <button type="button" title="Paramètres" className={`nav-item ${activeView === "Paramètres" ? "active" : ""}`} onClick={() => go(onSettings)}><Icon name="settings" /><span className="nav-text">Paramètres</span></button>}
           <button type="button" title="Profil" className={`profile-card ${activeView === "Profil" ? "active" : ""}`} onClick={() => go(onProfile)}><UserAvatar user={user} /><span className="profile-text"><strong>{[user?.prenom, user?.nom].filter(Boolean).join(" ") || "Administrateur"}</strong><small>{user?.poste?.nom ?? (user?.role === "admin" ? "Administrateur" : "Équipe")}</small></span><span className="logout-icon">→</span></button>
           <button type="button" title="Se déconnecter" className="logout-button" onClick={() => setLogoutOpen(true)}>Se déconnecter <span>↪</span></button>

@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Copy, ExternalLink, GraduationCap, PhoneCall, School, UsersRound } from "lucide-react";
 import { askConfirm, toast } from "@/components/feedback";
-import { hasAccess } from "@/lib/access";
+import { canOpenPersonFile, hasAccess } from "@/lib/access";
 import { apiFetch } from "@/lib/api";
+import { navigateTo, pathForPerson, queryParam } from "@/lib/routes";
 import { tablePdf } from "@/lib/pdf-docs";
 import { User, formatDate } from "@/lib/types";
 import { Badge, Empty, PageBar, PageIntro, Panel, send, useAction, useLoad } from "@/components/ui-kit";
@@ -36,8 +37,8 @@ const age = (date: string) => Math.floor((Date.now() - new Date(date).getTime())
 // sans lien avec les prospects, les demandes de bourse ni les inscriptions.
 export function FutureStudentsPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   const canEdit = hasAccess(user, "prospects", "edit");
-  const [draft, setDraft] = useState("");
-  const [search, setSearch] = useState("");
+  const [draft, setDraft] = useState(() => queryParam("q") ?? "");
+  const [search, setSearch] = useState(() => queryParam("q") ?? "");
   const [program, setProgram] = useState("");
   const [contacted, setContacted] = useState("");
   const [page, setPage] = useState(1);
@@ -59,6 +60,28 @@ export function FutureStudentsPage({ user, refreshSignal }: { user: User | null;
       await send(`/futurs-etudiants/${item.id}`, "PATCH", { contacte: !item.contacte }, true);
       reload();
     });
+  // Le lycéen devient un prospect suivi, sans ressaisie : identité, tuteur et filière sont repris.
+  const convert = async (item: FutureStudent) => {
+    if (!(await askConfirm({ title: `Suivre ${item.prenom} ${item.nom} comme prospect ?`, message: "Une fiche personne et un prospect « à relancer » sont créés avec son identité, son tuteur et la filière souhaitée. La fiche du formulaire reste dans cette liste.", confirmLabel: "Créer le prospect" }))) return;
+    void action.run(async () => {
+      const prospect = await send<{ personneId: string }>("/prospects", "POST", {
+        nom: item.nom,
+        prenom: item.prenom,
+        telephone: item.telephone || undefined,
+        dateNaissance: item.dateNaissance,
+        tuteurNom: item.tuteurNom,
+        tuteurPrenom: item.tuteurPrenom,
+        tuteurTelephone: item.tuteurTelephone,
+        filiereSouhaitee: item.filiereSouhaitee,
+        intention: `Lycéen en ${item.classe} série ${item.serie} au ${item.ecole}`,
+        sourceConnaissance: "Formulaire en ligne des lycéens",
+      }, true);
+      if (!item.contacte) await send(`/futurs-etudiants/${item.id}`, "PATCH", { contacte: true }, true);
+      toast("Prospect créé : il apparaît dans Prospects, à relancer.");
+      reload();
+      if (prospect?.personneId && canOpenPersonFile(user)) navigateTo(pathForPerson(prospect.personneId));
+    });
+  };
   const remove = async (item: FutureStudent) => {
     if (!(await askConfirm({ title: `Supprimer la fiche de ${item.prenom} ${item.nom} ?`, message: "La fiche est retirée définitivement de la liste. À réserver aux envois fantaisistes ou en double.", confirmLabel: "Supprimer", danger: true }))) return;
     void action.run(async () => { await send(`/futurs-etudiants/${item.id}`, "DELETE", undefined, true); toast("Fiche supprimée."); reload(); });
@@ -134,6 +157,7 @@ export function FutureStudentsPage({ user, refreshSignal }: { user: User | null;
                   <td>{formatDate(item.dateEnregistrement)}<small className="cell-detail">{item.contacte ? <Badge tone="ok">Contacté</Badge> : <Badge tone="wait">À contacter</Badge>}</small></td>
                   <td className="action-group">
                     {canEdit && <button className="row-action" disabled={action.busy} onClick={() => void mark(item)}>{item.contacte ? "Remettre à contacter" : "Marquer contacté"}</button>}
+                    {canEdit && <button className="row-action" disabled={action.busy} onClick={() => void convert(item)}>Créer le prospect</button>}
                     {canEdit && <button className="row-action danger-row-action" disabled={action.busy} onClick={() => void remove(item)}>Supprimer</button>}
                   </td>
                 </tr>

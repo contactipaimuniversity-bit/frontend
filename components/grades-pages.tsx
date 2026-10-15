@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Camera, Check, ChevronRight, ListChecks, UserX, ClipboardList, FileCheck2, HelpCircle, KeyRound, LockKeyhole, PencilLine, Plus, Printer, RotateCcw, ScanLine, Trash2 } from "lucide-react";
 import { askConfirm, askReason, toast } from "@/components/feedback";
 import { apiFetch } from "@/lib/api";
@@ -10,6 +10,7 @@ import { navigateTo, pathForGrades, pathForHelp, pathForView } from "@/lib/route
 import { formatDate } from "@/lib/types";
 import { Room } from "@/components/academic-structure-page";
 import { Student } from "@/components/academic-classes-page";
+import { CameraScanner } from "@/components/camera-scanner";
 import { Badge, Empty, FormActions, HubBack, Modal, PageIntro, Panel, downloadPdf, number, personName, send, useAction, useForm, useLoad } from "@/components/ui-kit";
 
 type Evaluation = { id: string; type: string; libelle: string; date?: string | null; heureDebut?: string | null; heureFin?: string | null; bareme: string; statut: string; anonyme: boolean; notesSaisies: number; valideParNom?: string | null };
@@ -211,73 +212,6 @@ function RollCallModal({ evaluationId, onClose, onSaved }: { evaluationId: strin
   );
 }
 
-// Lecture du QR code d'une fiche d'anonymat avec la caméra de l'appareil.
-function CameraScanner({ onCode, onClose }: { onCode: (code: string) => void; onClose: () => void }) {
-  const video = useRef<HTMLVideoElement>(null);
-  const [error, setError] = useState("");
-  const found = useRef(onCode);
-  useEffect(() => { found.current = onCode; });
-  useEffect(() => {
-    let active = true;
-    let stream: MediaStream | null = null;
-    let frame = 0;
-    const canvas = document.createElement("canvas");
-    void (async () => {
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) throw new Error("indisponible");
-        const jsQR = (await import("jsqr")).default;
-        // La caméra arrière sur un téléphone ; la webcam sur un ordinateur.
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-        if (!active || !video.current) { stream.getTracks().forEach((track) => track.stop()); return; }
-        video.current.srcObject = stream;
-        await video.current.play();
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-        const read = () => {
-          const source = video.current;
-          if (!active || !source || !context) return;
-          if (source.videoWidth) {
-            canvas.width = source.videoWidth;
-            canvas.height = source.videoHeight;
-            context.drawImage(source, 0, 0);
-            const result = jsQR(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
-            const code = result?.data.trim().toUpperCase().match(/IPAIM-\d{3}[A-Z]/)?.[0];
-            if (code) { found.current(code); return; }
-          }
-          frame = requestAnimationFrame(read);
-        };
-        read();
-      } catch (failure) {
-        if (!active) return;
-        const name = failure instanceof DOMException ? failure.name : "";
-        setError(
-          name === "NotAllowedError"
-            ? "L'accès à la caméra a été refusé. Autorisez-le dans le navigateur, ou tapez le code à la main."
-            : name === "NotFoundError"
-              ? "Aucune caméra n'a été trouvée sur cet appareil. Tapez le code à la main."
-              : "La caméra n'est pas disponible ici (elle exige une connexion sécurisée en https). Tapez le code à la main.",
-        );
-      }
-    })();
-    return () => {
-      active = false;
-      cancelAnimationFrame(frame);
-      stream?.getTracks().forEach((track) => track.stop());
-    };
-  }, []);
-  return (
-    <Modal title="Scanner le QR code de la copie" onClose={onClose}>
-      <div className="camera-scan">
-        {error ? <p className="form-error">{error}</p> : (
-          <>
-            <video ref={video} muted playsInline aria-label="Image de la caméra" />
-            <p className="panel-subtitle">Présentez le QR code de la fiche devant la caméra : la copie est reconnue automatiquement et la fenêtre se ferme.</p>
-          </>
-        )}
-        <div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Fermer</button></div>
-      </div>
-    </Modal>
-  );
-}
 
 // ---------- Page d'une évaluation : étapes, actions et saisie ----------
 
@@ -457,7 +391,7 @@ export function EvaluationGradesPage({ courseId, evaluationId, canEdit, refreshS
             <button type="button" className="primary-button compact" disabled={!editable} onClick={() => { setScanError(""); setCamera(true); }}><Camera size={16} aria-hidden="true" /> Scanner avec la caméra</button>
             <small>Tapez le code collé sur la copie (les quatre derniers caractères suffisent) puis Entrée, ou scannez son QR code : le curseur se place directement sur la note de cette copie, sans chercher dans la liste.</small>
           </div>
-          {camera && <CameraScanner onClose={() => setCamera(false)} onCode={(code) => { setCamera(false); locate(code); }} />}
+          {camera && <CameraScanner title="Scanner le QR code de la copie" hint="Présentez le QR code de la fiche devant la caméra : la copie est reconnue automatiquement et la fenêtre se ferme." extract={(raw) => raw.trim().toUpperCase().match(/IPAIM-\d{3}[A-Z]/)?.[0] ?? null} onClose={() => setCamera(false)} onCode={(code) => { setCamera(false); locate(code); }} />}
           {scanError && <p className="form-error">{scanError}</p>}
           <div className="copy-grid">
             {(copies.data?.copies ?? []).map((copy) => {

@@ -39,9 +39,14 @@ import { apiFetch, notifySessionChanged } from "@/lib/api";
 import { applyColorMode, applyColorPreset, applyFont, applyTextSize, applyUiStyle, readColorMode, readColorPreset, readFont, readTextSize, readUiStyle } from "@/lib/theme";
 import { OfflineAccount } from "@/lib/offline";
 import { forgetDataKey } from "@/lib/local-crypto";
-import { canAccessView, hasAccess } from "@/lib/access";
+import { canAccessView, canOpenPersonFile, hasAccess } from "@/lib/access";
 import { helpReturnPath, navigateTo, parsePath, pathForDossier, pathForHelp, pathForView } from "@/lib/routes";
 import { PageHelpPage } from "@/components/page-help-page";
+import { UserManualPage } from "@/components/user-manual-page";
+import { PersonFilePage } from "@/components/person-file-page";
+import { CardCheckPage } from "@/components/card-check-page";
+import { MANUALS } from "@/lib/manuals";
+import { useWork, workBadges } from "@/lib/work";
 import { FeedbackHost } from "@/components/feedback";
 import {
   Application,
@@ -101,6 +106,7 @@ export default function Home() {
   const setView = (next: ViewName) => navigateTo(pathForView(next));
   const dossierReference = route.dossier;
   const helpFor = route.helpFor ?? "Vue d'ensemble";
+  const manualSection = route.manualSection ?? "finances";
   const dossierReturnView = route.dossier?.type === "inscription" ? "Inscriptions" as const : "Demandes de bourse" as const;
   const [deletionInfoReturnView, setDeletionInfoReturnView] = useState<"Demandes de bourse" | "Inscriptions">("Demandes de bourse");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -195,7 +201,10 @@ export default function Home() {
     () => false,
   );
   const adminOnlyView = view === "Audit" || view === "Corbeille" || view === "Impressions" || view === "Sauvegardes";
-  const activeView = !canAccessView(user, view) || (adminOnlyView && user?.role !== "admin") ? "Profil" : view;
+  const allowed = route.personId ? canOpenPersonFile(user) : canAccessView(user, view);
+  const activeView = !allowed || (adminOnlyView && user?.role !== "admin") ? "Vue d'ensemble" : view;
+  // Le travail en attente est recompté à chaque changement d'écran : les pastilles du menu suivent.
+  const work = useWork(user, `${refreshKey}|${activeView}`);
   usePageTimeTracker(pathname ?? "/", activeView, token);
   // Impressions faites hors ligne ou session expirée : on les déclare dès la connexion.
   useEffect(() => {
@@ -448,18 +457,19 @@ export default function Home() {
   return (
     <DashboardLayout
       activeView={activeView}
+      activeManual={activeView === "Manuel d'utilisation" ? manualSection : null}
       setActiveView={setView}
       user={user}
-      summary={summary}
+      badges={workBadges(work)}
       onLogout={logout}
       onProfile={() => setView("Profil")}
       onSettings={() => setView("Paramètres")}
     >
       <AppHeader
-        title={activeView}
+        title={activeView === "Manuel d'utilisation" ? `Manuel · ${MANUALS[manualSection].title}` : activeView}
         user={user}
         onRefresh={refresh}
-        onHelp={activeView === "Aide de la page" ? undefined : () => navigateTo(pathForHelp(activeView, pathname))}
+        onHelp={activeView === "Aide de la page" || activeView === "Manuel d'utilisation" ? undefined : () => navigateTo(pathForHelp(activeView, pathname))}
       />
       <OfflineSync onOpenPage={() => setView("Synchronisation")} />
       {offlineAccessWarning && (
@@ -485,6 +495,7 @@ export default function Home() {
           onOpenDaily={() => setView("Résumé de la journée")}
           scholarshipTypes={scholarshipTypes}
           refreshSignal={refreshKey}
+          work={work}
           onOpenScholarship={(typeBourseId) => {
             setEnrollmentTypeBourseId(typeBourseId);
             setEnrollmentSearch("");
@@ -500,6 +511,8 @@ export default function Home() {
         <AboutSgiPage onBack={() => setView("Vue d'ensemble")} />
       ) : activeView === "Résumé de la journée" ? (
         <DailySummaryPage onBack={() => setView("Vue d'ensemble")} />
+      ) : activeView === "Personnes" && route.personId ? (
+        <PersonFilePage key={route.personId} personId={route.personId} user={user} refreshSignal={refreshKey} />
       ) : activeView === "Personnes" ? (
         <PeoplePage
           people={people}
@@ -512,7 +525,6 @@ export default function Home() {
           }}
           onPeoplePage={setPeoplePage}
           onRefresh={refresh}
-          canOpenJourney={hasAccess(user, "academics") || hasAccess(user, "deliberations")}
         />
       ) : activeView === "Recrutement" ? (
         <PersonnelPage
@@ -572,12 +584,12 @@ export default function Home() {
             notifySessionChanged();
           }}
         />
-      ) : activeView === "Dépenses" ? (
+      ) : activeView === "États de besoin" ? (
         <ExpensesPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Validation des dépenses" ? (
-        <ExpenseApprovalPage refreshSignal={refreshKey} />
+        <ExpenseApprovalPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Exécution des dépenses" ? (
-        <ExpenseExecutionPage refreshSignal={refreshKey} />
+        <ExpenseExecutionPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Budget" ? (
         <BudgetPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Paramètres finances" ? (
@@ -586,6 +598,10 @@ export default function Home() {
         <ReportsPage />
       ) : activeView === "Certificats" ? (
         <CertificatesPage refreshSignal={refreshKey} dateOrder={dateOrder} onDateOrderChange={setDateOrder} />
+      ) : activeView === "Contrôle des cartes" ? (
+        <CardCheckPage user={user} />
+      ) : activeView === "Manuel d'utilisation" ? (
+        <UserManualPage key={manualSection} section={manualSection} user={user} onOpen={setView} />
       ) : activeView === "Aide de la page" ? (
         <PageHelpPage view={helpFor} onBack={() => navigateTo(helpReturnPath(helpFor))} />
       ) : activeView === "Suppression des dossiers" ? (

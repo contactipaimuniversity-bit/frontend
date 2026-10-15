@@ -5,7 +5,7 @@ import { askConfirm, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
 import { User, formatDate } from "@/lib/types";
 import { BookOpen, BookOpenCheck, CalendarDays, DoorOpen, GraduationCap, Layers, LayoutList, Network, Scale } from "lucide-react";
-import { Badge, Empty, FieldHelp, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, send, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, FieldHelp, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, send, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
 
 export type Level = { id: string; code: string; libelle: string; cycle: string; rang: number; diplome?: string | null; actif: boolean };
 export type AcademicYear = { id: string; libelle: string; dateDebut: string; dateFin: string; finSemestre1?: string | null; statut: string; _count?: { classes: number } };
@@ -804,7 +804,7 @@ function RulesTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
 export function AcademicStructurePage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   const canEdit = hasAccess(user, "academics", "edit");
   type Tab = "poles" | "annees" | "niveaux" | "filieres" | "maquettes" | "salles" | "regles";
-  const [tab, setTab] = useState<Tab | null>(null);
+  const [tab, setTab] = useHubSection<Tab>(["poles", "annees", "niveaux", "filieres", "maquettes", "salles", "regles"]);
   // Chiffres clés des cartes.
   const years = useLoad<AcademicYear[]>(tab ? null : "/academique/annees", refreshSignal);
   const programs = useLoad<Program[]>(tab ? null : "/academique/filieres", refreshSignal);

@@ -1,20 +1,22 @@
 import { ViewName } from "@/lib/types";
 
 export type DossierRoute = { type: "demande-bourse" | "inscription"; id: string };
-export type SettingsSection = "apparence" | "postes" | "utilisateurs";
-export type HelpedView = Exclude<ViewName, "Aide de la page">;
+export type SettingsSection = "mise-en-route" | "apparence" | "postes" | "utilisateurs";
+export type HelpedView = Exclude<ViewName, "Aide de la page" | "Manuel d'utilisation">;
+export const MANUAL_SECTIONS = ["pilotage", "admissions", "academique", "finances", "ressources-humaines", "administration"] as const;
+export type ManualSection = (typeof MANUAL_SECTIONS)[number];
 export type ClassSection = "etudiants" | "cours" | "assiduite";
-export type AppRoute = { view: ViewName; dossier: DossierRoute | null; auditUserId: string | null; settingsSection?: SettingsSection | null; helpFor?: HelpedView | null; classId?: string | null; classSection?: ClassSection | null; studentId?: string | null; gradeCourseId?: string | null; gradeEvaluationId?: string | null };
+export type AppRoute = { view: ViewName; dossier: DossierRoute | null; auditUserId: string | null; settingsSection?: SettingsSection | null; helpFor?: HelpedView | null; classId?: string | null; classSection?: ClassSection | null; manualSection?: ManualSection | null; personId?: string | null; studentId?: string | null; gradeCourseId?: string | null; gradeEvaluationId?: string | null };
 
 // Chaque écran a son adresse : actualiser, revenir en arrière et partager un
 // lien vers un dossier fonctionnent comme dans n'importe quel site.
-const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page">, string> = {
+const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page" | "Manuel d'utilisation">, string> = {
   "Vue d'ensemble": "/",
   "Demandes de bourse": "/demandes",
   Inscriptions: "/inscriptions",
   Certificats: "/certificats",
   Paiements: "/paiements",
-  Dépenses: "/depenses",
+  "États de besoin": "/etats-de-besoin",
   "Validation des dépenses": "/depenses/validation",
   "Exécution des dépenses": "/depenses/execution",
   Budget: "/budget",
@@ -31,6 +33,7 @@ const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page">,
   "Tableau de bord académique": "/academique/tableau-de-bord",
   "Structure académique": "/academique/structure",
   "Classes et étudiants": "/academique/classes",
+  "Contrôle des cartes": "/cartes/controle",
   Enseignement: "/academique/enseignement",
   "Évaluations et notes": "/academique/notes",
   Délibérations: "/academique/deliberations",
@@ -47,12 +50,19 @@ const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page">,
   "Suppression des dossiers": "/aide/suppression",
 };
 
-const PATH_VIEWS = new Map(
-  Object.entries(VIEW_PATHS).map(([view, path]) => [path, view as ViewName]),
-);
+const PATH_VIEWS = new Map([
+  ...Object.entries(VIEW_PATHS).map(([view, path]) => [path, view as ViewName] as const),
+  // Ancienne adresse de la page, gardée pour les liens déjà partagés.
+  ["/depenses", "États de besoin"] as const,
+]);
 
 export function pathForView(view: ViewName): string {
-  return view === "Fiche dossier" ? "/demandes" : view === "Aide de la page" ? "/" : VIEW_PATHS[view];
+  return view === "Fiche dossier" ? "/demandes" : view === "Aide de la page" ? "/" : view === "Manuel d'utilisation" ? pathForManual("finances") : VIEW_PATHS[view];
+}
+
+// Le manuel d'utilisation d'une section du menu : /manuel/finances, /manuel/admissions...
+export function pathForManual(section: ManualSection): string {
+  return `/manuel/${section}`;
 }
 
 // L'aide d'un écran vit sous /aide/pages, suivie de l'adresse de cet écran.
@@ -92,8 +102,10 @@ export function parsePath(pathname: string | null): AppRoute {
     const helpFor = (Object.entries(HELP_SLUGS).find(([, slug]) => slug === help[1])?.[0] ?? PATH_VIEWS.get(help[1])) as HelpedView | undefined;
     if (helpFor) return { view: "Aide de la page", dossier: null, auditUserId: null, helpFor };
   }
+  const manual = path.match(/^\/manuel\/([^/]+)$/);
+  if (manual && (MANUAL_SECTIONS as readonly string[]).includes(manual[1])) return { view: "Manuel d'utilisation", dossier: null, auditUserId: null, manualSection: manual[1] as ManualSection };
   // Chaque rubrique des paramètres a sa propre page.
-  const settings = path.match(/^\/parametres\/(apparence|postes|utilisateurs)$/);
+  const settings = path.match(/^\/parametres\/(mise-en-route|apparence|postes|utilisateurs)$/);
   if (settings) return { view: "Paramètres", dossier: null, auditUserId: null, settingsSection: settings[1] as SettingsSection };
   // Page dédiée au profil d'activité d'un utilisateur dans l'audit.
   const auditUser = path.match(/^\/audit\/utilisateurs\/([^/]+)$/);
@@ -101,6 +113,9 @@ export function parsePath(pathname: string | null): AppRoute {
   // Une classe a sa page, et chacune de ses rubriques la sienne.
   const classe = path.match(/^\/academique\/classes\/([^/]+)(?:\/(etudiants|cours|assiduite))?$/);
   if (classe) return { view: "Classes et étudiants", dossier: null, auditUserId: null, classId: decodeURIComponent(classe[1]), classSection: (classe[2] as ClassSection | undefined) ?? null };
+  // Fiche unique d'une personne : identité, dossiers, paiements et scolarité.
+  const person = path.match(/^\/personnes\/([^/]+)$/);
+  if (person) return { view: "Personnes", dossier: null, auditUserId: null, personId: decodeURIComponent(person[1]) };
   // Parcours complet d'un étudiant, toutes années confondues.
   const student = path.match(/^\/academique\/etudiants\/([^/]+)$/);
   if (student) return { view: "Classes et étudiants", dossier: null, auditUserId: null, studentId: decodeURIComponent(student[1]) };
@@ -118,13 +133,29 @@ export function pathForClass(classId: string, section?: ClassSection | null): st
   return `/academique/classes/${encodeURIComponent(classId)}${section ? `/${section}` : ""}`;
 }
 
+export function pathForPerson(personId: string): string {
+  return `/personnes/${encodeURIComponent(personId)}`;
+}
+
+/** Paramètre de l'adresse affichée (?employe=..., ?q=...), lu à l'ouverture d'un écran. */
+export function queryParam(name: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(name);
+}
+
 export function pathForStudent(personId: string): string {
   return `/academique/etudiants/${encodeURIComponent(personId)}`;
 }
 
+export const LOCATION_EVENT = "ipaim-location";
+
 export function navigateTo(path: string) {
   if (typeof window === "undefined") return;
-  if (window.location.pathname !== path) window.history.pushState(null, "", path);
+  if (window.location.pathname + window.location.search !== path) {
+    window.history.pushState(null, "", path);
+    // Prévient les pages qui lisent l'adresse (rubrique ouverte, fiche à afficher...).
+    window.dispatchEvent(new Event(LOCATION_EVENT));
+  }
   window.scrollTo({ top: 0 });
 }
 

@@ -3,6 +3,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, CircleHelp, Info, type LucideIcon } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { LOCATION_EVENT } from "@/lib/routes";
 import { listPdf } from "@/lib/pdf-docs";
 import { toast } from "@/components/feedback";
 
@@ -22,6 +23,36 @@ export const number = (value: number | string | null | undefined, digits = 2) =>
   value === null || value === undefined || value === "" ? "—" : Number(value).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: digits });
 
 export const personName = (person?: { nom: string; prenom: string } | null) => (person ? `${person.nom} ${person.prenom}` : "—");
+
+// Rubrique ouverte d'une page à cartes, gardée dans l'adresse (?vue=...) :
+// un lien peut mener directement à une rubrique, et « Précédent » ramène aux cartes.
+export function useHubSection<Key extends string>(keys: readonly Key[]): [Key | null, (key: Key | null) => void] {
+  const read = () => {
+    if (typeof window === "undefined") return null;
+    const value = new URLSearchParams(window.location.search).get("vue");
+    return keys.includes(value as Key) ? (value as Key) : null;
+  };
+  const [section, setSection] = useState<Key | null>(read);
+  useEffect(() => {
+    const sync = () => setSection(read());
+    window.addEventListener("popstate", sync);
+    window.addEventListener(LOCATION_EVENT, sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener(LOCATION_EVENT, sync);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const open = (key: Key | null) => {
+    const url = new URL(window.location.href);
+    if (key) url.searchParams.set("vue", key);
+    else url.searchParams.delete("vue");
+    if (url.href !== window.location.href) window.history.pushState(null, "", url.pathname + url.search);
+    setSection(key);
+    window.scrollTo({ top: 0 });
+  };
+  return [section, open];
+}
 
 // Lecture d'une ressource, rechargée à la demande ou quand l'en-tête demande une actualisation.
 export function useLoad<T>(path: string | null, signal = 0) {

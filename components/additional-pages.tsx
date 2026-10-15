@@ -1,14 +1,14 @@
 "use client";
 
 import { Award, CalendarRange, FolderCheck, HandCoins, Search } from "lucide-react";
-import { HubBack, HubCard, HubCards, PageBar, usePaged } from "@/components/ui-kit";
+import { HubBack, HubCard, HubCards, PageBar, usePaged, useHubSection } from "@/components/ui-kit";
 import { listPdf } from "@/lib/pdf-docs";
 import { ActionIcon } from "@/components/action-icon";
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { confirmNewPerson } from "@/lib/duplicates";
 import { logPrint } from "@/lib/print-log";
-import { navigateTo, pathForDossier, pathForStudent } from "@/lib/routes";
+import { navigateTo, pathForDossier, pathForPerson } from "@/lib/routes";
 import { ModalChoice } from "@/components/modal-choice";
 import { DateOrderControl } from "@/components/date-order-control";
 import { COLOR_PRESETS, readColorPreset } from "@/lib/theme";
@@ -23,7 +23,6 @@ import {
   formatMoney,
   pdfSafe,
   fullName,
-  statusLabels,
 } from "@/lib/types";
 
 function Modal({
@@ -226,95 +225,6 @@ export function PersonForm({
   );
 }
 
-function PersonHistory({
-  person,
-  onClose,
-}: {
-  person: Person;
-  onClose: () => void;
-}) {
-  const [history, setHistory] = useState<Awaited<
-    ReturnType<typeof loadPersonHistory>
-  > | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    void loadPersonHistory(person.id)
-      .then(setHistory)
-      .catch((failure) =>
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : "Historique indisponible.",
-        ),
-      );
-  }, [person.id]);
-  return (
-    <Modal title={`Historique de ${fullName(person)}`} onClose={onClose}>
-      <ErrorMessage error={error} />
-      {!history && !error && <p className="empty-state">Chargement...</p>}
-      {history && (
-        <div className="history-list">
-          <div className="detail-grid">
-            <div>
-              <small>Téléphone</small>
-              <strong>{history.personne.telephone ?? "-"}</strong>
-            </div>
-            <div>
-              <small>Quartier</small>
-              <strong>{history.personne.quartier ?? "-"}</strong>
-            </div>
-            <div>
-              <small>Enregistrée le</small>
-              <strong>{formatDate(history.personne.dateEnregistrement)}</strong>
-            </div>
-          </div>
-          <h4>Demandes de bourse ({history.parcours.demandesBourse.length})</h4>
-          {history.parcours.demandesBourse.map((item) => (
-            <div className="history-row" key={item.id}>
-              <span>{item.filiereSouhaitee}</span>
-              <span className={`status status-${item.statut.toLowerCase()}`}>
-                {statusLabels[item.statut] ?? item.statut}
-              </span>
-            </div>
-          ))}
-          <h4>Inscriptions ({history.parcours.inscriptions.length})</h4>
-          {history.parcours.inscriptions.map((item) => (
-            <div className="history-row" key={item.id}>
-              <span>
-                {item.filiere} · {item.anneeScolaire}
-              </span>
-              <span>{statusLabels[item.statut] ?? item.statut}</span>
-            </div>
-          ))}
-          {!history.parcours.demandesBourse.length &&
-            !history.parcours.inscriptions.length && (
-              <p className="empty-state">Aucun parcours enregistré.</p>
-            )}
-        </div>
-      )}
-    </Modal>
-  );
-}
-
-async function loadPersonHistory(id: string) {
-  return apiFetch<{
-    personne: Person;
-    parcours: {
-      demandesBourse: Array<{
-        id: string;
-        statut: string;
-        filiereSouhaitee: string;
-      }>;
-      inscriptions: Array<{
-        id: string;
-        statut: string;
-        filiere: string;
-        anneeScolaire: string;
-      }>;
-    };
-  }>(`/personnes/${id}/historique`);
-}
-
 export function PeoplePage({
   people,
   peopleMeta,
@@ -323,10 +233,8 @@ export function PeoplePage({
   onPeopleSearch,
   onPeoplePage,
   onRefresh,
-  canOpenJourney,
 }: {
   // Droit de consulter le parcours académique d'un étudiant.
-  canOpenJourney: boolean;
   people: Person[];
   peopleMeta: { page: number; total: number; totalPages: number };
   dateOrder: DateOrder;
@@ -335,7 +243,7 @@ export function PeoplePage({
   onPeoplePage: (page: number) => void;
   onRefresh: () => void;
 }) {
-  const [modal, setModal] = useState<"create" | "edit" | "history" | "delete" | null>(
+  const [modal, setModal] = useState<"create" | "edit" | "delete" | null>(
     null,
   );
   const [selected, setSelected] = useState<Person>();
@@ -431,7 +339,7 @@ export function PeoplePage({
                       <span className="person-avatar">
                         {fullName(person).slice(0, 1)}
                       </span>
-                      {fullName(person)}
+                      <button type="button" className="link-button" onClick={() => navigateTo(pathForPerson(person.id))}>{fullName(person)}</button>
                     </div>
                   </td>
                   <td>{person.matricule ?? "-"}</td>
@@ -441,7 +349,7 @@ export function PeoplePage({
                   <td className="action-group">
                     <button
                       className="row-action icon-action"
-                      onClick={() => (person.matricule && canOpenJourney ? navigateTo(pathForStudent(person.id)) : open("history", person))} aria-label={person.matricule && canOpenJourney ? "Voir le parcours de l'étudiant" : "Voir l'historique"}><ActionIcon name="history" /></button>
+                      onClick={() => navigateTo(pathForPerson(person.id))} aria-label="Ouvrir la fiche complète"><ActionIcon name="history" /></button>
                     <button
                       className="row-action icon-action"
                       onClick={() => open("edit", person)} aria-label="Modifier"><ActionIcon name="edit" /></button>
@@ -495,9 +403,6 @@ export function PeoplePage({
           onClose={() => setModal(null)}
           onSaved={onRefresh}
         />
-      )}
-      {modal === "history" && selected && (
-        <PersonHistory person={selected} onClose={() => setModal(null)} />
       )}
       {modal === "delete" && selected && (
         <Modal title="Déplacer la personne vers la corbeille" onClose={() => setModal(null)}>
@@ -827,7 +732,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
   >(null);
   const [selectedElement, setSelectedElement] = useState<CatalogElement>();
   const [selectedType, setSelectedType] = useState<ScholarshipType>();
-  const [section, setSection] = useState<"bourses" | "dossiers" | null>(null);
+  const [section, setSection] = useHubSection<"bourses" | "dossiers">(["bourses", "dossiers"]);
   const referenceCards: HubCard<"bourses" | "dossiers">[] = [
     { key: "bourses", icon: Award, title: "Types de bourse", value: `${types.length}`, detail: `type(s) · ${types.reduce((total, type) => total + (type.echeances?.length ?? 0), 0)} échéance(s) prévue(s)`, info: "Les bourses que l'établissement accorde : pour chacune, ses frais d'inscription, son taux de réduction et le calendrier de ses échéances (libellé, date limite, montant). Une demande de bourse acceptée suit le plan de son type." },
     { key: "dossiers", icon: FolderCheck, title: "Dossiers", value: `${elements.length}`, detail: `élément(s) requis · ${elements.filter((item) => item.obligatoire).length} obligatoire(s)`, info: "Ce qu'un dossier doit contenir : pièces à fournir, fournitures et frais à payer, selon le contexte (bourse ou inscription directe) et le niveau. Chaque nouveau dossier reprend cette liste ; les dossiers existants gardent la leur." },
@@ -1536,7 +1441,7 @@ function PeriodicReport() {
 
 export function ReportsPage() {
   type Section = "pieces" | "recouvrement" | "activite";
-  const [section, setSection] = useState<Section | null>(null);
+  const [section, setSection] = useHubSection<Section>(["pieces", "recouvrement", "activite"]);
   const [report, setReport] = useState<IncompleteReport | null>(null);
   const [latePayments, setLatePayments] = useState<LateInstalment[] | null>(null);
   const [error, setError] = useState("");

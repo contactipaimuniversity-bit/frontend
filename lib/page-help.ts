@@ -32,7 +32,8 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       "Lister ce qu'il reste à faire pour vous amener directement sur le bon écran.",
     ],
     steps: [
-      { title: "Lire les indicateurs", detail: "Les cartes du haut résument l'activité. Elles sont recalculées à chaque chargement de la page." },
+      { title: "Commencer par « Mon travail du jour »", detail: "Le premier bloc liste ce qui vous attend selon votre poste : dépenses à valider, paiements à affecter, notes à valider, paie à verser... Cliquez une ligne pour arriver directement sur l'écran où la traiter. Les mêmes chiffres apparaissent en pastille dans le menu." },
+      { title: "Lire les indicateurs", detail: "Les cartes d'activité résument les admissions et les encaissements. Elles sont recalculées à chaque chargement de la page." },
       { title: "Ouvrir une liste", detail: "Cliquez sur un bloc ou sur son lien pour ouvrir la page correspondante (demandes, inscriptions, paiements...)." },
       { title: "Filtrer par type de bourse", detail: "Dans « Effectifs par type de bourse », un clic sur un type ouvre les inscriptions de ce type uniquement." },
       { title: "Consulter la journée", detail: "Le résumé de la journée détaille tout ce qui a été enregistré aujourd'hui, et par qui." },
@@ -55,6 +56,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { title: "Créer une demande", detail: "Cliquez sur « Nouvelle demande ». Choisissez un candidat existant ou cochez « Créer une nouvelle personne », puis indiquez le niveau, la filière souhaitée, éventuellement une filière secondaire et l'école d'origine." },
       { title: "Ajouter la photo (facultatif)", detail: "Dans le formulaire, « Ouvrir la caméra » prend la photo sur place ; « Galerie / Parcourir » choisit une image existante. Sans photo, l'enregistrement fonctionne normalement : vous pourrez l'ajouter plus tard depuis la fiche." },
       { title: "Préparer le dossier", detail: "Marquez les pièces déjà reçues et, si le candidat paie tout de suite, saisissez le montant et l'obligation concernée (frais de dépôt)." },
+      { title: "Corriger le dossier", detail: "L'icône crayon (ou « Modifier le dossier » sur la fiche) change le niveau demandé, la filière souhaitée, la filière secondaire et l'école d'origine. Le niveau ne change plus une fois un paiement enregistré, car les frais en dépendent." },
       { title: "Suivre le dossier", detail: "Sur chaque ligne : « Pièces » met à jour les éléments fournis, « Finance » montre les montants, « Entretien » fixe la date et l'équipe, « Décider » passe en délibération, accepte ou refuse." },
       { title: "Ouvrir la fiche", detail: "Cliquez sur le nom du candidat pour afficher la fiche complète du dossier, avec la photo, les pièces et les paiements." },
     ],
@@ -81,7 +83,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { title: "Renseigner l'inscription", detail: "Saisissez l'année scolaire, puis choisissez le niveau et la filière dans les listes du référentiel. Les pièces et frais applicables s'affichent dès que le niveau est choisi." },
       { title: "Ajouter la photo (facultatif)", detail: "Prenez la photo avec la caméra ou choisissez une image dans la galerie. Vous pouvez enregistrer sans photo et la joindre plus tard." },
       { title: "Préparer le dossier", detail: "Marquez les pièces déjà fournies et saisissez le premier versement s'il a lieu à l'inscription." },
-      { title: "Suivre et clôturer", detail: "Cliquez sur le nom de l'étudiant pour ouvrir sa fiche, ou utilisez « Pièces » et « Finance » sur la ligne. « Modifier » change le statut : En cours, Complète ou Abandonnée." },
+      { title: "Suivre et clôturer", detail: "Cliquez sur le nom de l'étudiant pour ouvrir sa fiche, ou utilisez « Pièces » et « Finance » sur la ligne. « Modifier » corrige l'année scolaire, le niveau, la filière et le statut (En cours, Complète ou Abandonnée). Un changement de niveau met à jour les pièces et frais demandés ; un étudiant déjà en classe garde l'année, le niveau et la filière de sa classe." },
     ],
     tips: ["Une inscription liée à une demande encore non décidée demande une confirmation explicite."],
     faq: [
@@ -196,24 +198,24 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       OFFLINE_FAQ,
     ],
   },
-  Dépenses: {
-    summary: "La création et le suivi des demandes de dépense, de la demande initiale jusqu'au paiement.",
+  "États de besoin": {
+    summary: "La création et le suivi des états de besoin, de l'expression du besoin jusqu'au paiement.",
     purpose: [
-      "Initier une dépense avec sa justification, sa catégorie, son fournisseur et ses lignes.",
+      "Exprimer un besoin avec sa justification, sa catégorie, son fournisseur et ses lignes.",
       "Joindre les pièces exigées : lettre de demande d'achat et devis.",
       "Suivre l'avancement : soumise, validée, réceptionnée, facturée, payée.",
     ],
     steps: [
-      { title: "Créer la demande", detail: "« + Nouvelle demande » : objet, justification, catégorie, fournisseur et lignes (désignation, quantité, prix unitaire)." },
+      { title: "Créer l'état de besoin", detail: "« + Nouvel état de besoin » : objet, justification, catégorie, fournisseur et lignes (désignation, quantité, prix unitaire)." },
       { title: "Joindre les pièces", detail: "Ajoutez la lettre de demande et le devis (PDF ou image, 10 Mo maximum)." },
-      { title: "Soumettre", detail: "Une fois soumise, la demande n'est plus modifiable et part en validation." },
+      { title: "Soumettre", detail: "Une fois soumis, l'état de besoin n'est plus modifiable et part en validation." },
       { title: "Suivre le circuit", detail: "Ouvrez la dépense pour voir son historique : chaque étape est horodatée et signée." },
     ],
     tips: ["Aucune dépense n'est supprimée : elle est annulée avec un motif, tant que rien n'est payé."],
     faq: [
-      { question: "Ma demande est rejetée, que faire ?", answer: "Lisez le motif du rejet, corrigez la demande puis soumettez-la à nouveau : elle repart du début du circuit." },
-      { question: "Pourquoi ma demande est-elle bloquée par le budget ?", answer: "Si le budget est bloquant, une demande qui dépasse le disponible de sa catégorie est refusée. Sinon elle passe « hors budget » et exige une double validation." },
-      { question: "Puis-je valider ma propre demande ?", answer: "Non. Personne ne valide ni ne paie une dépense qu'il a lui-même initiée." },
+      { question: "Mon état de besoin est rejeté, que faire ?", answer: "Lisez le motif du rejet, corrigez-le puis soumettez-le à nouveau : elle repart du début du circuit." },
+      { question: "Pourquoi mon état de besoin est-il bloqué par le budget ?", answer: "Si le budget est bloquant, un état de besoin qui dépasse le disponible de sa catégorie est refusée. Sinon il passe « hors budget » et exige une double validation." },
+      { question: "Puis-je valider mon propre état de besoin ?", answer: "Non. Personne ne valide ni ne paie une dépense qu'il a lui-même initiée." },
       ACCESS_FAQ,
     ],
   },
@@ -302,10 +304,11 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { title: "Ce que remplit l'élève", detail: "Quatre courtes étapes sur son téléphone : son identité, son lycée (classe et série), son parent ou tuteur, puis la filière qui l'attire." },
       { title: "Lire la liste", detail: "Chaque envoi apparaît ici aussitôt. Recherchez par nom, lycée ou téléphone ; cliquez une filière dans la répartition pour filtrer." },
       { title: "Suivre les appels", detail: "« Marquer contacté » une fois le tuteur joint. Le filtre « À contacter » montre ceux qui restent." },
+      { title: "Transformer en prospect", detail: "« Créer le prospect » reprend l'identité, le tuteur et la filière du lycéen : il apparaît aussitôt dans Prospects, à relancer, sans rien ressaisir." },
       { title: "Exporter", detail: "« Exporter (PDF) » produit la liste de la sélection en cours." },
     ],
     tips: [
-      "Cette liste est purement informative : un lycéen enregistré ici n'est ni une personne du répertoire, ni un prospect, ni un dossier. Le reste du système n'est pas touché.",
+      "Un lycéen enregistré ici n'est ni une personne du répertoire, ni un prospect, ni un dossier, tant que vous ne cliquez pas « Créer le prospect ».",
       "Un élève qui remplit deux fois le formulaire ne crée pas de doublon : sa fiche est mise à jour.",
     ],
     faq: [
@@ -343,7 +346,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
     steps: [
       { title: "Rechercher", detail: "Par nom, prénom, matricule, téléphone ou quartier." },
       { title: "Ajouter ou modifier", detail: "« Ajouter » crée une fiche ; l'action de modification corrige identité, naissance et tuteur." },
-      { title: "Voir l'historique", detail: "L'historique présente le prospect, les demandes de bourse et les inscriptions de la personne. Pour un étudiant ayant un matricule, il ouvre son parcours académique complet." },
+      { title: "Ouvrir la fiche complète", detail: "Cliquez le nom : la fiche réunit l'identité, la photo, le tuteur, tous les dossiers avec ce qui est payé et ce qui reste dû, l'historique des paiements et, pour un étudiant, le lien vers son parcours académique." },
     ],
     tips: ["Avant de créer une personne, cherchez-la : un doublon disperse ses dossiers."],
     faq: [
@@ -457,6 +460,32 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { question: "Les impressions faites hors ligne sont-elles comptées ?", answer: "Oui, elles sont déclarées dès la reconnexion." },
       { question: "Peut-on effacer une ligne de l'historique ?", answer: "Non, l'historique est conservé tel quel pour le contrôle." },
       { question: "Qui voit cette page ?", answer: "Les administrateurs uniquement." },
+    ],
+  },
+  "Contrôle des cartes": {
+    summary: "La vérification des cartes d'étudiant à l'entrée et à la scolarité : scanner, voir aussitôt si la carte est valable, vérifier la photo.",
+    purpose: [
+      "Dire en une seconde si une carte est valable : verte, l'étudiant passe ; rouge, il est orienté vers la scolarité.",
+      "Comparer la photo affichée au porteur de la carte.",
+      "Écarter tout code qui n'est pas une carte IPAIM, et toute carte désactivée ou expirée.",
+    ],
+    steps: [
+      { title: "Scanner avec une douchette", detail: "Le curseur est déjà dans le champ : présentez la carte au lecteur, le code s'inscrit et la vérification part toute seule (la douchette envoie Entrée)." },
+      { title: "Scanner avec la caméra", detail: "« Scanner avec la caméra » : présentez le QR code de la carte. Seuls les QR codes des cartes IPAIM sont lus, les autres sont ignorés." },
+      { title: "Lire le verdict", detail: "Vert « Carte valide » : l'étudiant est inscrit pour l'année. Rouge : carte désactivée (perdue, volée, remplacée), expirée, inscription abandonnée, ou code inconnu." },
+      { title: "Vérifier la personne", detail: "Comparez la photo au porteur. Le matricule, la classe, la situation des paiements et les absences non justifiées sont affichés." },
+      { title: "Désactiver une carte (scolarité)", detail: "Carte perdue, volée ou prêtée : « Désactiver cette carte » avec un motif. Éditez ensuite une « Nouvelle carte » depuis la classe de l'étudiant." },
+    ],
+    tips: [
+      "Le QR code ne contient ni nom ni matricule : un téléphone ordinaire n'y lit qu'une suite de caractères sans intérêt.",
+      "Une carte vaut pour une année académique. Chaque année, éditez les cartes depuis la page de la classe.",
+    ],
+    faq: [
+      { question: "Qui peut scanner ?", answer: "La scolarité et les agents d'accueil. Pour un agent, donnez au poste le droit « Cartes d'étudiant · contrôle à l'entrée » dans Paramètres › Postes et accès : il ne voit que cet écran." },
+      { question: "Où éditer les cartes ?", answer: "Classes et étudiants › la classe › Étudiants : « Cartes d'étudiant (PDF) » pour toute la classe, ou « Carte » sur une ligne. L'étudiant doit avoir un matricule, donc être affecté à une classe." },
+      { question: "Un étudiant a perdu sa carte ?", answer: "Sur sa ligne dans la classe, « Nouvelle carte » : l'ancienne est désactivée aussitôt, la nouvelle a un autre QR code." },
+      { question: "Comment imprimer recto verso ?", answer: "Le PDF contient une page de rectos puis une page de versos, placés en miroir. Imprimez en recto verso, retournement sur le bord long, puis découpez au contour." },
+      { question: "La caméra ne s'ouvre pas ?", answer: "Autorisez l'accès à la caméra dans le navigateur (connexion https exigée), ou utilisez une douchette USB : elle fonctionne comme un clavier." },
     ],
   },
   "Structure académique": {
@@ -761,13 +790,14 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
     ],
   },
   Paramètres: {
-    summary: "Les réglages de l'application : apparence, postes et accès, utilisateurs.",
+    summary: "Les réglages de l'application : mise en route, apparence, postes et accès, utilisateurs, et les raccourcis vers les réglages de chaque module.",
     purpose: [
       "Personnaliser couleurs, mode clair ou sombre, police et taille du texte.",
       "Définir les postes et leurs accès par rubrique.",
       "Créer et gérer les comptes des utilisateurs.",
     ],
     steps: [
+      { title: "Mise en route", detail: "La liste de tout ce qui doit être réglé avant de travailler (postes, types de bourse, catégories, exercice, année académique, rubriques de paie, sauvegarde...), vérifiée en direct. Chaque ligne en orange a un bouton « Régler » qui ouvre le bon écran." },
       { title: "Apparence", detail: "Choisissez le style d'interface (« Classique » ou « Aéré »), les couleurs, la police et la taille du texte : le réglage est mémorisé sur cet appareil et se change à tout moment." },
       { title: "Postes et accès", detail: "Créez un poste et cochez, rubrique par rubrique, la lecture et la modification." },
       { title: "Utilisateurs", detail: "Créez un compte, attribuez-lui un poste, ou retirez un utilisateur." },
@@ -789,7 +819,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { title: "Revenir", detail: "« Retour à mon espace » ramène à la vue d'ensemble." },
     ],
     faq: [
-      { question: "Comment obtenir de l'aide sur un écran ?", answer: "Chaque écran a un bouton « Info sur la page », en haut à droite : il explique son rôle, son utilisation et les questions fréquentes." },
+      { question: "Comment obtenir de l'aide sur un écran ?", answer: "Chaque écran a un bouton « Info sur la page », en haut à droite. Pour apprendre une section de A à Z, avec des cas pratiques, ouvrez « Manuel d'utilisation » en bas du menu." },
       { question: "À qui signaler un problème ?", answer: "À votre administrateur, en précisant l'écran, l'action tentée et le message affiché." },
     ],
   },

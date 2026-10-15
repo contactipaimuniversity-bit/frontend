@@ -4,7 +4,8 @@ import { FormEvent, useState } from "react";
 import { BookOpen, CalendarCheck, Users } from "lucide-react";
 import { askConfirm, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
-import { enrollmentCertificateNumber, enrollmentCertificatePdf, rosterPdf, studentCardsPdf } from "@/lib/pdf-docs";
+import { enrollmentCertificateNumber, enrollmentCertificatePdf, rosterPdf } from "@/lib/pdf-docs";
+import { printStudentCards } from "@/lib/cards";
 import { logPrint } from "@/lib/print-log";
 import { ClassSection, navigateTo, pathForClass, pathForStudent, pathForView } from "@/lib/routes";
 import { User } from "@/lib/types";
@@ -106,7 +107,7 @@ function AssignStudents({ classId, onClose, onSaved }: { classId: string; onClos
 const SECTION_TITLES: Record<ClassSection, string> = { etudiants: "Étudiants", cours: "Cours et enseignants", assiduite: "Assiduité" };
 
 // Page d'une classe : trois cartes, et derrière chacune sa rubrique.
-function ClassPage({ classId, section, canEdit, refreshSignal }: { classId: string; section: ClassSection | null; canEdit: boolean; refreshSignal: number }) {
+function ClassPage({ classId, section, canEdit, canPrintCards, refreshSignal }: { classId: string; section: ClassSection | null; canEdit: boolean; canPrintCards: boolean; refreshSignal: number }) {
   const [assigning, setAssigning] = useState(false);
   const detail = useLoad<ClassDetail>(`/academique/classes/${classId}`, refreshSignal);
   const courses = useLoad<Course[]>(`/academique/cours?classeId=${classId}`, refreshSignal);
@@ -123,17 +124,20 @@ function ClassPage({ classId, section, canEdit, refreshSignal }: { classId: stri
       detail.reload();
     });
   };
-  // Cartes d'étudiant de toute la classe, ou d'un seul étudiant.
-  const cards = (inscriptionId?: string) =>
+  // Cartes d'étudiant de toute la classe, ou d'un seul étudiant. Une carte encore
+  // valable est réimprimée à l'identique ; « Nouvelle carte » remplace une carte perdue.
+  const cards = (inscriptionId?: string, renouveler = false) =>
     action.run(async () => {
       if (!classe) return;
       const students = classe.inscriptions.filter((item) => item.statut !== "ABANDONNEE" && (!inscriptionId || item.id === inscriptionId));
       if (!students.length) throw new Error("Aucun étudiant à qui éditer une carte.");
-      await studentCardsPdf(
-        students.map((item) => ({ nom: item.personne.nom, prenom: item.personne.prenom, matricule: item.personne.matricule, dateNaissance: item.personne.dateNaissance, filiere: classe.filiere.nom, niveau: classe.niveau, annee: classe.anneeAcademique.libelle })),
-        inscriptionId ? `carte-${students[0].personne.matricule ?? students[0].personne.nom}.pdf` : `cartes-${classe.nom.replace(/\s+/g, "-")}.pdf`,
-      );
-      for (const item of students) logPrint({ typeDocument: "CARTE_ETUDIANT", mode: "PDF", dossierType: "inscription", dossierId: item.id, libelle: `${personName(item.personne)} · ${classe.nom}`, reference: item.personne.matricule });
+      if (renouveler && !(await askConfirm({ title: `Nouvelle carte pour ${personName(students[0].personne)} ?`, message: "L'ancienne carte est désactivée : son QR code ne passera plus au contrôle. À utiliser pour une carte perdue, volée ou abîmée.", confirmLabel: "Éditer une nouvelle carte", danger: true }))) return;
+      const count = await printStudentCards(students.map((item) => item.id), {
+        renouveler,
+        fileName: inscriptionId ? `carte-${students[0].personne.matricule ?? students[0].personne.nom}.pdf` : `cartes-${classe.nom.replace(/\s+/g, "-")}.pdf`,
+        libelle: (card) => `${card.personne.nom} ${card.personne.prenom} · ${classe.nom}`,
+      });
+      toast(`${count} carte(s) prête(s) : imprimez la page des rectos, puis celle des versos au dos (recto verso, bord long).`);
     });
   // Liste nominative de la classe, à afficher ou à remettre aux enseignants.
   const roster = () =>
@@ -167,7 +171,7 @@ function ClassPage({ classId, section, canEdit, refreshSignal }: { classId: stri
       >
         {section === "etudiants" && editable && <button className="primary-button compact" onClick={() => setAssigning(true)}>+ Affecter des étudiants</button>}
         {section === "etudiants" && <button className="outline-button small" disabled={action.busy || !classe?.inscriptions.length} onClick={() => void roster()}>Liste de classe (PDF)</button>}
-        {section === "etudiants" && <button className="outline-button small" disabled={action.busy || !classe?.inscriptions.length} onClick={() => void cards()}>Cartes d&apos;étudiant (PDF)</button>}
+        {section === "etudiants" && canPrintCards && <button className="outline-button small" disabled={action.busy || !classe?.inscriptions.length} onClick={() => void cards()}>Cartes d&apos;étudiant (PDF)</button>}
       </PageIntro>
       {(action.error || detail.error) && <p className="form-error">{action.error || detail.error}</p>}
       {!section && <HubCards cards={hub} onOpen={(key) => navigateTo(pathForClass(classId, key))} />}
@@ -183,7 +187,7 @@ function ClassPage({ classId, section, canEdit, refreshSignal }: { classId: stri
                     <td><button className="dossier-open-button" onClick={() => navigateTo(pathForStudent(item.personne.id))}>{personName(item.personne)}</button></td>
                     <td>{item.personne.telephone ?? "—"}</td>
                     <td><Badge tone={item.statut === "ABANDONNEE" ? "bad" : item.statut === "COMPLETE" ? "ok" : "wait"}>{item.statut === "ABANDONNEE" ? "Abandonnée" : item.statut === "COMPLETE" ? "Complète" : "En cours"}</Badge></td>
-                    <td className="action-group"><button className="row-action" onClick={() => navigateTo(pathForStudent(item.personne.id))}>Parcours</button><button className="row-action" disabled={action.busy} onClick={() => void cards(item.id)}>Carte</button>{item.statut !== "ABANDONNEE" && <button className="row-action" disabled={action.busy} onClick={() => void certificate(item.id)}>Certificat</button>}{editable && <button className="row-action danger-row-action" onClick={() => void remove(item.id, personName(item.personne))}>Retirer</button>}</td>
+                    <td className="action-group"><button className="row-action" onClick={() => navigateTo(pathForStudent(item.personne.id))}>Parcours</button>{canPrintCards && item.statut !== "ABANDONNEE" && <><button className="row-action" disabled={action.busy} onClick={() => void cards(item.id)}>Carte</button><button className="row-action" disabled={action.busy} title="Remplace une carte perdue ou volée : l'ancienne est désactivée" onClick={() => void cards(item.id, true)}>Nouvelle carte</button></>}{item.statut !== "ABANDONNEE" && <button className="row-action" disabled={action.busy} onClick={() => void certificate(item.id)}>Certificat</button>}{editable && <button className="row-action danger-row-action" onClick={() => void remove(item.id, personName(item.personne))}>Retirer</button>}</td>
                   </tr>
                 ))}
                 {!classe?.inscriptions.length && <Empty columns={5}>{classe ? "Aucun étudiant dans cette classe." : "Chargement..."}</Empty>}
@@ -248,7 +252,7 @@ function ClassPage({ classId, section, canEdit, refreshSignal }: { classId: stri
 export function AcademicClassesPage({ user, refreshSignal, classId, classSection, studentId }: { user: User | null; refreshSignal: number; classId: string | null; classSection: ClassSection | null; studentId: string | null }) {
   const canEdit = hasAccess(user, "academics", "edit");
   if (studentId) return <StudentJourneyPage key={studentId} personId={studentId} refreshSignal={refreshSignal} />;
-  if (classId) return <ClassPage key={classId} classId={classId} section={classSection} canEdit={canEdit} refreshSignal={refreshSignal} />;
+  if (classId) return <ClassPage key={classId} classId={classId} section={classSection} canEdit={canEdit} canPrintCards={hasAccess(user, "enrollments", "edit") || hasAccess(user, "academics", "edit")} refreshSignal={refreshSignal} />;
   return <ClassListPage canEdit={canEdit} refreshSignal={refreshSignal} />;
 }
 

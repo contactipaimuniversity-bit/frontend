@@ -29,7 +29,7 @@ type Errors = Partial<Record<keyof Fields | "naissance", string>>;
 
 const EMPTY: Fields = { prenom: "", nom: "", sexe: "", jour: "", mois: "", annee: "", ecole: "", classe: "", serie: "", serieAutre: "", tuteurNom: "", tuteurPrenom: "", tuteurTelephone: "", filiereSouhaitee: "", telephone: "", site: "" };
 const DEFAULT_OPTIONS: Options = { classes: ["Terminale", "Première", "Seconde", "Autre"] };
-const SERIES = ["A", "C", "D", "E", "F", "G", "H", "BG", "Autre"];
+const SERIES = ["A", "C", "D", "E", "F1", "F2", "F3", "F4", "G", "H1", "H2", "H3", "H4", "H5", "R", "BG", "Autre"];
 const MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 const DRAFT_KEY = "ipaim-enregistrement";
 const NAME = /^[\p{L}][\p{L}\s'’.-]*$/u;
@@ -315,7 +315,7 @@ export function PublicRegistration() {
                 <div className="reg-box">
                 <Choices label="Ta classe" values={options.classes} value={fields.classe} onChange={(value) => set({ classe: value })} error={errors.classe} />
                 <Choices label="Ta série" values={SERIES} value={fields.serie} onChange={(value) => set({ serie: value })} error={fields.serie === "Autre" ? undefined : errors.serie} />
-                {fields.serie === "Autre" && <Field label="Précise ta série" error={errors.serie}><input maxLength={30} placeholder="F4, G2, R1..." value={fields.serieAutre} onChange={(event) => set({ serieAutre: event.target.value })} /></Field>}
+                {fields.serie === "Autre" && <Field label="Précise ta série" error={errors.serie}><input maxLength={30} placeholder="G2, R1, TI..." value={fields.serieAutre} onChange={(event) => set({ serieAutre: event.target.value })} /></Field>}
                 </div>
               </>
             )}
@@ -337,7 +337,7 @@ export function PublicRegistration() {
                 <h2>Et après le bac{" "}?</h2>
                 <p className="reg-lead">Quelle filière aimerais-tu suivre à l&apos;université ?</p>
                 <div className="reg-box">
-                <Field label="La filière que tu veux faire" error={errors.filiereSouhaitee} hint="Écris-la avec tes mots : informatique, génie civil, comptabilité, agronomie..."><input autoCapitalize="sentences" maxLength={120} placeholder="Exemple : Informatique" value={fields.filiereSouhaitee} onChange={(event) => set({ filiereSouhaitee: event.target.value })} /></Field>
+                <Field label="La filière que tu veux faire" error={errors.filiereSouhaitee} hint="Écris-la avec tes mots : informatique, génie civil, comptabilité, agronomie..."><input autoCapitalize="sentences" maxLength={120} placeholder="Rentre ta filière" value={fields.filiereSouhaitee} onChange={(event) => set({ filiereSouhaitee: event.target.value })} /></Field>
                 </div>
                 <div className="reg-box">
                 <Field label="Ton numéro (facultatif)" error={errors.telephone} hint="Si tu en as un, pour te joindre directement."><input type="tel" inputMode="tel" autoComplete="tel" maxLength={20} placeholder="05 500 33 44" value={fields.telephone} onChange={(event) => set({ telephone: event.target.value })} /></Field>

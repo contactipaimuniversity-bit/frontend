@@ -909,41 +909,175 @@ export async function payslipsPdf(slips: Payslip[], period: { annee: number; moi
 
 // ---------- Carte d'étudiant ----------
 
-export type StudentCard = { nom: string; prenom: string; matricule?: string | null; dateNaissance?: string | null; filiere: string; niveau: string; annee: string };
+export type StudentCard = {
+  carteId: string;
+  /** Contenu du QR code : jeton propre à la carte, reconnu seulement par le contrôle IPAIM. */
+  jeton: string;
+  nom: string;
+  prenom: string;
+  matricule: string;
+  filiere: string;
+  niveau: string;
+  annee: string;
+  valableJusquau: string;
+  /** Photo d'identité recadrée (JPEG en data URL), ou rien. */
+  photo?: string | null;
+};
 
-// Cartes au format bancaire (85,6 × 54 mm), dix par page, à découper et plastifier.
+export const CARD_CONTACT = "06 400 04 71";
+const CARD_RULES = [
+  "Cette carte est strictement personnelle. Présentez-la à l'entrée de l'établissement et à toute demande du personnel.",
+  "Elle est exigée pour accéder aux salles d'examen, à la bibliothèque et aux services de la scolarité.",
+  "Elle n'est valable que pour l'année académique indiquée au recto.",
+  "En cas de perte ou de vol, prévenez sans délai la scolarité : la carte est désactivée puis remplacée.",
+  "Tout prêt, toute falsification ou utilisation frauduleuse expose à des sanctions disciplinaires.",
+];
+
+const NAVY: [number, number, number] = [20, 40, 92];
+const GOLD: [number, number, number] = [200, 148, 27];
+const CARD_W = 85.6;
+const CARD_H = 54;
+
+// Bandeau aux coins supérieurs (ou inférieurs) arrondis, comme la carte.
+function cardBand(pdf: Pdf, x: number, y: number, height: number, top: boolean) {
+  pdf.setFillColor(...NAVY).roundedRect(x, y, CARD_W, height, 3, 3, "F");
+  pdf.rect(x, top ? y + height / 2 : y, CARD_W, height / 2, "F");
+}
+
+function cardRecto(pdf: Pdf, card: StudentCard, x: number, y: number, logo: string | null, qrModules: { size: number; data: Uint8Array | boolean[] }) {
+  // Un texte trop long pour sa place se termine par « … » plutôt que d'être coupé net.
+  const clip = (text: string, max: number) => {
+    const safe = pdfSafe(text);
+    if (pdf.getTextWidth(safe) <= max) return safe;
+    let cut = safe;
+    while (cut.length > 1 && pdf.getTextWidth(`${cut}…`) > max) cut = cut.slice(0, -1);
+    return `${cut.trimEnd()}…`;
+  };
+  // En-tête : logo, établissement, intitulé de la carte et année.
+  cardBand(pdf, x, y, 14, true);
+  pdf.setFillColor(255, 255, 255).roundedRect(x + 3.5, y + 2, 10, 10, 1.6, 1.6, "F");
+  if (logo) pdf.addImage(logo, "JPEG", x + 4, y + 2.5, 9, 9);
+  pdf.setFont("helvetica", "bold").setFontSize(9.5).setTextColor(255, 255, 255);
+  pdf.text("IPAIM UNIVERSITY", x + 16, y + 6.6);
+  pdf.setFont("helvetica", "normal").setFontSize(4.3).setTextColor(196, 206, 228);
+  pdf.text(clip("Institut Polytechnique Africain d'Innovation et de Management", 44), x + 16, y + 9.9);
+  pdf.setFont("helvetica", "bold").setFontSize(5.2).setTextColor(...GOLD);
+  pdf.text(pdfSafe("CARTE D'ÉTUDIANT"), x + CARD_W - 3.5, y + 6.2, { align: "right" });
+  pdf.setFontSize(7.2).setTextColor(255, 255, 255);
+  pdf.text(pdfSafe(card.annee), x + CARD_W - 3.5, y + 10, { align: "right" });
+  pdf.setFillColor(...GOLD).rect(x, y + 14, CARD_W, 0.7, "F");
+
+  // Photo d'identité.
+  const photoX = x + 4;
+  const photoY = y + 18;
+  if (card.photo) pdf.addImage(card.photo, "JPEG", photoX, photoY, 19, 23.75);
+  else {
+    pdf.setFillColor(232, 238, 248).rect(photoX, photoY, 19, 23.75, "F");
+    pdf.setFont("helvetica", "bold").setFontSize(13).setTextColor(150, 162, 190);
+    pdf.text(pdfSafe(`${card.prenom.slice(0, 1)}${card.nom.slice(0, 1)}`.toUpperCase()), photoX + 9.5, photoY + 14, { align: "center" });
+  }
+  pdf.setDrawColor(...NAVY).setLineWidth(0.25).rect(photoX, photoY, 19, 23.75, "S");
+
+  // Identité et scolarité.
+  const textX = x + 26.5;
+  const textWidth = 33;
+  pdf.setFont("helvetica", "bold").setFontSize(10).setTextColor(...NAVY);
+  pdf.text(clip(card.nom.toUpperCase(), textWidth), textX, y + 21.6);
+  pdf.setFont("helvetica", "normal").setFontSize(8).setTextColor(55, 65, 85);
+  pdf.text(clip(card.prenom, textWidth), textX, y + 25.6);
+  const field = (label: string, value: string, top: number, size = 6.8, color: [number, number, number] = [30, 40, 60]) => {
+    pdf.setFont("helvetica", "normal").setFontSize(4.2).setTextColor(125, 135, 155);
+    pdf.text(pdfSafe(label.toUpperCase()), textX, top);
+    pdf.setFont("helvetica", "bold").setFontSize(size).setTextColor(...color);
+    pdf.text(clip(value, textWidth), textX, top + 2.9);
+  };
+  field("Matricule", card.matricule, y + 30.2, 8.4, NAVY);
+  field("Filière", card.filiere, y + 36.4);
+  field("Niveau", card.niveau, y + 42.3);
+
+  // QR code de contrôle, dessiné en vecteur pour rester net à l'impression.
+  const qrSize = 18;
+  const qrX = x + CARD_W - qrSize - 3.5;
+  const qrY = y + 19;
+  const cell = qrSize / qrModules.size;
+  pdf.setFillColor(0, 0, 0);
+  for (let row = 0; row < qrModules.size; row += 1)
+    for (let column = 0; column < qrModules.size; column += 1)
+      if (qrModules.data[row * qrModules.size + column]) pdf.rect(qrX + column * cell, qrY + row * cell, cell + 0.02, cell + 0.02, "F");
+  pdf.setFont("helvetica", "normal").setFontSize(4).setTextColor(125, 135, 155);
+  pdf.text(pdfSafe("Contrôle IPAIM"), qrX + qrSize / 2, qrY + qrSize + 2.6, { align: "center" });
+
+  // Pied : validité.
+  cardBand(pdf, x, y + CARD_H - 5, 5, false);
+  pdf.setFont("helvetica", "normal").setFontSize(4.6).setTextColor(196, 206, 228);
+  pdf.text("Carte strictement personnelle", x + 4, y + CARD_H - 1.9);
+  pdf.setFont("helvetica", "bold").setTextColor(255, 255, 255);
+  pdf.text(pdfSafe(`Valable jusqu'au ${formatDate(card.valableJusquau)}`), x + CARD_W - 3.5, y + CARD_H - 1.9, { align: "right" });
+}
+
+function cardVerso(pdf: Pdf, card: StudentCard, x: number, y: number) {
+  cardBand(pdf, x, y, 8.5, true);
+  pdf.setFont("helvetica", "bold").setFontSize(6.6).setTextColor(255, 255, 255);
+  pdf.text(pdfSafe("CONSIGNES D'UTILISATION"), x + 4, y + 5.5);
+  pdf.setFontSize(5.4).setTextColor(...GOLD);
+  pdf.text("IPAIM UNIVERSITY", x + CARD_W - 3.5, y + 5.5, { align: "right" });
+  pdf.setFillColor(...GOLD).rect(x, y + 8.5, CARD_W, 0.5, "F");
+
+  let top = y + 12.6;
+  CARD_RULES.forEach((rule, index) => {
+    pdf.setFillColor(...NAVY).circle(x + 5.4, top - 0.75, 1.15, "F");
+    pdf.setFont("helvetica", "bold").setFontSize(4.6).setTextColor(255, 255, 255);
+    pdf.text(String(index + 1), x + 5.4, top - 0.1, { align: "center" });
+    pdf.setFont("helvetica", "normal").setFontSize(5.1).setTextColor(45, 55, 75);
+    const lines = pdf.splitTextToSize(pdfSafe(rule), CARD_W - 13) as string[];
+    pdf.text(lines, x + 8.2, top);
+    top += lines.length * 2.15 + 1.25;
+  });
+
+  // Contact de la scolarité.
+  const contactY = y + CARD_H - 11.5;
+  pdf.setDrawColor(215, 222, 235).setLineWidth(0.2).line(x + 4, contactY - 2.2, x + CARD_W - 4, contactY - 2.2);
+  pdf.setFont("helvetica", "normal").setFontSize(4.3).setTextColor(125, 135, 155);
+  pdf.text("CONTACT", x + 4, contactY);
+  pdf.setFont("helvetica", "bold").setFontSize(8).setTextColor(...NAVY);
+  pdf.text(pdfSafe(`Tél. ${CARD_CONTACT}`), x + 4, contactY + 3.4);
+  pdf.setFont("helvetica", "normal").setFontSize(4.6).setTextColor(85, 95, 115);
+  pdf.text(pdf.splitTextToSize(pdfSafe("Carte trouvée ? Merci de la rapporter à l'IPAIM ou d'appeler ce numéro."), 40) as string[], x + CARD_W - 3.5 - 40, contactY + 0.4);
+  pdf.setFillColor(...GOLD).rect(x, y + CARD_H - 3.4, CARD_W, 0.5, "F");
+  pdf.setFont("helvetica", "normal").setFontSize(3.8).setTextColor(150, 158, 175);
+  pdf.text(pdfSafe(`Carte n° ${card.carteId.slice(0, 8).toUpperCase()}`), x + CARD_W - 3.5, y + CARD_H - 0.9, { align: "right" });
+}
+
+// Cartes au format bancaire (85,6 × 54 mm), dix par planche A4 : une page de
+// rectos, puis une page de versos placés en miroir pour l'impression recto verso
+// (bord long). Un fin contour sert de trait de coupe.
 export async function studentCardsPdf(cards: StudentCard[], fileName: string) {
   const pdf = await createPdf();
-  const width = 85.6;
-  const height = 54;
-  cards.forEach((card, index) => {
-    const slot = index % 10;
-    if (index > 0 && slot === 0) pdf.addPage();
-    const x = 15 + (slot % 2) * (width + 9);
-    const y = 12 + Math.floor(slot / 2) * (height + 2.5);
-    pdf.setDrawColor(150, 160, 180).setLineWidth(0.2).roundedRect(x, y, width, height, 2.5, 2.5, "S");
-    pdf.setFillColor(20, 40, 92).roundedRect(x, y, width, 12, 2.5, 2.5, "F");
-    pdf.rect(x, y + 6, width, 6, "F");
-    pdf.setFillColor(200, 148, 27).rect(x, y + 12, width, 1, "F");
-    pdf.setFont("helvetica", "bold").setFontSize(10).setTextColor(255, 255, 255);
-    pdf.text("IPAIM UNIVERSITY", x + 4, y + 7.6);
-    pdf.setFontSize(6.5);
-    pdf.text(pdfSafe(`CARTE D'ÉTUDIANT · ${card.annee}`), x + width - 4, y + 7.6, { align: "right" });
-    // Emplacement de la photo d'identité.
-    pdf.setDrawColor(170, 178, 195).setLineWidth(0.2).rect(x + 4, y + 16, 22, 28, "S");
-    pdf.setFont("helvetica", "normal").setFontSize(6).setTextColor(150, 158, 175);
-    pdf.text("Photo", x + 15, y + 31, { align: "center" });
-    pdf.setTextColor(20, 40, 92).setFont("helvetica", "bold").setFontSize(10.5);
-    pdf.text(pdf.splitTextToSize(pdfSafe(card.nom.toUpperCase()), 52)[0] as string, x + 30, y + 20);
-    pdf.setFontSize(9.5);
-    pdf.text(pdf.splitTextToSize(pdfSafe(card.prenom), 52)[0] as string, x + 30, y + 25);
-    pdf.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(60, 70, 90);
-    pdf.text(pdf.splitTextToSize(pdfSafe(`${card.filiere} · ${card.niveau}`), 52)[0] as string, x + 30, y + 31);
-    pdf.text(pdfSafe(`Né(e) le ${card.dateNaissance ? formatDate(card.dateNaissance) : "-"}`), x + 30, y + 35.5);
-    pdf.setFont("helvetica", "bold").setFontSize(9).setTextColor(20, 40, 92);
-    pdf.text(pdfSafe(`N° ${card.matricule ?? "-"}`), x + 30, y + 42);
-    pdf.setFont("helvetica", "normal").setFontSize(5.5).setTextColor(120, 128, 145);
-    pdf.text(pdfSafe(`Valable pour l'année académique ${card.annee}. Carte strictement personnelle.`), x + 4, y + height - 3);
-  });
+  const [logo, QRCode] = await Promise.all([logoData(), import("qrcode").then((module) => module.default)]);
+  const perPage = 10;
+  const gapX = 6;
+  const gapY = 3;
+  const left = (210 - (2 * CARD_W + gapX)) / 2;
+  const top = (297 - (5 * CARD_H + 4 * gapY)) / 2;
+  const slot = (index: number, mirror: boolean) => {
+    const column = index % 2;
+    return { x: left + (mirror ? 1 - column : column) * (CARD_W + gapX), y: top + Math.floor(index / 2) * (CARD_H + gapY) };
+  };
+  const outline = (x: number, y: number) => pdf.setDrawColor(190, 198, 214).setLineWidth(0.1).roundedRect(x, y, CARD_W, CARD_H, 3, 3, "S");
+  for (let start = 0; start < cards.length; start += perPage) {
+    const sheet = cards.slice(start, start + perPage);
+    if (start > 0) pdf.addPage();
+    sheet.forEach((card, index) => {
+      const { x, y } = slot(index, false);
+      cardRecto(pdf, card, x, y, logo, QRCode.create(card.jeton, { errorCorrectionLevel: "M" }).modules);
+      outline(x, y);
+    });
+    pdf.addPage();
+    sheet.forEach((card, index) => {
+      const { x, y } = slot(index, true);
+      cardVerso(pdf, card, x, y);
+      outline(x, y);
+    });
+  }
   pdf.save(fileName);
 }

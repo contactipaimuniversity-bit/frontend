@@ -11,6 +11,12 @@ import {
   statusLabels,
 } from "@/lib/types";
 import { WorklistPanel } from "@/components/worklist";
+import { navigateTo, pathForView } from "@/lib/routes";
+import { MyWorkPanel } from "@/components/my-work";
+import { hasAccess } from "@/lib/access";
+import { Work } from "@/lib/work";
+
+const ADMISSIONS_WORK = ["prospects-a-relancer", "entretiens", "dossiers-incomplets"];
 
 export function DashboardHome({
   summary,
@@ -23,6 +29,7 @@ export function DashboardHome({
   scholarshipTypes,
   onOpenScholarship,
   refreshSignal,
+  work,
 }: {
   summary: Summary | null;
   applications: Application[];
@@ -34,7 +41,9 @@ export function DashboardHome({
   scholarshipTypes: ScholarshipType[];
   onOpenScholarship: (typeBourseId: string) => void;
   refreshSignal: number;
+  work: Work | null;
 }) {
+  const canViewActivity = hasAccess(user, "dashboard");
   const cards = [
     {
       label: "Prospects actifs",
@@ -106,10 +115,13 @@ export function DashboardHome({
           </p>
         </div>
         <div className="welcome-actions">
-          <button className="daily-summary-trigger" onClick={onOpenDaily}>Voir le récapitulatif de la journée <span>→</span></button>
-          <button className="primary-button compact" onClick={() => onOpen("Demandes de bourse")}>+ Nouvelle demande</button>
+          {canViewActivity && <button className="daily-summary-trigger" onClick={onOpenDaily}>Voir le récapitulatif de la journée <span>→</span></button>}
+          {hasAccess(user, "scholarships", "edit") && <button className="primary-button compact" onClick={() => onOpen("Demandes de bourse")}>+ Nouvelle demande</button>}
         </div>
       </section>
+      {/* Les tâches des admissions sont détaillées, avec les noms, juste en dessous. */}
+      <MyWorkPanel work={work} hidden={canViewActivity ? ADMISSIONS_WORK : []} />
+      {!canViewActivity ? null : <>
       <WorklistPanel refreshSignal={refreshSignal} />
       <section className="panel trend-panel">
         <div className="panel-heading">
@@ -290,10 +302,11 @@ export function DashboardHome({
             Le rapport des pièces manquantes vous aide à prioriser les relances.
           </p>
         </div>
-        <button className="text-button" onClick={() => onOpen("Paiements")}>
-          Ouvrir les paiements <span>→</span>
+        <button className="text-button" onClick={() => navigateTo(`${pathForView("Rapports")}?vue=pieces`)}>
+          Ouvrir le rapport des pièces manquantes <span>→</span>
         </button>
       </section>
+      </>}
     </div>
   );
 }

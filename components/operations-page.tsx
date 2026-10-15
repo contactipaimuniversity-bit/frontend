@@ -8,9 +8,11 @@ import { askConfirm, askReason, toast } from "@/components/feedback";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { CalendarClock, Link2, ScrollText, Wallet } from "lucide-react";
-import { HubBack, HubCard, HubCards } from "@/components/ui-kit";
+import { HubBack, HubCard, HubCards, useHubSection } from "@/components/ui-kit";
 import { createPortal } from "react-dom";
 import { apiFetch } from "@/lib/api";
+import { navigateTo, pathForPerson, queryParam } from "@/lib/routes";
+import { EditApplicationModal, EditEnrollmentModal } from "@/components/dossier-edit";
 import { confirmNewPerson } from "@/lib/duplicates";
 import { logPrint } from "@/lib/print-log";
 import { DocumentsPanel } from "@/components/hr-page";
@@ -1949,7 +1951,7 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange, onChanged }:
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => queryParam("q") ?? "");
   const [dossierFilter, setDossierFilter] = useState("");
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentTransaction | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -2122,7 +2124,7 @@ export function DossierDetailsPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const [action, setAction] = useState<"elements" | "finance" | "status" | "interview" | "delete" | "person" | null>(null);
+  const [action, setAction] = useState<"elements" | "finance" | "status" | "dossier" | "interview" | "delete" | "person" | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
@@ -2196,9 +2198,10 @@ export function DossierDetailsPage({
             </div>
             <div className="dossier-detail-actions">
               {isApplication ? <>
+                <button className="outline-button small" onClick={() => setAction("dossier")}>Modifier le dossier</button>
                 <button className="outline-button small" onClick={() => setAction("status")}>Décider</button>
                 <button className="outline-button small" onClick={() => setAction("interview")}>Entretien</button>
-              </> : <button className="outline-button small" onClick={() => setAction("status")}>Modifier</button>}
+              </> : <button className="outline-button small" onClick={() => setAction("dossier")}>Modifier le dossier</button>}
               <button className="outline-button small" onClick={() => setAction("elements")}>Pièces</button>
               <button className="outline-button small" onClick={() => setAction("finance")}>Finance</button>
               <button className="row-action icon-action danger-row-action" onClick={() => { setDeleteError(""); setAction("delete"); }} aria-label="Supprimer"><ActionIcon name="delete" /></button>
@@ -2206,7 +2209,7 @@ export function DossierDetailsPage({
           </div>
 
           <section className="dossier-detail-section">
-            <div className="dossier-section-heading"><h3>Personne</h3><button className="row-action" onClick={() => setAction("person")}>Modifier les informations</button></div>
+            <div className="dossier-section-heading"><h3>Personne</h3><span className="action-group">{person && <button className="row-action" onClick={() => navigateTo(pathForPerson(person.id))}>Fiche complète</button>}<button className="row-action" onClick={() => setAction("person")}>Modifier les informations</button></span></div>
             <div className="dossier-person-layout">
               {person && <PersonPhotoCard person={person} onChanged={() => { refreshDetails(); onRefresh(); }} />}
               <dl className="dossier-detail-fields">
@@ -2282,7 +2285,8 @@ export function DossierDetailsPage({
       {action === "finance" && <FinanceModal dossierType={reference.type} dossierId={reference.id} onClose={() => setAction(null)} onChanged={() => { refreshDetails(); onRefresh(); }} />}
       {action === "person" && person && <PersonForm person={person} onClose={() => setAction(null)} onSaved={saveAction} />}
       {action === "status" && isApplication && dossier && <EditStatus title="Décision de la demande" endpoint={`/demandes-bourse/${reference.id}/decision`} field="statut" initial={dossier.statut} options={["EN_DELIBERATION", "ACCEPTEE", "REFUSEE"]} scholarshipTypes={scholarshipTypes} onClose={() => setAction(null)} onSaved={saveAction} />}
-      {action === "status" && !isApplication && dossier && <EditStatus title="Modifier l'inscription" endpoint={`/inscriptions/${reference.id}`} field="statut" initial={dossier.statut} options={["EN_COURS", "COMPLETE", "ABANDONNEE"]} onClose={() => setAction(null)} onSaved={saveAction} />}
+      {action === "dossier" && isApplication && dossier && <EditApplicationModal application={dossier as DetailedApplication} onClose={() => setAction(null)} onSaved={saveAction} />}
+      {action === "dossier" && !isApplication && dossier && <EditEnrollmentModal enrollment={dossier as DetailedEnrollment} onClose={() => setAction(null)} onSaved={saveAction} />}
       {action === "interview" && isApplication && dossier && <InterviewForm application={dossier as DetailedApplication} onClose={() => setAction(null)} onSaved={saveAction} />}
       {action === "delete" && dossier && <DeleteConfirmation title={isApplication ? "la demande de bourse" : "l'inscription"} personName={fullName(person)} busy={deleteBusy} error={deleteError} onClose={() => setAction(null)} onConfirm={(reason) => void deleteDossier(reason)} onLearnMore={() => { setAction(null); onShowDeletionInfo(returnView); }} />}
     </div>
@@ -2357,7 +2361,7 @@ type PaymentsSection = "journal" | "retards" | "affectation" | "caisse";
 
 // Accueil de la page Paiements : une carte par tâche, chacune ouvre son écran.
 function PaymentsHub({ latePayments, refreshKey, dateOrder, onDateOrderChange, onChanged, onRefresh }: { latePayments: LatePayment[]; refreshKey: number; dateOrder: DateOrder; onDateOrderChange: (value: DateOrder) => void; onChanged: () => void; onRefresh: () => void }) {
-  const [section, setSection] = useState<PaymentsSection | null>(null);
+  const [section, setSection] = useHubSection<PaymentsSection>(["journal", "retards", "affectation", "caisse"]);
   const [payments, setPayments] = useState<PaymentTransaction[]>([]);
   const [unassigned, setUnassigned] = useState<number | null>(null);
   useEffect(() => {
@@ -2461,6 +2465,7 @@ export function OperationsPage({
     | "prospect"
     | "payment"
     | "status"
+    | "dossier"
     | "relance"
     | "interview"
     | "finance"
@@ -2723,6 +2728,9 @@ export function OperationsPage({
                     </td>
                     <td>{formatDate(item.dateDepot)}</td>
                     <td className="action-group">
+                      <button
+                        className="row-action icon-action"
+                        onClick={() => open("dossier", item.id)} aria-label="Modifier le dossier (niveau, filières, école)"><ActionIcon name="edit" /></button>
                       <button
                         className="row-action icon-action"
                         onClick={() => open("status", item.id)} aria-label="Prendre une décision"><ActionIcon name="decide" /></button>
@@ -3030,16 +3038,11 @@ export function OperationsPage({
           onSaved={onRefresh}
         />
       )}
-      {modal === "status" && selectedEnrollment && (
-        <EditStatus
-          title="Modifier l'inscription"
-          endpoint={`/inscriptions/${selectedId}`}
-          field="statut"
-          initial={selectedEnrollment.statut}
-          options={["EN_COURS", "COMPLETE", "ABANDONNEE"]}
-          onClose={() => setModal(null)}
-          onSaved={onRefresh}
-        />
+      {(modal === "status" || modal === "dossier") && selectedEnrollment && (
+        <EditEnrollmentModal enrollment={selectedEnrollment} onClose={() => setModal(null)} onSaved={onRefresh} />
+      )}
+      {modal === "dossier" && selectedApplication && (
+        <EditApplicationModal application={selectedApplication} onClose={() => setModal(null)} onSaved={onRefresh} />
       )}
       {modal === "status" && selectedProspect && (
         <EditProspectForm prospect={selectedProspect} onClose={() => setModal(null)} onSaved={onRefresh} />

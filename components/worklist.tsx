@@ -15,7 +15,7 @@ type Worklist = {
 
 const dossierLabel = (item: DossierItem) => (item.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription");
 
-function Card({ title, total, tone, empty, moreLabel, moreView, children }: { title: string; total: number; tone?: "alert"; empty: string; moreLabel: string; moreView: ViewName; children: React.ReactNode }) {
+function Card({ title, total, tone, empty, moreLabel, moreView, moreSection, children }: { title: string; total: number; tone?: "alert"; empty: string; moreLabel: string; moreView: ViewName; moreSection?: string; children: React.ReactNode }) {
   return (
     <article className="worklist-card">
       <header>
@@ -23,7 +23,7 @@ function Card({ title, total, tone, empty, moreLabel, moreView, children }: { ti
         <span className={`worklist-count ${total === 0 ? "zero" : tone ?? ""}`}>{total}</span>
       </header>
       {total === 0 ? <p className="worklist-empty">{empty}</p> : <ul className="worklist-items">{children}</ul>}
-      {total > 0 && <button type="button" className="worklist-more" onClick={() => navigateTo(pathForView(moreView))}>{moreLabel} →</button>}
+      {total > 0 && <button type="button" className="worklist-more" onClick={() => navigateTo(`${pathForView(moreView)}${moreSection ? `?vue=${moreSection}` : ""}`)}>{moreLabel} →</button>}
     </article>
   );
 }
@@ -45,12 +45,12 @@ export function WorklistPanel({ refreshSignal }: { refreshSignal: number }) {
   }, [refreshSignal]);
 
   // Sans données (hors ligne avant la première synchronisation), on n'affiche rien plutôt qu'un bloc vide.
-  if (!worklist) return failed ? null : <section className="worklist" aria-busy="true"><p className="eyebrow">À faire aujourd’hui</p><p className="worklist-empty">Chargement de votre liste de travail…</p></section>;
+  if (!worklist) return failed ? null : <section className="worklist" aria-busy="true"><p className="eyebrow">Admissions · le détail</p><p className="worklist-empty">Chargement de votre liste de travail…</p></section>;
 
   const openDossier = (item: DossierItem) => navigateTo(pathForDossier({ type: item.dossierType, id: item.dossierId }));
   return (
-    <section className="worklist" aria-label="À faire aujourd’hui">
-      <p className="eyebrow">À faire aujourd’hui</p>
+    <section className="worklist" aria-label="Admissions : le détail">
+      <p className="eyebrow">Admissions · le détail</p>
       <div className="worklist-grid">
         <Card title="Prospects à relancer" total={worklist.relances.total} empty="Aucune relance en attente." moreLabel="Voir les prospects" moreView="Prospects">
           {worklist.relances.items.map((item) => (
@@ -62,7 +62,7 @@ export function WorklistPanel({ refreshSignal }: { refreshSignal: number }) {
             <Item key={item.dossierId} title={fullName(item.personne)} detail={[item.date ? new Date(item.date).toLocaleString("fr-FR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : null, item.equipe].filter(Boolean).join(" · ")} onOpen={() => openDossier(item)} />
           ))}
         </Card>
-        <Card title="Dossiers incomplets" total={worklist.incomplets.total} empty="Tous les dossiers sont complets." moreLabel="Voir le rapport" moreView="Rapports">
+        <Card title="Dossiers incomplets" total={worklist.incomplets.total} empty="Tous les dossiers sont complets." moreLabel="Voir le rapport" moreView="Rapports" moreSection="pieces">
           {worklist.incomplets.items.map((item) => (
             <Item key={item.dossierId} title={fullName(item.personne)} detail={`${dossierLabel(item)} · ${item.manquants} pièce${item.manquants > 1 ? "s" : ""} à fournir`} onOpen={() => openDossier(item)} />
           ))}

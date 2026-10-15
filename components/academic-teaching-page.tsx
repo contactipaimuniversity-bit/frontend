@@ -6,7 +6,7 @@ import { hasAccess } from "@/lib/access";
 import { User, formatDate } from "@/lib/types";
 import { Room } from "@/components/academic-structure-page";
 import { Course, Student, useClassPicker } from "@/components/academic-classes-page";
-import { Badge, Empty, FormActions, Modal, PageIntro, Panel, Tabs, downloadPdf, number, personName, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, Modal, PageIntro, Panel, Tabs, downloadPdf, number, personName, send, today, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
 import { TeacherAttendance } from "@/components/attendance-pages";
 import { apiFetch } from "@/lib/api";
 import { timetablePdf } from "@/lib/pdf-docs";
@@ -251,7 +251,8 @@ function Logbook({ classId, canEdit, closed }: { classId: string; canEdit: boole
 
 export function AcademicTeachingPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   type Tab = "emploi" | "cahier" | "emargement";
-  const [tab, setTab] = useState<Tab>("emploi");
+  const [tabParam, setTab] = useHubSection<Tab>(["emploi", "cahier", "emargement"]);
+  const tab = tabParam ?? "emploi";
   const canSign = hasAccess(user, "teaching", "edit") || hasAccess(user, "hr", "edit");
   const classes = useClassPicker(refreshSignal);
   const closed = classes.year?.statut === "CLOTUREE";

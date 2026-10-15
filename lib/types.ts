@@ -63,6 +63,8 @@ export type Enrollment = {
   niveau: string;
   anneeScolaire: string;
   viaBourse?: boolean;
+  /** Classe de l'étudiant : année, niveau et filière la suivent. */
+  classeId?: string | null;
   dateInscription: string;
   personne?: Person;
   demandeBourse?: { typeBourseId?: string | null } | null;
@@ -238,7 +240,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Aide de la page" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "Dépenses" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Futurs étudiants" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Tableau de bord académique" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Évaluations et notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Aide de la page" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "États de besoin" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Futurs étudiants" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Tableau de bord académique" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Évaluations et notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI" | "Manuel d'utilisation" | "Contrôle des cartes";
 
 export type DailyActivityReport = {
   date: string;

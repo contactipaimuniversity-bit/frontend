@@ -6,7 +6,7 @@ import { hasAccess } from "@/lib/access";
 import { API_URL } from "@/lib/offline";
 import { FiscalYear, User, formatDate, formatMoney } from "@/lib/types";
 import { BookOpenText, ChartNoAxesCombined, ListTree, NotebookText, Scale } from "lucide-react";
-import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, dateTime, downloadPdf, messageOf, send, today, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, dateTime, downloadPdf, messageOf, send, today, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
 
 type Account = { id: string; numero: string; libelle: string; classe: number; actif: boolean };
 type EntryLine = { id: string; libelle?: string | null; debit: string; credit: string; compte: Account };
@@ -363,7 +363,7 @@ function ChartTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
 export function AccountingPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   type Tab = "journal" | "balance" | "livre" | "etats" | "plan";
   const canEdit = hasAccess(user, "accounting", "edit");
-  const [tab, setTab] = useState<Tab | null>(null);
+  const [tab, setTab] = useHubSection<Tab>(["journal", "balance", "livre", "etats", "plan"]);
   const [account, setAccount] = useState("");
   // Chiffres clés des cartes ; lire le journal passe aussi les écritures en attente.
   const journal = useLoad<Journal>("/comptabilite/journal?page=1&limit=1", refreshSignal);

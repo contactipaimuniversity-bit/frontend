@@ -1,12 +1,13 @@
 "use client";
 
+import { SetupChecklist } from "@/components/setup-checklist";
 import { askReason } from "@/components/feedback";
 
 import { FormEvent, useEffect, useState, useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api";
 import { ModalChoice } from "@/components/modal-choice";
 import { ProfilePhotoCard, UserAvatar } from "@/components/student-photo";
-import { ChevronLeft, ChevronRight, Coins, DatabaseBackup, Landmark, type LucideIcon, Palette, School, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Coins, DatabaseBackup, Landmark, type LucideIcon, Palette, School, ShieldCheck, SlidersHorizontal, Users, ListChecks } from "lucide-react";
 import { applyColorMode, applyColorPreset, applyFont, applyTextSize, applyUiStyle, COLOR_PRESETS, ColorMode, ColorPresetId, FontId, FONTS, readColorMode, readColorPreset, readFont, readTextSize, readUiStyle, subscribeToColorMode, subscribeToColorPreset, subscribeToTypography, subscribeToUiStyle, TEXT_SIZES, TextSizeId, UI_STYLES, UiStyleId } from "@/lib/theme";
 import { SettingsSection } from "@/lib/routes";
 import { User, ViewName } from "@/lib/types";
@@ -154,7 +155,7 @@ export function SettingsPage({
   const uiStyle = useSyncExternalStore(subscribeToUiStyle, readUiStyle, () => "classic" as UiStyleId);
   const isAdmin = currentUser?.role === "admin";
   // Les rubriques d'administration ne s'ouvrent qu'aux administrateurs.
-  const page = section === "apparence" || (section && isAdmin) ? section : null;
+  const page = section === "apparence" || section === "mise-en-route" || (section && isAdmin) ? section : null;
   const [modalOpen, setModalOpen] = useState(false);
   const [positionModalOpen, setPositionModalOpen] = useState(false);
   const [accessUser, setAccessUser] = useState<User | null>(null);
@@ -302,8 +303,8 @@ export function SettingsPage({
       <div className="page-intro">
         <div>
           <p className="eyebrow">{page ? "Paramètres" : "Réglages"}</p>
-          <h2>{page === "apparence" ? "Apparence" : page === "postes" ? "Postes et accès" : page === "utilisateurs" ? "Utilisateurs" : "Paramètres"}</h2>
-          <p>{page === "apparence" ? "Style d'interface, couleurs, mode d'affichage, police et taille du texte. Ces choix sont propres à cet appareil." : page === "postes" ? "Chaque poste métier porte les accès donnés par défaut à ceux qui l'occupent." : page === "utilisateurs" ? "Les comptes autorisés à se connecter, leur poste et leurs accès." : "Choisissez une rubrique pour l'ouvrir."}</p>
+          <h2>{page === "mise-en-route" ? "Mise en route" : page === "apparence" ? "Apparence" : page === "postes" ? "Postes et accès" : page === "utilisateurs" ? "Utilisateurs" : "Paramètres"}</h2>
+          <p>{page === "mise-en-route" ? "Tout ce qui doit être réglé avant de travailler, vérifié en direct. Chaque ligne en orange mène au réglage à faire." : page === "apparence" ? "Style d'interface, couleurs, mode d'affichage, police et taille du texte. Ces choix sont propres à cet appareil." : page === "postes" ? "Chaque poste métier porte les accès donnés par défaut à ceux qui l'occupent." : page === "utilisateurs" ? "Les comptes autorisés à se connecter, leur poste et leurs accès." : "Choisissez une rubrique pour l'ouvrir."}</p>
         </div>
         <div className="form-actions">
           {page === "postes" && <button className="primary-button compact" onClick={() => { setPositionForm({ id: "", nom: "", permissions: [] }); setPositionModalOpen(true); }}>+ Nouveau poste</button>}
@@ -475,8 +476,17 @@ export function SettingsPage({
         </div>
       </section>
       )}
+      {page === "mise-en-route" && <SetupChecklist user={currentUser} />}
       {!page && (
         <>
+          <p className="settings-hub-title">Démarrer</p>
+          <div className="settings-hub">
+            <button type="button" className="settings-option" onClick={() => onOpenSection("mise-en-route")}>
+              <span className="settings-option-icon"><ListChecks size={21} aria-hidden="true" /></span>
+              <span><strong>Mise en route</strong><small>La liste de tout ce qu&apos;il faut régler, avec ce qui est fait et ce qui reste</small></span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+          </div>
           <p className="settings-hub-title">Mon affichage</p>
           <div className="settings-hub">
             <button type="button" className="settings-option" onClick={() => onOpenSection("apparence")}>
