@@ -65,6 +65,13 @@ const SOURCES: Source[] = [
     },
   },
   {
+    areas: ["payment-validation"],
+    load: async () => {
+      const handover = await apiFetch<{ enAttente: number; montant: number }>("/paiements/remises/compteur", { skipCache: true });
+      return [item("encaissements-a-valider", "Encaissements à valider", `${handover.montant.toLocaleString("fr-FR")} F remis par la caisse, à confirmer`, handover.enAttente, "Validation des encaissements", "warn")];
+    },
+  },
+  {
     areas: ["dashboard"],
     load: async () => {
       const todo = await apiFetch<AFaire>("/rapports/a-faire", { skipCache: true });
@@ -131,6 +138,7 @@ const EDIT_AREA: Partial<Record<string, AccessArea[]>> = {
   "depenses-a-valider": ["expense-approval", "expense-final-approval"],
   "depenses-a-executer": ["expense-payment"],
   "paiements-a-affecter": ["payments"],
+  "encaissements-a-valider": ["payment-validation"],
   "cours-a-emarger": ["teaching", "hr"],
   "notes-a-valider": ["deliberations"],
   "fiches-anonymat": ["deliberations"],

@@ -875,8 +875,8 @@ function CreatePayment({
             ...form,
             dossierType: value,
             dossierId: "",
-            // Les frais de dépôt ne concernent que les demandes de bourse.
-            typePaiement: value === "inscriptionId" && form.typePaiement === "FRAIS_DEPOT" ? "FRAIS_INSCRIPTION" : form.typePaiement,
+            // Frais de dépôt pour une demande de bourse, frais d'inscription pour une inscription.
+            typePaiement: form.typePaiement === "ECHEANCE_BOURSE" ? form.typePaiement : value === "inscriptionId" ? "FRAIS_INSCRIPTION" : "FRAIS_DEPOT",
           })}
         />
         <ModalChoice
@@ -906,8 +906,7 @@ function CreatePayment({
           placeholder="Sélectionner un type"
           value={form.typePaiement}
           choices={[
-            ...(form.dossierType === "demandeBourseId" ? [{ value: "FRAIS_DEPOT", label: "Frais de dépôt" }] : []),
-            { value: "FRAIS_INSCRIPTION", label: "Frais d'inscription" },
+            form.dossierType === "demandeBourseId" ? { value: "FRAIS_DEPOT", label: "Frais de dépôt" } : { value: "FRAIS_INSCRIPTION", label: "Frais d'inscription" },
             { value: "ECHEANCE_BOURSE", label: "Échéance bourse" },
           ]}
           onChange={(value) => setForm({ ...form, typePaiement: value, echeanceId: "" })}
@@ -1390,8 +1389,8 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
           elementDossierId: target.id,
           montant: String(value),
           modePaiement,
-          // Les frais de dépôt ne concernent que les demandes de bourse.
-          typePaiement: dossierType === "demande-bourse" && /d[ée]p[oô]t/i.test(target.nom) ? "FRAIS_DEPOT" : "FRAIS_INSCRIPTION",
+          // La nature des frais suit le dossier : elle décide du compte de produit en comptabilité.
+          typePaiement: dossierType === "demande-bourse" ? "FRAIS_DEPOT" : "FRAIS_INSCRIPTION",
         }),
       });
       setCollectId("");
@@ -2032,7 +2031,7 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange, onChanged }:
       {error && <p className="form-error">{error}</p>}
       {loading && <p className="empty-state">Chargement de l&apos;historique...</p>}
       {!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Payeur</th><th>Dossier</th><th>Obligation / échéance</th><th>Type</th><th>Montant</th><th>Mode</th><th>Encaissé par</th><th>État</th><th>Actions</th></tr></thead><tbody>
-        {pagePayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td>{payment.typePaiement === "REPORT" ? "—" : paymentModeLabel(payment.modePaiement)}</td><td>{payment.saisiParNom ?? "—"}</td><td>{payment.typePaiement === "REMBOURSEMENT" ? <span className="status status-refusee">Remboursé</span> : payment.typePaiement === "REPORT" ? <span className="status status-neutre">Report</span> : payment.typePaiement === "ANNULATION" ? <span className="status status-neutre" title={payment.motif ?? undefined}>Annulation</span> : payment.annule ? <span className="status status-refusee">Annulé</span> : <span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span>}{payment._offline && <small className="local-payment-note">En attente de synchronisation</small>}</td><td>{payment.typePaiement !== "REPORT" && payment.typePaiement !== "ANNULATION" && !payment.annule && <button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label={payment.typePaiement === "REMBOURSEMENT" ? "Imprimer le reçu de remboursement" : "Imprimer le reçu"}><ActionIcon name="print" /></button>}{canCancel && !payment.annule && !payment._offline && cancellablePaymentTypes.includes(payment.typePaiement) && <button className="row-action icon-action" onClick={() => void cancel(payment)} aria-label="Annuler ce paiement saisi par erreur"><ActionIcon name="cancel" /></button>}</td></tr>)}
+        {pagePayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td>{payment.typePaiement === "REPORT" ? "—" : paymentModeLabel(payment.modePaiement)}</td><td>{payment.saisiParNom ?? "—"}</td><td>{payment.typePaiement === "REMBOURSEMENT" ? <span className="status status-refusee">Remboursé</span> : payment.typePaiement === "REPORT" ? <span className="status status-neutre">Report</span> : payment.typePaiement === "ANNULATION" ? <span className="status status-neutre" title={payment.motif ?? undefined}>Annulation</span> : payment.annule ? <span className="status status-refusee">Annulé</span> : <span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span>}{["FRAIS_DEPOT", "FRAIS_INSCRIPTION", "ECHEANCE_BOURSE"].includes(payment.typePaiement) && !payment.annule && payment.statutRemise && <small className={`cell-detail remise-${payment.statutRemise.toLowerCase()}`}>{payment.statutRemise === "VALIDE" ? `Remise validée${payment.remiseTraiteeParNom ? ` · ${payment.remiseTraiteeParNom}` : ""}` : payment.statutRemise === "NON_RECU" ? "Remise : non reçu" : "Remise : en attente"}</small>}{payment._offline && <small className="local-payment-note">En attente de synchronisation</small>}</td><td>{payment.typePaiement !== "REPORT" && payment.typePaiement !== "ANNULATION" && !payment.annule && <button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label={payment.typePaiement === "REMBOURSEMENT" ? "Imprimer le reçu de remboursement" : "Imprimer le reçu"}><ActionIcon name="print" /></button>}{canCancel && !payment.annule && !payment._offline && cancellablePaymentTypes.includes(payment.typePaiement) && <button className="row-action icon-action" onClick={() => void cancel(payment)} aria-label="Annuler ce paiement saisi par erreur"><ActionIcon name="cancel" /></button>}</td></tr>)}
         {!filteredPayments.length && <tr><td colSpan={10} className="empty-state">{payments.length ? "Aucune transaction ne correspond à cette recherche." : "Aucune transaction enregistrée."}</td></tr>}
       </tbody></table></div>}
       {!loading && pageCount > 1 && (

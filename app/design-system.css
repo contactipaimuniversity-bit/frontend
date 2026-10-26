@@ -1226,3 +1226,15 @@ button.daily-summary-stat.active { border-color: var(--brand-navy, #14285c); box
 .card-check-history li.bad svg { color: var(--danger); }
 @media (max-width: 640px) { .card-check-student { flex-direction: column; } }
 :root[data-color-mode="dark"] .content-area .card-check-verdict p { color: #f2f5f4; }
+
+/* Validation des encaissements */
+.handover-periods { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+.handover-periods > button { padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); background: var(--surface, #fff); font-size: var(--text-sm); font-weight: 700; cursor: pointer; }
+.handover-periods > button:hover { border-color: var(--brand-gold, #c8941b); }
+.handover-periods > button.active { border-color: var(--brand-navy); color: #fff; background: var(--brand-navy); }
+.handover-stats { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.handover-bulk { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--brand-navy); border-radius: var(--radius-md); background: var(--surface-blue, #eef2f8); }
+.handover-bulk strong { margin-right: auto; color: var(--brand-navy); }
+.handover .muted-row td { opacity: .55; }
+.cell-detail.remise-valide { color: var(--success); }
+.cell-detail.remise-non_recu { color: var(--danger); font-weight: 700; }

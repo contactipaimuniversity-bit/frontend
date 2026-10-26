@@ -130,6 +130,9 @@ export type PaymentTransaction = UnassignedPayment & {
   modePaiement?: string | null;
   /** Numéro de reçu suivi ; absent tant qu'une saisie hors ligne n'est pas arrivée au serveur. */
   numeroRecu?: string | null;
+  /** Remise à la chargée des finances : EN_ATTENTE, VALIDE ou NON_RECU. */
+  statutRemise?: string | null;
+  remiseTraiteeParNom?: string | null;
   /** Encaissement saisi par erreur, neutralisé par une ligne d'annulation. */
   annule?: boolean;
   /** Sur une ligne d'annulation : le paiement qu'elle neutralise. */
@@ -240,7 +243,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Aide de la page" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "États de besoin" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Futurs étudiants" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Tableau de bord académique" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Évaluations et notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI" | "Manuel d'utilisation" | "Contrôle des cartes";
+export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Aide de la page" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "États de besoin" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Futurs étudiants" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Tableau de bord académique" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Évaluations et notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI" | "Manuel d'utilisation" | "Contrôle des cartes" | "Validation des encaissements";
 
 export type DailyActivityReport = {
   date: string;
@@ -316,7 +319,7 @@ export type ExpenseActions = {
   blocagePaiement: string | null;
   annuler: boolean;
 };
-export type ExpenseCategory = { id: string; nom: string; livraisonRequise: boolean; actif: boolean; compteNumero?: string | null };
+export type ExpenseCategory = { id: string; nom: string; livraisonRequise: boolean; actif: boolean; compteNumero?: string | null; /** Compte réellement utilisé en comptabilité (choisi, ou déduit du nom). */ compteApplique?: string; compteAppliqueLibelle?: string | null };
 export type Supplier = { id: string; nom: string; telephone?: string | null; email?: string | null; adresse?: string | null; identifiantFiscal?: string | null; actif: boolean };
 export type FiscalYear = { id: string; libelle: string; dateDebut: string; dateFin: string; cloture: boolean };
 export type FinanceRules = { seuilDoubleValidation: string; budgetBloquant: boolean; separationPaiement: boolean };

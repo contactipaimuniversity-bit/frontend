@@ -198,6 +198,34 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       OFFLINE_FAQ,
     ],
   },
+  "Validation des encaissements": {
+    summary: "La remise de l'argent de la caisse à la chargée des finances : chaque encaissement est confirmé reçu, ou signalé non reçu.",
+    purpose: [
+      "Voir ce que chaque caissier a encaissé, par jour et par mode de paiement : ce qu'il doit remettre.",
+      "Confirmer la réception de l'argent, encaissement par encaissement ou par lot.",
+      "Signaler un manque, avec son motif, pour qu'il soit éclairci.",
+    ],
+    steps: [
+      { title: "Choisir la période", detail: "Aujourd'hui, hier, avant-hier, les 7 derniers jours, ce mois, ou des dates précises (du / au)." },
+      { title: "Lire les remises", detail: "Le tableau « Par caissier, par jour et par mode » donne, pour chaque caissier, ce qu'il a encaissé en espèces, en mobile money, par virement ou chèque, et ce qui est déjà validé." },
+      { title: "Compter puis valider", detail: "Comptez les espèces remises (ou vérifiez le téléphone, le relevé), puis « Valider le lot » sur la ligne du caissier. Vous confirmez le montant exact dans la fenêtre : votre nom et l'heure sont enregistrés." },
+      { title: "Traiter une partie seulement", detail: "Dans le détail, cochez les encaissements reçus puis « Valider la sélection ». Ce qui manque : « Non reçu », avec ce qui manque (ex. « 20 000 F non remis »)." },
+      { title: "Filtrer", detail: "Par statut (en attente, validés, non reçus), caissier, mode, nature des frais, ou par nom et n° de reçu." },
+      { title: "Corriger une erreur", detail: "« Remettre en attente » retire une validation ou un « non reçu », avec un motif." },
+    ],
+    tips: [
+      "Personne ne valide ses propres encaissements : la caisse et la validation sont deux personnes différentes.",
+      "Un paiement saisi sans mode (avant l'ajout de ce champ) est compté en espèces.",
+      "Un encaissement annulé a été rendu à l'étudiant : il n'y a plus rien à remettre et il ne se valide pas.",
+      "Le nombre d'encaissements en attente apparaît dans « Mon travail du jour » et en pastille dans le menu.",
+    ],
+    faq: [
+      { question: "« Non reçu » retire-t-il l'argent des comptes ?", answer: "Non. Le paiement reste enregistré (l'étudiant a bien payé et a son reçu). Le statut signale que la caisse ne l'a pas remis : c'est à éclaircir avec le caissier. Si le paiement était une erreur de saisie, un responsable l'annule depuis Paiements." },
+      { question: "Qui voit cet écran ?", answer: "Les comptes qui ont le droit « Paiements · validation des encaissements ». Donnez-le au poste de la chargée des finances, dans Paramètres › Postes et accès." },
+      { question: "Les anciens encaissements sont en attente, est-ce normal ?", answer: "Oui : tout encaissement saisi avant la mise en service de cet écran n'a jamais été confirmé. Choisissez la période, vérifiez, puis validez par lot." },
+      ACCESS_FAQ,
+    ],
+  },
   "États de besoin": {
     summary: "La création et le suivi des états de besoin, de l'expression du besoin jusqu'au paiement.",
     purpose: [
@@ -713,18 +741,19 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
     ],
   },
   Comptabilité: {
-    summary: "Le journal, la balance, le grand livre, les états financiers et le plan comptable.",
+    summary: "Le journal, la balance, le grand livre, les états financiers, le suivi des paiements étudiants et le plan comptable.",
     purpose: [
       "Consulter les écritures générées automatiquement par les encaissements, factures, paiements et paies.",
+      "Comparer les encaissements et les montants restant dus sur les dossiers de bourse et d'inscription.",
       "Saisir les opérations exceptionnelles à la main.",
       "Produire la balance et les états financiers.",
     ],
     steps: [
-      { title: "Se repérer", detail: "La page s'ouvre sur cinq cartes : Journal, Balance, Grand livre, États financiers et Plan comptable. Chaque carte affiche son chiffre clé ; cliquez dessus pour ouvrir l'écran, et passez la souris sur le « i » pour lire à quoi elle sert. Le lien « ‹ Comptabilité » ramène aux cartes." },
+      { title: "Se repérer", detail: "La page s'ouvre sur six cartes : Journal, Balance, Grand livre, États financiers, Bourses et inscriptions, et Plan comptable. Chaque carte affiche son chiffre clé ; cliquez dessus pour ouvrir l'écran, et passez la souris sur le « i » pour lire à quoi elle sert. Le lien « ‹ Comptabilité » ramène aux cartes." },
       { title: "Consulter le journal", detail: "Carte « Journal » : recherchez et filtrez les écritures." },
       { title: "Saisir une écriture", detail: "« + Nouvelle écriture » : journal, date, libellé et lignes dont le débit égale le crédit." },
-      { title: "Analyser", detail: "« Balance », « Grand livre » et « États financiers » présentent les soldes par compte et par période." },
-      { title: "Tenir le plan comptable", detail: "Carte « Plan comptable » : ajoutez les comptes nécessaires." },
+      { title: "Analyser", detail: "« Balance », « Grand livre » et « États financiers » présentent les soldes par compte et par période. « Bourses et inscriptions » permet de repérer les paiements soldés et les dettes, avec des filtres par type, année scolaire, situation et recherche." },
+      { title: "Tenir le plan comptable", detail: "Carte « Plan comptable » : ajoutez un compte, modifiez son libellé ou désactivez/réactivez un compte." },
     ],
     faq: [
       { question: "Dois-je saisir les encaissements des étudiants ?", answer: "Non, chaque paiement enregistré génère automatiquement son écriture." },

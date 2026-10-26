@@ -49,6 +49,7 @@ export const MANUALS: Record<ManualSection, Manual> = {
     },
     roles: [
       { role: "Caissier(ère)", tasks: "Encaisse les étudiants depuis leur dossier, remet le reçu, présente sa caisse en fin de journée." },
+      { role: "Chargée des finances", tasks: "Reçoit chaque soir l'argent de la caisse, le compte et valide la remise dans « Validation des encaissements ». Signale tout manque." },
       { role: "Demandeur", tasks: "Crée l'état de besoin, joint la lettre et le devis, le soumet." },
       { role: "Valideur", tasks: "Contrôle l'état de besoin et le budget, valide ou rejette avec un motif." },
       { role: "Valideur final", tasks: "Donne la seconde validation au-delà du seuil ou hors budget. Ce n'est jamais la même personne que le premier valideur." },
@@ -62,7 +63,7 @@ export const MANUALS: Record<ManualSection, Manual> = {
       { title: "Ouvrir l'exercice budgétaire", detail: "Paramètres finances › Exercices : libellé (ex. 2026-2027), date de début et date de fin, puis « Ouvrir l'exercice ». Sans exercice ouvert aujourd'hui, aucune dépense ne peut être soumise.", open: "Paramètres finances" },
       { title: "Saisir le budget de chaque catégorie", detail: "Budget : choisissez l'exercice, puis cliquez le crayon sur chaque catégorie et saisissez le montant voté (ex. Fournitures de bureau : 1 200 000 F).", open: "Budget" },
       { title: "Vérifier les frais demandés aux étudiants", detail: "Les montants des frais de dépôt, d'inscription et des échéances de bourse se règlent dans Référentiels. Ce sont eux qui deviennent les « obligations » à encaisser dans chaque dossier.", open: "Référentiels" },
-      { title: "Contrôler le plan comptable", detail: "Comptabilité › Plan comptable : les comptes usuels sont déjà créés (571 Caisse, 521 Banques, 552 Mobile money, 401 Fournisseurs, 7061 à 7063 pour les frais des étudiants...). Ajoutez seulement ceux qui manquent.", open: "Comptabilité" },
+      { title: "Contrôler le plan comptable", detail: "Comptabilité › Plan comptable : les comptes usuels sont déjà créés (571 Caisse, 521 Banques, 552 Mobile money, 401 Fournisseurs, 7061 à 7063 pour les frais des étudiants...). Ajoutez ceux qui manquent, corrigez un libellé ou désactivez un compte inutilisé. Le numéro d'un compte existant ne se modifie pas car il est utilisé par les écritures.", open: "Comptabilité" },
       { title: "Donner les bons accès à chacun", detail: "Un administrateur règle les postes dans Paramètres › Postes et accès : « Paiements » pour la caisse, « Dépenses · états de besoin », « Dépenses · validation », « Dépenses · validation finale », « Dépenses · exécution et paiement », « Comptabilité ». Le droit « Paiements · annulation d'un encaissement » est à réserver à un responsable." },
     ],
     routine: [
@@ -70,7 +71,7 @@ export const MANUALS: Record<ManualSection, Manual> = {
         "Encaisser les étudiants depuis leur dossier (bouton « Finance » puis « Encaisser ») et remettre le reçu.",
         "Vérifier « Paiements à affecter » : aucun versement ne doit rester sans obligation.",
         "Valider les dépenses en attente et payer celles qui sont facturées.",
-        "En fin de journée : « Contrôle de caisse », comparer la ligne « Espèces » de chaque caissier à l'argent remis.",
+        "En fin de journée : la caisse remet l'argent à la chargée des finances, qui le compte et le valide dans « Validation des encaissements » (filtre « Aujourd'hui »).",
       ] },
       { when: "Chaque semaine", tasks: [
         "Ouvrir « Échéances en retard » et appeler les familles concernées.",
@@ -130,6 +131,20 @@ export const MANUALS: Record<ManualSection, Manual> = {
         ],
         result: "La caisse physique correspond au système. Un écart non expliqué se signale le jour même, pas en fin de mois.",
         open: "Paiements",
+      },
+      {
+        title: "Valider la remise de caisse du soir",
+        who: "Chargée des finances",
+        situation: "17 h 30 : la caissière a encaissé 100 000 F aujourd'hui (80 000 F en espèces, 20 000 F par mobile money) et apporte l'enveloppe.",
+        steps: [
+          "Ouvrez « Validation des encaissements » : la période « Aujourd'hui » est déjà choisie.",
+          "Dans « Par caissier, par jour et par mode », repérez sa ligne Espèces : 80 000 F en attente. Comptez l'enveloppe.",
+          "Le compte est bon : « Valider le lot », vérifiez le montant affiché, puis « Je confirme la réception ».",
+          "Ligne Mobile money : vérifiez les transferts reçus sur le téléphone de l'établissement, puis validez de la même façon.",
+          "S'il manque 5 000 F : dans le détail, cochez les encaissements bien reçus et « Valider la sélection », puis « Non reçu » sur celui qui manque, avec le motif.",
+        ],
+        result: "Chaque encaissement porte « Validé » (votre nom et l'heure) ou « Non reçu » (avec le motif). Le compteur « En attente » retombe à 0 quand toute la caisse du jour est vérifiée.",
+        open: "Validation des encaissements",
       },
       {
         title: "Corriger un paiement saisi sur le mauvais étudiant",

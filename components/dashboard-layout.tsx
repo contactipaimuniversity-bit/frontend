@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { Award, BadgeCheck, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
+import { Award, BadgeCheck, Banknote, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
 import { User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/student-photo";
@@ -50,6 +50,7 @@ const icons: Record<string, LucideIcon> = {
   about: Info,
   daily: CalendarCheck2,
   cardScan: ScanLine,
+  handover: Banknote,
   settings: Settings,
 };
 
@@ -99,6 +100,7 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
     label: "Finances",
     items: [
       { label: "Paiements", icon: "payments" },
+      { label: "Validation des encaissements", icon: "handover" },
       { label: "États de besoin", icon: "expenses", title: "Dépenses", views: EXPENSE_VIEWS },
       { label: "Budget", icon: "budget" },
       { label: "Comptabilité", icon: "accounting" },

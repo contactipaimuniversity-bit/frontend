@@ -5,20 +5,43 @@ import { askConfirm, askReason, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
 import { API_URL } from "@/lib/offline";
 import { FiscalYear, User, formatDate, formatMoney } from "@/lib/types";
-import { BookOpenText, ChartNoAxesCombined, ListTree, NotebookText, Scale } from "lucide-react";
+import { BookOpenText, ChartNoAxesCombined, Coins, ListTree, NotebookText, Scale } from "lucide-react";
 import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, dateTime, downloadPdf, messageOf, send, today, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
 
 type Account = { id: string; numero: string; libelle: string; classe: number; actif: boolean };
 type EntryLine = { id: string; libelle?: string | null; debit: string; credit: string; compte: Account };
 type Entry = { id: string; numero: string; journal: string; date: string; libelle: string; reference?: string | null; sourceType: string; statut: string; extourneParId?: string | null; creeParNom: string; lignes: EntryLine[] };
 type Journal = { data: Entry[]; meta: { page: number; total: number; totalPages: number }; journaux: Record<string, string> };
-type Balance = { lignes: Array<{ compteId: string; numero: string; libelle: string; debit: number; credit: number; soldeDebiteur: number; soldeCrediteur: number }>; totaux: { debit: number; credit: number; soldeDebiteur: number; soldeCrediteur: number } };
+type Balance = { lignes: Array<{ compteId: string; numero: string; libelle: string; debit: number; credit: number; soldeMouvement: number; soldeDebiteur: number; soldeCrediteur: number }>; totaux: { debit: number; credit: number; soldeDebiteur: number; soldeCrediteur: number } };
 type Ledger = { compte: Account; report: number; solde: number; lignes: Array<{ id: string; date: string; numero: string; journal: string; libelle: string; reference?: string | null; debit: number; credit: number; solde: number }> };
 type Amount = { numero: string; libelle: string; montant: number };
 type Statements = {
   resultat: { charges: Amount[]; produits: Amount[]; totalCharges: number; totalProduits: number; resultat: number };
   bilan: { actif: Amount[]; passif: Amount[]; totalActif: number; totalPassif: number; resultat: number };
   tresorerie: { caisse: number; banque: number; mobileMoney: number; dettesFournisseurs: number; dettesPersonnel: number; dettesSociales: number };
+};
+type RecoveryTotals = { dossiers: number; attendu: string; paye: string; encaisse: string; resteAPayer: string };
+type RecoveryRow = {
+  id: string;
+  type: "BOURSE" | "INSCRIPTION";
+  date: string;
+  statutDossier: string;
+  anneeScolaire: string | null;
+  niveau: string;
+  filiere: string;
+  personne: { nom: string; prenom: string; telephone: string | null; matricule: string | null };
+  montantAttendu: string;
+  montantPaye: string;
+  encaisse: string;
+  resteAPayer: string;
+  etat: "PAYE" | "DETTE" | "IMPAYE";
+};
+type Recovery = {
+  data: RecoveryRow[];
+  meta: { page: number; total: number; totalPages: number };
+  totaux: RecoveryTotals;
+  parType: { bourses: RecoveryTotals; inscriptions: RecoveryTotals };
+  anneesScolaires: string[];
 };
 
 const SOURCES: Record<string, string> = {
@@ -214,6 +237,7 @@ function BalanceTab({ signal, onOpenAccount }: { signal: number; onOpenAccount: 
         <button className="outline-button small" onClick={() => data && downloadPdf("balance.pdf", "Balance des comptes", period.label, [["Compte", "Libellé", "Débit", "Crédit", "Solde débiteur", "Solde créditeur"], ...data.lignes.map((line) => [line.numero, line.libelle, line.debit, line.credit, line.soldeDebiteur, line.soldeCrediteur]), ["", "TOTAL", data.totaux.debit, data.totaux.credit, data.totaux.soldeDebiteur, data.totaux.soldeCrediteur]])}>Exporter en PDF</button>
       </div>
       {balance.error && <p className="form-error">{balance.error}</p>}
+      {data && <p className="panel-subtitle">Débit et crédit montrent les mouvements de la sélection. Le solde débiteur ou créditeur inclut le report antérieur : c&apos;est le solde du compte à la fin de la période.</p>}
       <div className="table-wrap">
         <table>
           <thead><tr><th>Compte</th><th>Libellé</th><th>Débit</th><th>Crédit</th><th>Solde débiteur</th><th>Solde créditeur</th></tr></thead>
@@ -325,11 +349,103 @@ function StatementsTab({ signal }: { signal: number }) {
   );
 }
 
+function RecoveryTab({ signal }: { signal: number }) {
+  const [type, setType] = useState("");
+  const [status, setStatus] = useState("");
+  const [year, setYear] = useState("");
+  const [draft, setDraft] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const params = new URLSearchParams({ page: String(page), limit: "25" });
+  if (type) params.set("type", type);
+  if (status) params.set("statut", status);
+  if (year) params.set("anneeScolaire", year);
+  if (search) params.set("q", search);
+  const recovery = useLoad<Recovery>(`/rapports/recouvrement?${params}`, signal);
+  const data = recovery.data;
+  const resetPage = () => setPage(1);
+  return (
+    <>
+      {data && (
+        <div className="stats-grid">
+          <article className="stat-card blue"><span>Bourses · encaissé net</span><strong>{formatMoney(data.parType.bourses.encaisse)}</strong><p>{data.parType.bourses.dossiers} dossier(s) · {formatMoney(data.parType.bourses.paye)} affectés sur {formatMoney(data.parType.bourses.attendu)} attendus · {formatMoney(data.parType.bourses.resteAPayer)} restant dû</p></article>
+          <article className="stat-card blue"><span>Inscriptions · encaissé net</span><strong>{formatMoney(data.parType.inscriptions.encaisse)}</strong><p>{data.parType.inscriptions.dossiers} dossier(s) · {formatMoney(data.parType.inscriptions.paye)} affectés sur {formatMoney(data.parType.inscriptions.attendu)} attendus · {formatMoney(data.parType.inscriptions.resteAPayer)} restant dû</p></article>
+          <article className="stat-card violet"><span>Reste total à recouvrer</span><strong>{formatMoney(data.totaux.resteAPayer)}</strong><p>{data.totaux.dossiers} dossier(s) · {formatMoney(data.totaux.attendu)} attendus</p></article>
+        </div>
+      )}
+      <div className="finance-inline-form">
+        <form className="search-form" onSubmit={(event) => { event.preventDefault(); setSearch(draft.trim()); resetPage(); }}>
+          <input aria-label="Rechercher un étudiant" placeholder="Nom, matricule, filière..." value={draft} onChange={(event) => setDraft(event.target.value)} />
+          <button className="outline-button small">Rechercher</button>
+        </form>
+        <select className="expense-select" aria-label="Type de dossier" value={type} onChange={(event) => { setType(event.target.value); resetPage(); }}>
+          <option value="">Bourses et inscriptions</option>
+          <option value="BOURSE">Bourses</option>
+          <option value="INSCRIPTION">Inscriptions</option>
+        </select>
+        <select className="expense-select" aria-label="Situation de paiement" value={status} onChange={(event) => { setStatus(event.target.value); resetPage(); }}>
+          <option value="">Toutes les situations</option>
+          <option value="PAYE">Soldés</option>
+          <option value="DETTE">Paiement partiel · dette</option>
+          <option value="IMPAYE">Aucun paiement · impayé</option>
+        </select>
+        <select className="expense-select" aria-label="Année scolaire" value={year} onChange={(event) => { setYear(event.target.value); resetPage(); }}>
+          <option value="">Toutes les années</option>
+          {(data?.anneesScolaires ?? []).map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+        {data && <button className="outline-button small" onClick={() => downloadPdf("suivi-recouvrement.pdf", "Suivi des bourses et inscriptions", "Montants cumulés à date", [
+          ["Type", "Étudiant", "Matricule", "Année", "Filière", "Attendu", "Payé / affecté", "Reste dû", "État"],
+          ...data.data.map((row) => [row.type === "BOURSE" ? "Bourse" : "Inscription", `${row.personne.prenom} ${row.personne.nom}`, row.personne.matricule, row.anneeScolaire, row.filiere, row.montantAttendu, row.montantPaye, row.resteAPayer, row.etat]),
+        ])}>Exporter la page en PDF</button>}
+      </div>
+      {recovery.error && <p className="form-error">{recovery.error}</p>}
+      <p className="panel-subtitle">« Encaissé net » exclut les reports entre obligations ; « payé / affecté » les inclut. Les dettes sont calculées sur les montants dus cumulés à date.</p>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Étudiant / dossier</th><th>Type</th><th>Année</th><th>Filière · niveau</th><th>Attendu</th><th>Payé / affecté</th><th>Reste dû</th><th>Situation</th></tr></thead>
+          <tbody>
+            {(data?.data ?? []).map((row) => (
+              <tr key={`${row.type}-${row.id}`}>
+                <td className="strong-cell">{row.personne.prenom} {row.personne.nom}<small className="cell-detail">{row.personne.matricule ?? row.personne.telephone ?? "Sans matricule"}</small></td>
+                <td>{row.type === "BOURSE" ? "Bourse" : "Inscription"}</td>
+                <td>{row.anneeScolaire ?? "—"}</td>
+                <td>{row.filiere}<small className="cell-detail">{row.niveau}</small></td>
+                <td>{formatMoney(row.montantAttendu)}</td>
+                <td>{formatMoney(row.montantPaye)}<small className="cell-detail">encaissé net : {formatMoney(row.encaisse)}</small></td>
+                <td>{Number(row.resteAPayer) > 0 ? formatMoney(row.resteAPayer) : "—"}</td>
+                <td><Badge tone={row.etat === "PAYE" ? "ok" : row.etat === "DETTE" ? "wait" : "bad"}>{row.etat === "PAYE" ? "Soldé" : row.etat === "DETTE" ? "Dette" : "Impayé"}</Badge></td>
+              </tr>
+            ))}
+            {!data?.data.length && <Empty columns={8}>{data ? "Aucun dossier ne correspond aux filtres." : "Chargement..."}</Empty>}
+          </tbody>
+        </table>
+      </div>
+      {data && data.meta.totalPages > 1 && (
+        <div className="pagination-bar">
+          <span>Page {data.meta.page} sur {data.meta.totalPages} · {data.meta.total} dossier(s)</span>
+          <div className="pagination-actions">
+            <button className="outline-button small" disabled={page <= 1} onClick={() => setPage(page - 1)}>Précédente</button>
+            <button className="outline-button small" disabled={page >= data.meta.totalPages} onClick={() => setPage(page + 1)}>Suivante</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function ChartTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
   const accounts = useLoad<Account[]>("/comptabilite/comptes", signal);
   const form = useForm({ numero: "", libelle: "" });
   const action = useAction();
   const call = (work: () => Promise<unknown>) => void action.run(async () => { await work(); accounts.reload(); });
+  const [editing, setEditing] = useState<{ id: string; libelle: string } | null>(null);
+  const saveLabel = () => {
+    if (!editing) return;
+    call(async () => {
+      await send(`/comptabilite/comptes/${editing.id}`, "PATCH", { libelle: editing.libelle });
+      setEditing(null);
+    });
+  };
   return (
     <>
       {canEdit && (
@@ -347,10 +463,10 @@ function ChartTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
             {(accounts.data ?? []).map((account) => (
               <tr key={account.id}>
                 <td className="strong-cell">{account.numero}</td>
-                <td>{account.libelle}</td>
+                <td>{editing?.id === account.id ? <input aria-label={`Libellé du compte ${account.numero}`} required minLength={2} maxLength={160} value={editing.libelle} onChange={(event) => setEditing({ ...editing, libelle: event.target.value })} /> : account.libelle}</td>
                 <td>{account.classe} · {CLASSES[account.classe]}</td>
                 <td><Badge tone={account.actif ? "ok" : "off"}>{account.actif ? "Utilisable" : "Désactivé"}</Badge></td>
-                <td>{canEdit && <button className="row-action" onClick={() => call(() => send(`/comptabilite/comptes/${account.id}`, "PATCH", { actif: !account.actif }))}>{account.actif ? "Désactiver" : "Réactiver"}</button>}</td>
+                <td>{canEdit && <span className="action-group">{editing?.id === account.id ? <><button className="row-action" disabled={action.busy || editing.libelle.trim().length < 2} onClick={saveLabel}>Enregistrer</button><button className="row-action" disabled={action.busy} onClick={() => setEditing(null)}>Annuler</button></> : <><button className="row-action" onClick={() => setEditing({ id: account.id, libelle: account.libelle })}>Modifier</button><button className="row-action" onClick={() => call(() => send(`/comptabilite/comptes/${account.id}`, "PATCH", { actif: !account.actif }))}>{account.actif ? "Désactiver" : "Réactiver"}</button></>}</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -361,9 +477,9 @@ function ChartTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
 }
 
 export function AccountingPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
-  type Tab = "journal" | "balance" | "livre" | "etats" | "plan";
+  type Tab = "journal" | "balance" | "livre" | "etats" | "plan" | "recouvrement";
   const canEdit = hasAccess(user, "accounting", "edit");
-  const [tab, setTab] = useHubSection<Tab>(["journal", "balance", "livre", "etats", "plan"]);
+  const [tab, setTab] = useHubSection<Tab>(["journal", "balance", "livre", "etats", "plan", "recouvrement"]);
   const [account, setAccount] = useState("");
   // Chiffres clés des cartes ; lire le journal passe aussi les écritures en attente.
   const journal = useLoad<Journal>("/comptabilite/journal?page=1&limit=1", refreshSignal);
@@ -372,20 +488,22 @@ export function AccountingPage({ user, refreshSignal }: { user: User | null; ref
   const accounts = useLoad<Account[]>(tab ? null : "/comptabilite/comptes", refreshSignal);
   const titles: Record<Tab, [string, string]> = {
     journal: ["Journal", "Toutes les écritures, dans l'ordre. Celles de la gestion arrivent toutes seules."],
-    balance: ["Balance", "Le total des mouvements et le solde de chaque compte."],
+    balance: ["Balance", "Les mouvements de la période et le solde cumulé à sa fin, pour chaque compte."],
     livre: ["Grand livre", "Le détail des mouvements d'un compte, avec son solde progressif."],
     etats: ["États financiers", "Résultat, trésorerie et bilan simplifié de la période."],
     plan: ["Plan comptable", "Les comptes utilisables, inspirés du SYSCOHADA."],
+    recouvrement: ["Bourses et inscriptions", "Montants encaissés, dossiers soldés et dettes à recouvrer."],
   };
   const treasury = statements.data ? statements.data.tresorerie.caisse + statements.data.tresorerie.banque + statements.data.tresorerie.mobileMoney : null;
   const result = statements.data?.resultat.resultat;
   const unbalanced = balance.data ? Math.abs(balance.data.totaux.debit - balance.data.totaux.credit) >= 0.01 : false;
   const cards: HubCard<Tab>[] = [
     { key: "journal", icon: BookOpenText, title: "Journal", value: journal.data ? `${journal.data.meta.total}` : "…", detail: "écriture(s) enregistrée(s)", info: "Toutes les écritures, de la plus récente à la plus ancienne. Celles des encaissements, factures, paiements et paies arrivent toutes seules ; vous n'y saisissez à la main que les opérations exceptionnelles, que vous pouvez ensuite valider ou extourner." },
-    { key: "balance", icon: Scale, title: "Balance", value: balance.data ? formatMoney(balance.data.totaux.debit) : "…", detail: unbalanced ? "Débits et crédits ne sont pas égaux" : "de mouvements · débits = crédits", tone: unbalanced ? "alert" : undefined, info: "Pour chaque compte, le total de ses débits, de ses crédits et son solde, sur l'exercice ou la période choisie. Le total des débits doit toujours égaler celui des crédits : c'est le premier contrôle à faire." },
+    { key: "balance", icon: Scale, title: "Balance", value: balance.data ? formatMoney(balance.data.totaux.debit) : "…", detail: unbalanced ? "Débits et crédits ne sont pas égaux" : "de mouvements · débits = crédits", tone: unbalanced ? "alert" : undefined, info: "Pour chaque compte, les débits et crédits de la période choisie, ainsi que le solde cumulé à sa fin (report antérieur inclus). Le total des débits doit toujours égaler celui des crédits : c'est le premier contrôle à faire." },
     { key: "livre", icon: NotebookText, title: "Grand livre", value: treasury === null ? "…" : formatMoney(treasury), detail: "en trésorerie (caisse, banque, mobile money)", info: "Le détail des mouvements d'un compte, ligne par ligne, avec son solde qui évolue. Choisissez un compte, par exemple la caisse, pour voir d'où vient chaque montant et retrouver une opération." },
     { key: "etats", icon: ChartNoAxesCombined, title: "États financiers", value: result === undefined ? "…" : formatMoney(result), detail: result === undefined ? "résultat" : result < 0 ? "de déficit : charges supérieures aux produits" : "d'excédent : produits moins charges", tone: result !== undefined && result < 0 ? "alert" : undefined, info: "La synthèse : le résultat (produits moins charges), la trésorerie disponible par compte, les dettes en cours et un bilan simplifié. C'est l'écran à montrer à la direction." },
     { key: "plan", icon: ListTree, title: "Plan comptable", value: accounts.data ? `${accounts.data.filter((item) => item.actif).length}` : "…", detail: "compte(s) actif(s)", info: "La liste des comptes utilisables, inspirée du SYSCOHADA et classée par nature (trésorerie, charges, produits…). Ajoutez un compte ou désactivez-en un qui ne sert plus." },
+    { key: "recouvrement", icon: Coins, title: "Bourses et inscriptions", value: "Suivi", detail: "encaissements et dettes étudiantes", info: "Comparez les montants des dossiers de bourse et d'inscription, repérez les étudiants soldés ou débiteurs, puis filtrez par type, année scolaire, situation ou recherche." },
   ];
   return (
     <div className="content-scroll">
@@ -400,6 +518,7 @@ export function AccountingPage({ user, refreshSignal }: { user: User | null; ref
             {tab === "livre" && <LedgerTab signal={refreshSignal} account={account} onAccount={setAccount} />}
             {tab === "etats" && <StatementsTab signal={refreshSignal} />}
             {tab === "plan" && <ChartTab canEdit={canEdit} signal={refreshSignal} />}
+            {tab === "recouvrement" && <RecoveryTab signal={refreshSignal} />}
           </Panel>
         </>
       )}

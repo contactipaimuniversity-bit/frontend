@@ -45,6 +45,7 @@ import { PageHelpPage } from "@/components/page-help-page";
 import { UserManualPage } from "@/components/user-manual-page";
 import { PersonFilePage } from "@/components/person-file-page";
 import { CardCheckPage } from "@/components/card-check-page";
+import { PaymentHandoverPage } from "@/components/payment-handover-page";
 import { MANUALS } from "@/lib/manuals";
 import { useWork, workBadges } from "@/lib/work";
 import { FeedbackHost } from "@/components/feedback";
@@ -598,6 +599,8 @@ export default function Home() {
         <ReportsPage />
       ) : activeView === "Certificats" ? (
         <CertificatesPage refreshSignal={refreshKey} dateOrder={dateOrder} onDateOrderChange={setDateOrder} />
+      ) : activeView === "Validation des encaissements" ? (
+        <PaymentHandoverPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Contrôle des cartes" ? (
         <CardCheckPage user={user} />
       ) : activeView === "Manuel d'utilisation" ? (

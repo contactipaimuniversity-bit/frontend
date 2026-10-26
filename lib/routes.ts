@@ -16,6 +16,7 @@ const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page" |
   Inscriptions: "/inscriptions",
   Certificats: "/certificats",
   Paiements: "/paiements",
+  "Validation des encaissements": "/paiements/validation",
   "États de besoin": "/etats-de-besoin",
   "Validation des dépenses": "/depenses/validation",
   "Exécution des dépenses": "/depenses/execution",
