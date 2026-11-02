@@ -6,7 +6,7 @@ import { hasAccess } from "@/lib/access";
 import { API_URL } from "@/lib/offline";
 import { FiscalYear, User, formatDate, formatMoney } from "@/lib/types";
 import { BookOpenText, ChartNoAxesCombined, Coins, ListTree, NotebookText, Scale } from "lucide-react";
-import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, dateTime, downloadPdf, messageOf, send, today, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, dateTime, downloadPdf, messageOf, send, today, useAction, useForm, useLoad, useHubSection, LoadingBlock } from "@/components/ui-kit";
 
 type Account = { id: string; numero: string; libelle: string; classe: number; actif: boolean };
 type EntryLine = { id: string; libelle?: string | null; debit: string; credit: string; compte: Account };
@@ -255,7 +255,7 @@ function BalanceTab({ signal, onOpenAccount }: { signal: number; onOpenAccount: 
             {data && data.lignes.length > 0 && (
               <tr className="total-row"><td /><td className="strong-cell">Totaux</td><td className="strong-cell">{formatMoney(data.totaux.debit)}</td><td className="strong-cell">{formatMoney(data.totaux.credit)}</td><td className="strong-cell">{formatMoney(data.totaux.soldeDebiteur)}</td><td className="strong-cell">{formatMoney(data.totaux.soldeCrediteur)}</td></tr>
             )}
-            {!data?.lignes.length && <Empty columns={6}>{data ? "Aucun mouvement sur cette période." : "Chargement..."}</Empty>}
+            {!data?.lignes.length && <Empty columns={6} loading={!(data)}>{"Aucun mouvement sur cette période."}</Empty>}
           </tbody>
         </table>
       </div>
@@ -294,7 +294,7 @@ function LedgerTab({ signal, account, onAccount }: { signal: number; account: st
                 <td>{formatMoney(line.solde)}</td>
               </tr>
             ))}
-            {!data?.lignes.length && <Empty columns={6}>{data ? "Aucun mouvement sur ce compte." : "Chargement..."}</Empty>}
+            {!data?.lignes.length && <Empty columns={6} loading={!(data)}>{"Aucun mouvement sur ce compte."}</Empty>}
           </tbody>
         </table>
       </div>
@@ -325,7 +325,7 @@ function StatementsTab({ signal }: { signal: number }) {
     <>
       <div className="finance-inline-form">{period.controls}</div>
       {statements.error && <p className="form-error">{statements.error}</p>}
-      {!data && !statements.error && <p className="empty-state">Chargement...</p>}
+      {!data && !statements.error && <LoadingBlock />}
       {data && (
         <>
           <div className="stats-grid">
@@ -416,7 +416,7 @@ function RecoveryTab({ signal }: { signal: number }) {
                 <td><Badge tone={row.etat === "PAYE" ? "ok" : row.etat === "DETTE" ? "wait" : "bad"}>{row.etat === "PAYE" ? "Soldé" : row.etat === "DETTE" ? "Dette" : "Impayé"}</Badge></td>
               </tr>
             ))}
-            {!data?.data.length && <Empty columns={8}>{data ? "Aucun dossier ne correspond aux filtres." : "Chargement..."}</Empty>}
+            {!data?.data.length && <Empty columns={8} loading={!(data)}>{"Aucun dossier ne correspond aux filtres."}</Empty>}
           </tbody>
         </table>
       </div>

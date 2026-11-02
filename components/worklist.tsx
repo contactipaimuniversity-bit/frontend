@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LoadingBlock } from "@/components/ui-kit";
 import { apiFetch } from "@/lib/api";
 import { navigateTo, pathForDossier, pathForView } from "@/lib/routes";
 import { Person, ViewName, formatDate, formatMoney, fullName } from "@/lib/types";
@@ -46,7 +47,7 @@ export function WorklistPanel({ refreshSignal }: { refreshSignal: number }) {
   }, [refreshSignal]);
 
   // Sans données (hors ligne avant la première synchronisation), on n'affiche rien plutôt qu'un bloc vide.
-  if (!worklist) return failed ? null : <section className="worklist" aria-busy="true"><p className="eyebrow">Admissions · le détail</p><p className="worklist-empty">Chargement de votre liste de travail…</p></section>;
+  if (!worklist) return failed ? null : <section className="worklist" aria-busy="true"><p className="eyebrow">Admissions · le détail</p><LoadingBlock lines={3} /></section>;
 
   const openDossier = (item: DossierItem) => navigateTo(pathForDossier({ type: item.dossierType, id: item.dossierId }));
   return (

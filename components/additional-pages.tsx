@@ -1,7 +1,7 @@
 "use client";
 
 import { Award, CalendarRange, FolderCheck, HandCoins, Search } from "lucide-react";
-import { HubBack, HubCard, HubCards, PageBar, usePaged, useHubSection } from "@/components/ui-kit";
+import { HubBack, HubCard, HubCards, PageBar, usePaged, useHubSection, LoadingBlock, SkeletonRows, PENDING_VALUE } from "@/components/ui-kit";
 import { listPdf } from "@/lib/pdf-docs";
 import { ActionIcon } from "@/components/action-icon";
 import { FormEvent, useEffect, useState } from "react";
@@ -235,6 +235,7 @@ export function PeoplePage({
   onPeopleSearch,
   onPeoplePage,
   onRefresh,
+  loading = false,
 }: {
   // Droit de consulter le parcours académique d'un étudiant.
   people: Person[];
@@ -244,6 +245,7 @@ export function PeoplePage({
   onPeopleSearch: (value: string) => void;
   onPeoplePage: (page: number) => void;
   onRefresh: () => void;
+  loading?: boolean;
 }) {
   const [modal, setModal] = useState<"create" | "edit" | "delete" | null>(
     null,
@@ -364,13 +366,13 @@ export function PeoplePage({
                   </td>
                 </tr>
               ))}
-              {!people.length && (
+              {!people.length && (loading ? <SkeletonRows columns={6} /> : (
                 <tr>
                   <td colSpan={6} className="empty-state">
                     Aucune personne enregistrée.
                   </td>
                 </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>
@@ -579,13 +581,14 @@ function ReferenceForm({
 export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
   const [elements, setElements] = useState<CatalogElement[]>([]);
   const [types, setTypes] = useState<ScholarshipType[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [modal, setModal] = useState<"element" | null>(null);
   const [selectedElement, setSelectedElement] = useState<CatalogElement>();
   const [section, setSection] = useHubSection<"bourses" | "dossiers">(["bourses", "dossiers"]);
   const referenceCards: HubCard<"bourses" | "dossiers">[] = [
-    { key: "bourses", icon: Award, title: "Types de bourse", value: `${types.length}`, detail: `type(s) · ${types.reduce((total, type) => total + (type.echeances?.length ?? 0), 0)} échéance(s) prévue(s)`, info: "Les bourses que l'établissement accorde : pour chacune, ses frais d'inscription, son taux de réduction et le calendrier de ses échéances (libellé, date limite, montant). Une demande de bourse acceptée suit le plan de son type." },
-    { key: "dossiers", icon: FolderCheck, title: "Dossiers", value: `${elements.length}`, detail: `élément(s) requis · ${elements.filter((item) => item.obligatoire).length} obligatoire(s)`, info: "Ce qu'un dossier doit contenir : pièces à fournir, fournitures et frais à payer, selon le contexte (bourse ou inscription directe) et le niveau. Chaque nouveau dossier reprend cette liste ; les dossiers existants gardent la leur." },
+    { key: "bourses", icon: Award, title: "Types de bourse", value: loaded ? `${types.length}` : PENDING_VALUE, detail: `type(s) · ${types.reduce((total, type) => total + (type.echeances?.length ?? 0), 0)} échéance(s) prévue(s)`, info: "Les bourses que l'établissement accorde : pour chacune, ses frais d'inscription, son taux de réduction et le calendrier de ses échéances (libellé, date limite, montant). Une demande de bourse acceptée suit le plan de son type." },
+    { key: "dossiers", icon: FolderCheck, title: "Dossiers", value: loaded ? `${elements.length}` : PENDING_VALUE, detail: `élément(s) requis · ${elements.filter((item) => item.obligatoire).length} obligatoire(s)`, info: "Ce qu'un dossier doit contenir : pièces à fournir, fournitures et frais à payer, selon le contexte (bourse ou inscription directe) et le niveau. Chaque nouveau dossier reprend cette liste ; les dossiers existants gardent la leur." },
   ];
   const [deleteTarget, setDeleteTarget] = useState<{
     kind: "element" | "scholarship";
@@ -625,6 +628,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
           setElements(elementData);
           setTypes(typeData);
           setError("");
+          setLoaded(true);
         }
       })
       .catch((failure) => {
@@ -912,7 +916,7 @@ function MissingPiecesReport({ report }: { report: IncompleteReport | null }) {
           );
         })}
       </div>
-      {!report && <p className="empty-state">Chargement des dossiers…</p>}
+      {!report && <LoadingBlock />}
       {report && !dossiers.length && <p className="empty-state">{filtered ? "Aucun dossier incomplet ne correspond à cette recherche." : "Tous les dossiers sont complets."}</p>}
       {dossiers.length > 0 && <p className="missing-legend"><i className="missing" /> Manquant <i /> Attendu</p>}
       <PageBar page={paged.page} pageCount={paged.pageCount} total={paged.total} noun="dossier(s)" onPage={paged.setPage} />
@@ -971,7 +975,7 @@ function RecoveryReport({ latePayments }: { latePayments: LateInstalment[] | nul
           </article>
         ))}
       </div>
-      {!latePayments && <p className="empty-state">Chargement des échéances…</p>}
+      {!latePayments && <LoadingBlock />}
       {latePayments && !retards.length && <p className="empty-state">{term && latePayments.length ? "Aucune échéance ne correspond à cette recherche." : "Aucun retard de paiement."}</p>}
     </section>
   );

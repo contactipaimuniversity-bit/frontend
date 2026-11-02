@@ -56,7 +56,7 @@ export function ScholarsListModal({ scholarshipTypes, onClose }: { scholarshipTy
                 <td>{scholarSituation(item)}</td>
               </tr>
             ))}
-            {!list.data && !list.error && <Empty columns={5}>Chargement...</Empty>}
+            {!list.data && !list.error && <Empty columns={5} loading />}
             {list.data && !rows.length && <Empty columns={5}>Aucun boursier avec ces filtres.</Empty>}
           </tbody>
         </table></div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Empty } from "@/components/ui-kit";
 import { ActionIcon } from "@/components/action-icon";
 import { apiFetch } from "@/lib/api";
 import { navigateTo, pathForDossier } from "@/lib/routes";
@@ -162,7 +163,7 @@ export function PrintsPage({ refreshSignal }: { refreshSignal: number }) {
                 </tr>
               ))}
               {!result?.data.length && (
-                <tr><td colSpan={6} className="empty-state">{result ? "Aucune impression sur cette sélection." : "Chargement..."}</td></tr>
+                <Empty columns={6} loading={!result}>Aucune impression sur cette sélection.</Empty>
               )}
             </tbody>
           </table>

@@ -546,6 +546,7 @@ export default function Home() {
         <PersonFilePage key={route.personId} personId={route.personId} user={user} refreshSignal={refreshKey} />
       ) : activeView === "Personnes" ? (
         <PeoplePage
+          loading={loading}
           people={people}
           peopleMeta={peopleMeta}
           dateOrder={dateOrder}
@@ -559,6 +560,7 @@ export default function Home() {
         />
       ) : activeView === "Recrutement" ? (
         <PersonnelPage
+          loading={loading}
           data={personnelApplications}
           meta={personnelMeta}
           search={personnelSearch}
@@ -655,6 +657,7 @@ export default function Home() {
         />
       ) : (
         <OperationsPage
+          loading={loading}
           view={activeView}
           dateOrder={dateOrder}
           onDateOrderChange={setDateOrder}

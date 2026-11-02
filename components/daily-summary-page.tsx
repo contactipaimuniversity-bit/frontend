@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingBlock } from "@/components/ui-kit";
 import { useEffect, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -111,7 +112,7 @@ export function DailySummaryPage({ onBack }: { onBack: () => void }) {
             <span className="daily-activity-count">{loading ? "…" : filtered ? `${activities.length} sur ${currentReport?.total ?? 0}` : currentReport?.total ?? 0}</span>
           </div>
         </div>
-        {loading ? <p className="empty-state">Chargement des activités de la journée…</p> : activities.length ? (
+        {loading ? <LoadingBlock /> : activities.length ? (
           <ol className="daily-activity-list">
             {activities.map((activity) => {
               const open = expanded === activity.id;

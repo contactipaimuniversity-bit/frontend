@@ -3,7 +3,7 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { Banknote, CalendarRange, CircleCheckBig, FileText, PackageCheck, ShieldCheck, Tags, Truck } from "lucide-react";
 import { ActionIcon } from "@/components/action-icon";
-import { HubBack, HubCard, HubCards, PageBar, Tabs, usePaged, useHubSection } from "@/components/ui-kit";
+import { HubBack, HubCard, HubCards, PageBar, Tabs, usePaged, useHubSection, LoadingBlock, Empty, SkeletonRows } from "@/components/ui-kit";
 import { askConfirm, toast } from "@/components/feedback";
 import { canAccessView, hasAccess } from "@/lib/access";
 import { navigateTo, pathForView, queryParam } from "@/lib/routes";
@@ -475,7 +475,7 @@ function ExpenseDetailModal({ id, onClose, onChanged, onEdit }: { id: string; on
   if (!expense)
     return (
       <Modal wide title="Dépense" onClose={onClose}>
-        {error ? <p className="form-error">{error}</p> : <p className="empty-state">Chargement...</p>}
+        {error ? <p className="form-error">{error}</p> : <LoadingBlock />}
       </Modal>
     );
 
@@ -692,7 +692,7 @@ function offlineDraftNote(expense: ExpenseSummary) {
   ].filter(Boolean).join(" · ");
 }
 
-function ExpenseTable({ expenses, empty, extra, onOpen }: { expenses: ExpenseSummary[]; empty: string; extra?: { title: string; render: (expense: ExpenseSummary) => ReactNode }; onOpen: (id: string) => void }) {
+function ExpenseTable({ expenses, empty, extra, onOpen }: { expenses: ExpenseSummary[]; empty: string | null; extra?: { title: string; render: (expense: ExpenseSummary) => ReactNode }; onOpen: (id: string) => void }) {
   return (
     <div className="table-wrap">
       <table>
@@ -726,9 +726,7 @@ function ExpenseTable({ expenses, empty, extra, onOpen }: { expenses: ExpenseSum
               </td>
             </tr>
           ))}
-          {!expenses.length && (
-            <tr><td colSpan={7} className="empty-state">{empty}</td></tr>
-          )}
+          {!expenses.length && (empty === null ? <SkeletonRows columns={7} /> : <tr><td colSpan={7} className="empty-state">{empty}</td></tr>)}
         </tbody>
       </table>
     </div>
@@ -827,7 +825,7 @@ export function ExpensesPage({ user, refreshSignal }: { user: User | null; refre
           </div>
         </div>
         {list.error && <p className="form-error">{list.error}</p>}
-        <ExpenseTable expenses={list.data?.data ?? []} empty={list.data ? "Aucun état de besoin." : "Chargement..."} onOpen={setOpenId} />
+        <ExpenseTable expenses={list.data?.data ?? []} empty={list.data ? "Aucun état de besoin." : null} onOpen={setOpenId} />
         {meta && meta.totalPages > 1 && (
           <div className="pagination-bar">
             <span>Page {meta.page} sur {meta.totalPages} · {meta.total} état(s) de besoin</span>
@@ -870,7 +868,7 @@ export function ExpenseApprovalPage({ user, refreshSignal }: { user: User | null
         {queue.error && <p className="form-error">{queue.error}</p>}
         <ExpenseTable
           expenses={expenses}
-          empty={queue.data ? "Aucune dépense en attente de validation." : "Chargement..."}
+          empty={queue.data ? "Aucune dépense en attente de validation." : null}
           onOpen={setOpenId}
           extra={{
             title: "Étape",
@@ -906,7 +904,7 @@ function PaidExpenses({ signal, onOpen }: { signal: number; onOpen: (id: string)
         </div>
       </div>
       {list.error && <p className="form-error">{list.error}</p>}
-      <ExpenseTable expenses={list.data?.data ?? []} empty={list.data ? "Aucune dépense payée." : "Chargement..."} onOpen={onOpen} />
+      <ExpenseTable expenses={list.data?.data ?? []} empty={list.data ? "Aucune dépense payée." : null} onOpen={onOpen} />
       {meta && <PageBar page={meta.page} pageCount={meta.totalPages} total={meta.total} noun="dépense(s)" onPage={setPage} />}
     </section>
   );
@@ -926,7 +924,7 @@ function ExecutionQueue({ title, hint, items, loaded, toPay, onOpen }: { title: 
       </div>
       <ExpenseTable
         expenses={paged.items}
-        empty={loaded ? "Rien à traiter." : "Chargement..."}
+        empty={loaded ? "Rien à traiter." : null}
         onOpen={onOpen}
         extra={toPay ? { title: "Reste à payer", render: (expense) => <span className="status status-refusee">{formatMoney(expense.resteAPayer)}</span> } : { title: "Bon de commande", render: (expense) => expense.numeroBonCommande ?? "—" }}
       />
@@ -1101,7 +1099,7 @@ function RulesSettings({ canEdit, signal }: { canEdit: boolean; signal: number }
       setError(message(failure, "Règles non enregistrées."));
     }
   };
-  if (!current) return <p className="empty-state">{rules.error || "Chargement..."}</p>;
+  if (!current) return (rules.error ? <p className="empty-state">{rules.error}</p> : <LoadingBlock />);
   return (
     <div className="finance-rules">
       <form className="entity-form" onSubmit={save}>
@@ -1181,7 +1179,7 @@ function CategoriesSettings({ canEdit, signal }: { canEdit: boolean; signal: num
                 </td>
               </tr>
             ))}
-            {!categories.data?.length && <tr><td colSpan={5} className="empty-state">{categories.data ? "Aucune catégorie." : "Chargement..."}</td></tr>}
+            {!categories.data?.length && <Empty columns={5} loading={!categories.data}>Aucune catégorie.</Empty>}
           </tbody>
         </table>
       </div>
@@ -1240,7 +1238,7 @@ function SuppliersSettings({ canEdit, signal }: { canEdit: boolean; signal: numb
                 </td>
               </tr>
             ))}
-            {!suppliers.data?.length && <tr><td colSpan={5} className="empty-state">{suppliers.data ? "Aucun fournisseur enregistré." : "Chargement..."}</td></tr>}
+            {!suppliers.data?.length && <Empty columns={5} loading={!suppliers.data}>Aucun fournisseur enregistré.</Empty>}
           </tbody>
         </table>
       </div>
@@ -1306,7 +1304,7 @@ function FiscalYearsSettings({ canEdit, signal }: { canEdit: boolean; signal: nu
                 <td>{canEdit && <button className="row-action" onClick={() => void toggle(year)}>{year.cloture ? "Rouvrir" : "Clôturer"}</button>}</td>
               </tr>
             ))}
-            {!years.data?.length && <tr><td colSpan={4} className="empty-state">{years.data ? "Aucun exercice : ouvrez-en un pour pouvoir soumettre des dépenses." : "Chargement..."}</td></tr>}
+            {!years.data?.length && <Empty columns={4} loading={!years.data}>{"Aucun exercice : ouvrez-en un pour pouvoir soumettre des dépenses."}</Empty>}
           </tbody>
         </table>
       </div>

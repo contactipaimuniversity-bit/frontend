@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingBlock } from "@/components/ui-kit";
 import { useEffect, useState } from "react";
 
 type Choice = { value: string; label: string; detail?: string };
@@ -156,7 +157,7 @@ export function ModalChoice({
                 onChange={(event) => setQuery(event.target.value)}
               />
             </label>
-            {loading && <p className="empty-state">Chargement...</p>}
+            {loading && <LoadingBlock />}
             {error && <p className="form-error">{error}</p>}
             {!loading && !error && (
               <div className="choice-list">

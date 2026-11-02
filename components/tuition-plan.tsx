@@ -5,7 +5,7 @@ import { askConfirm, toast } from "@/components/feedback";
 import { PaymentModeSelect } from "@/components/payment-mode";
 import { hasAccess } from "@/lib/access";
 import { TuitionLine, TuitionPlan, User, formatDate, formatMoney } from "@/lib/types";
-import { Badge, FormActions, Modal, messageOf, send, useAction, useLoad } from "@/components/ui-kit";
+import { Badge, FormActions, Modal, messageOf, send, useAction, useLoad, LoadingBlock } from "@/components/ui-kit";
 
 type Dialog =
   | { kind: "collect"; ligne?: TuitionLine; maximum: number }
@@ -49,7 +49,7 @@ export function TuitionPlanPanel({ inscriptionId, user, onChanged }: { inscripti
   };
   const data = plan.data;
   if (plan.error) return <p className="form-error">{plan.error}</p>;
-  if (!data) return <p className="panel-subtitle">Chargement de l&apos;échéancier...</p>;
+  if (!data) return <LoadingBlock />;
   const next = data.mensualites.find((ligne) => ligne.reste > 0);
   const empty = !data.mensualites.length;
   return (

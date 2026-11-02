@@ -172,7 +172,7 @@ export function DashboardHome({
               <span>{card.label}</span>
               <span className="stat-arrow">↗</span>
             </div>
-            <strong>{loading && !summary ? "..." : card.value}</strong>
+            <strong>{loading && !summary ? <span className="skeleton-bar skeleton-value" aria-label="Chargement" /> : card.value}</strong>
             <p>{card.detail}</p>
           </article>
         ))}
@@ -200,8 +200,8 @@ export function DashboardHome({
                 >
                   <span>{type.nom}</span>
                   <div className="scholarship-type-metrics">
-                    <div><strong>{loading && !summary ? "..." : inscrits}</strong><small>{inscrits === 1 ? "inscrit" : "inscrits"}</small></div>
-                    <div><strong>{loading && !summary ? "..." : acceptesEnAttente}</strong><small>acceptés · en attente d’inscription</small></div>
+                    <div><strong>{loading && !summary ? <span className="skeleton-bar skeleton-value" aria-label="Chargement" /> : inscrits}</strong><small>{inscrits === 1 ? "inscrit" : "inscrits"}</small></div>
+                    <div><strong>{loading && !summary ? <span className="skeleton-bar skeleton-value" aria-label="Chargement" /> : acceptesEnAttente}</strong><small>acceptés · en attente d’inscription</small></div>
                   </div>
                   <span className="scholarship-card-arrow" aria-hidden="true">→</span>
                 </button>

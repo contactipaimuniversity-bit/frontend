@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { CircleAlert, CircleCheckBig, Clock3, Wallet } from "lucide-react";
 import { askConfirm, askReason, toast } from "@/components/feedback";
-import { Badge, Empty, PageIntro, Panel, send, useAction, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, PageIntro, Panel, send, useAction, useLoad, PendingValue } from "@/components/ui-kit";
 import { hasAccess } from "@/lib/access";
 import { User, formatMoney, statusLabels } from "@/lib/types";
 
@@ -125,10 +125,10 @@ export function PaymentHandoverPage({ user, refreshSignal }: { user: User | null
       </div>
 
       <div className="stats-grid handover-stats">
-        <article className="stat-card blue"><span><Wallet size={15} aria-hidden="true" /> Encaissé</span><strong>{stats ? formatMoney(stats.total.montant) : "…"}</strong><p>{stats ? `${stats.total.nombre} encaissement(s) sur la période` : "sur la période"}</p></article>
-        <article className="stat-card mint"><span><CircleCheckBig size={15} aria-hidden="true" /> Validé</span><strong>{stats ? formatMoney(stats.valide.montant) : "…"}</strong><p>{stats ? `${stats.valide.nombre} reçu(s) et confirmé(s)` : ""}</p></article>
-        <article className={`stat-card ${stats?.enAttente.nombre ? "orange" : "mint"}`}><span><Clock3 size={15} aria-hidden="true" /> En attente</span><strong>{stats ? formatMoney(stats.enAttente.montant) : "…"}</strong><p>{stats ? `${stats.enAttente.nombre} à vérifier` : ""}</p></article>
-        <article className={`stat-card ${stats?.nonRecu.nombre ? "orange" : "violet"}`}><span><CircleAlert size={15} aria-hidden="true" /> Non reçu</span><strong>{stats ? formatMoney(stats.nonRecu.montant) : "…"}</strong><p>{stats ? `${stats.nonRecu.nombre} signalé(s)` : ""}</p></article>
+        <article className="stat-card blue"><span><Wallet size={15} aria-hidden="true" /> Encaissé</span><strong>{stats ? formatMoney(stats.total.montant) : <PendingValue />}</strong><p>{stats ? `${stats.total.nombre} encaissement(s) sur la période` : "sur la période"}</p></article>
+        <article className="stat-card mint"><span><CircleCheckBig size={15} aria-hidden="true" /> Validé</span><strong>{stats ? formatMoney(stats.valide.montant) : <PendingValue />}</strong><p>{stats ? `${stats.valide.nombre} reçu(s) et confirmé(s)` : ""}</p></article>
+        <article className={`stat-card ${stats?.enAttente.nombre ? "orange" : "mint"}`}><span><Clock3 size={15} aria-hidden="true" /> En attente</span><strong>{stats ? formatMoney(stats.enAttente.montant) : <PendingValue />}</strong><p>{stats ? `${stats.enAttente.nombre} à vérifier` : ""}</p></article>
+        <article className={`stat-card ${stats?.nonRecu.nombre ? "orange" : "violet"}`}><span><CircleAlert size={15} aria-hidden="true" /> Non reçu</span><strong>{stats ? formatMoney(stats.nonRecu.montant) : <PendingValue />}</strong><p>{stats ? `${stats.nonRecu.nombre} signalé(s)` : ""}</p></article>
       </div>
       {(data.error || action.error) && <p className="form-error">{action.error || data.error}</p>}
 
@@ -152,7 +152,7 @@ export function PaymentHandoverPage({ user, refreshSignal }: { user: User | null
                   </tr>
                 );
               })}
-              {!remises?.parCaissier.length && <Empty columns={8}>{remises ? "Aucun encaissement sur cette période." : "Chargement..."}</Empty>}
+              {!remises?.parCaissier.length && <Empty columns={8} loading={!(remises)}>{"Aucun encaissement sur cette période."}</Empty>}
             </tbody>
           </table>
         </div>
@@ -235,7 +235,7 @@ export function PaymentHandoverPage({ user, refreshSignal }: { user: User | null
                   </tr>
                 );
               })}
-              {!remises?.lignes.length && <Empty columns={canValidate ? 10 : 8}>{remises ? "Aucun encaissement ne correspond à ces filtres." : "Chargement..."}</Empty>}
+              {!remises?.lignes.length && <Empty columns={canValidate ? 10 : 8} loading={!(remises)}>{"Aucun encaissement ne correspond à ces filtres."}</Empty>}
             </tbody>
           </table>
         </div>

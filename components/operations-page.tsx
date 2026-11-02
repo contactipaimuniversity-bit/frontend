@@ -8,7 +8,7 @@ import { askConfirm, askReason, toast } from "@/components/feedback";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { CalendarClock, Link2, ScrollText, Wallet } from "lucide-react";
-import { HubBack, HubCard, HubCards, useHubSection } from "@/components/ui-kit";
+import { HubBack, HubCard, HubCards, useHubSection, LoadingBlock, SkeletonRows } from "@/components/ui-kit";
 import { createPortal } from "react-dom";
 import { apiFetch } from "@/lib/api";
 import { navigateTo, pathForPerson, queryParam } from "@/lib/routes";
@@ -584,7 +584,7 @@ function CreateEnrollment({
               onChange={(value) => void selectBourse(value)}
             />
             {selectedBourse?.personne && <p className="panel-subtitle">Personne liée : {fullName(selectedBourse.personne)}</p>}
-            {bourseLoading && <p className="panel-subtitle">Chargement du dossier...</p>}
+            {bourseLoading && <LoadingBlock />}
           </>
         )}
         {!form.viaBourse && (
@@ -1178,7 +1178,7 @@ function ProspectRelanceForm({
       </form>
       <section className="prospect-followup-history">
         <h4>Historique des relances</h4>
-        {historyLoading && <p className="panel-subtitle">Chargement...</p>}
+        {historyLoading && <LoadingBlock />}
         {historyError && <p className="form-error">{historyError}</p>}
         {!historyLoading && !historyError && relances.length === 0 && <p className="panel-subtitle">Aucune relance enregistrée.</p>}
         {relances.map((relance) => (
@@ -1322,7 +1322,7 @@ function ElementsModal({
   return (
     <Modal title="Pièces du dossier" onClose={onClose}>
       {error && <p className="form-error">{error}</p>}
-      {!elements && !error && <p className="empty-state">Chargement...</p>}
+      {!elements && !error && <LoadingBlock />}
       <div className="elements-list">
         {elements?.map((element) => (
           <div className="element-row" key={element.id}>
@@ -1424,7 +1424,7 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
   return (
     <Modal title={`Situation financière de ${dossierType === "demande-bourse" ? "la demande" : "l'inscription"}`} onClose={onClose}>
       {error && <p className="form-error">{error}</p>}
-      {!finance && !error && <p className="empty-state">Chargement...</p>}
+      {!finance && !error && <LoadingBlock />}
       {finance && (
         <>
           <div className="payment-summary"><strong>{formatMoney(finance.totalAttendu)}</strong><span>attendu</span><strong>{formatMoney(finance.totalPaye)}</strong><span>payé</span><strong>{formatMoney(totalRemaining)}</strong><span>reste</span></div>
@@ -1526,7 +1526,7 @@ function AssignPaymentModal({ payment, onClose, onSaved }: { payment: Unassigned
       setBusy(false);
     }
   };
-  return <Modal title="Affecter le paiement" onClose={onClose}><form className="entity-form" onSubmit={submit}><p>{fullName(payment.personne)} · {formatMoney(payment.montant)}</p>{elements === null && !error && <p className="empty-state">Chargement des obligations...</p>}{elements && <>{choices.length ? <ModalChoice required label="Obligation" placeholder="Sélectionner une obligation" value={elementDossierId} choices={choices} onChange={setElementDossierId} /> : <p className="empty-state">Aucune obligation financière ne reste à régler.</p>}</>}{error && <p className="form-error">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Annuler</button><button className="primary-button compact" disabled={busy || !elementDossierId}>{busy ? "Affectation..." : "Affecter"}</button></div></form></Modal>;
+  return <Modal title="Affecter le paiement" onClose={onClose}><form className="entity-form" onSubmit={submit}><p>{fullName(payment.personne)} · {formatMoney(payment.montant)}</p>{elements === null && !error && <LoadingBlock />}{elements && <>{choices.length ? <ModalChoice required label="Obligation" placeholder="Sélectionner une obligation" value={elementDossierId} choices={choices} onChange={setElementDossierId} /> : <p className="empty-state">Aucune obligation financière ne reste à régler.</p>}</>}{error && <p className="form-error">{error}</p>}<div className="form-actions"><button type="button" className="secondary-button" onClick={onClose}>Annuler</button><button className="primary-button compact" disabled={busy || !elementDossierId}>{busy ? "Affectation..." : "Affecter"}</button></div></form></Modal>;
 }
 
 function UnassignedPaymentsPanel({ onRefresh }: { onRefresh: () => void }) {
@@ -1554,7 +1554,7 @@ function UnassignedPaymentsPanel({ onRefresh }: { onRefresh: () => void }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
-  return <><section className="panel full-panel"><div className="panel-heading"><div><p className="eyebrow">Affectation</p><h3>{payments.length} paiement(s) à affecter</h3></div><button className="outline-button small" onClick={() => void load()}>Actualiser</button></div>{error && <p className="form-error">{error}</p>}{loading && <p className="empty-state">Chargement...</p>}{!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Personne</th><th>Dossier</th><th>Type</th><th>Montant</th><th /></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}</td><td>{payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{formatMoney(payment.montant)}</td><td>{canAssign && <button className="row-action icon-action" onClick={() => setSelected(payment)} aria-label="Affecter le paiement à une obligation"><ActionIcon name="assign" /></button>}</td></tr>)}{!payments.length && <tr><td colSpan={6} className="empty-state">Tous les paiements sont affectés.</td></tr>}</tbody></table></div>}</section>{selected && <AssignPaymentModal payment={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); void load(); onRefresh(); }} />}</>;
+  return <><section className="panel full-panel"><div className="panel-heading"><div><p className="eyebrow">Affectation</p><h3>{payments.length} paiement(s) à affecter</h3></div><button className="outline-button small" onClick={() => void load()}>Actualiser</button></div>{error && <p className="form-error">{error}</p>}{loading && <LoadingBlock />}{!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Personne</th><th>Dossier</th><th>Type</th><th>Montant</th><th /></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}</td><td>{payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{formatMoney(payment.montant)}</td><td>{canAssign && <button className="row-action icon-action" onClick={() => setSelected(payment)} aria-label="Affecter le paiement à une obligation"><ActionIcon name="assign" /></button>}</td></tr>)}{!payments.length && <tr><td colSpan={6} className="empty-state">Tous les paiements sont affectés.</td></tr>}</tbody></table></div>}</section>{selected && <AssignPaymentModal payment={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); void load(); onRefresh(); }} />}</>;
 }
 
 const paymentLabels: Record<string, string> = {
@@ -1980,7 +1980,7 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
           <div className="receipt-amount"><span>Montant reçu</span><strong>{formatMoney(payment.montant)}</strong></div>
           <section className="receipt-situation" aria-label="Situation du dossier">
             <h3>Situation du dossier à la date de ce reçu</h3>
-            {situation === null && <p className="receipt-situation-note">Chargement de la situation du dossier…</p>}
+            {situation === null && <LoadingBlock compact />}
             {situation === "indisponible" && <p className="receipt-situation-note">La situation du dossier n’a pas pu être chargée ; elle ne figure pas sur ce reçu.</p>}
             {knownSituation && (
               <>
@@ -2127,7 +2127,7 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange, onChanged }:
         {(search || dossierFilter) && <button className="text-button payment-clear-filter" onClick={() => { setSearch(""); setDossierFilter(""); }}>Effacer</button>}
       </div>
       {error && <p className="form-error">{error}</p>}
-      {loading && <p className="empty-state">Chargement de l&apos;historique...</p>}
+      {loading && <LoadingBlock />}
       {!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Payeur</th><th>Dossier</th><th>Obligation / échéance</th><th>Type</th><th>Montant</th><th>Mode</th><th>Encaissé par</th><th>État</th><th>Actions</th></tr></thead><tbody>
         {pagePayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td>{payment.typePaiement === "REPORT" ? "—" : paymentModeLabel(payment.modePaiement)}</td><td>{payment.saisiParNom ?? "—"}</td><td>{payment.typePaiement === "REMBOURSEMENT" ? <span className="status status-refusee">Remboursé</span> : payment.typePaiement === "REPORT" ? <span className="status status-neutre">Report</span> : payment.typePaiement === "ANNULATION" ? <span className="status status-neutre" title={payment.motif ?? undefined}>Annulation</span> : payment.annule ? <span className="status status-refusee">Annulé</span> : <span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span>}{cancellablePaymentTypes.includes(payment.typePaiement) && !payment.annule && payment.statutRemise && <small className={`cell-detail remise-${payment.statutRemise.toLowerCase()}`}>{payment.statutRemise === "VALIDE" ? `Remise validée${payment.remiseTraiteeParNom ? ` · ${payment.remiseTraiteeParNom}` : ""}` : payment.statutRemise === "NON_RECU" ? "Remise : non reçu" : "Remise : en attente"}</small>}{payment._offline && <small className="local-payment-note">En attente de synchronisation</small>}</td><td>{payment.typePaiement !== "REPORT" && payment.typePaiement !== "ANNULATION" && !payment.annule && <button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label={payment.typePaiement === "REMBOURSEMENT" ? "Imprimer le reçu de remboursement" : "Imprimer le reçu"}><ActionIcon name="print" /></button>}{canCancel && !payment.annule && !payment._offline && cancellablePaymentTypes.includes(payment.typePaiement) && <button className="row-action icon-action" onClick={() => void cancel(payment)} aria-label="Annuler ce paiement saisi par erreur"><ActionIcon name="cancel" /></button>}</td></tr>)}
         {!filteredPayments.length && <tr><td colSpan={10} className="empty-state">{payments.length ? "Aucune transaction ne correspond à cette recherche." : "Aucune transaction enregistrée."}</td></tr>}
@@ -2292,7 +2292,7 @@ export function DossierDetailsPage({
         </div>
         <button className="secondary-button" onClick={onBack}>Retour à la liste</button>
       </div>
-      {loading && <p className="empty-state">Chargement des informations du dossier...</p>}
+      {loading && <LoadingBlock />}
       {error && <p className="form-error dossier-load-error" role="alert">{error}</p>}
       {dossier && (
         <section className="panel full-panel dossier-detail-panel">
@@ -2533,6 +2533,7 @@ export function OperationsPage({
   onProspectPage,
   onRefresh,
   onShowDeletionInfo,
+  loading = false,
   onOpenDossier,
 }: {
   view: Exclude<ViewName, "Vue d'ensemble">;
@@ -2566,6 +2567,8 @@ export function OperationsPage({
   onRefresh: () => void;
   onShowDeletionInfo: (returnView: "Demandes de bourse" | "Inscriptions") => void;
   onOpenDossier: (reference: DossierReference) => void;
+  /** Listes de l'accueil (prospects) encore en chargement. */
+  loading?: boolean;
 }) {
   const [filter, setFilter] = useState("ALL");
   const [searchDraft, setSearchDraft] = useState("");
@@ -2823,7 +2826,7 @@ export function OperationsPage({
                 </tr>
               </thead>
               <tbody>
-                {applicationsLoading && <tr><td colSpan={6} className="empty-state">Chargement des demandes...</td></tr>}
+                {applicationsLoading && <SkeletonRows columns={6} />}
                 {visibleApplications.map((item) => (
                   <tr key={item.id}>
                     <td>
@@ -2897,7 +2900,7 @@ export function OperationsPage({
                 </tr>
               </thead>
               <tbody>
-                {enrollmentsLoading && <tr><td colSpan={7} className="empty-state">Chargement des inscriptions...</td></tr>}
+                {enrollmentsLoading && <SkeletonRows columns={7} />}
                 {visibleEnrollments.map((item) => (
                   <tr key={item.id}>
                     <td>
@@ -2998,13 +3001,13 @@ export function OperationsPage({
                     </td>
                   </tr>
                 ))}
-                {!filteredProspects.length && (
+                {!filteredProspects.length && (loading ? <SkeletonRows columns={7} /> : (
                   <tr>
                     <td colSpan={7} className="empty-state">
                       Aucun prospect.
                     </td>
                   </tr>
-                )}
+                ))}
               </tbody>
             </table>
           </div>

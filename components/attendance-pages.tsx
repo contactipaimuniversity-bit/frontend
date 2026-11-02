@@ -169,7 +169,7 @@ export function StaffAttendance({ canEdit }: { canEdit: boolean }) {
                     </tr>
                   );
                 })}
-                {!data?.lignes.length && <Empty columns={5}>{data ? "Aucun employé administratif ou technique en activité ce jour-là." : "Chargement..."}</Empty>}
+                {!data?.lignes.length && <Empty columns={5} loading={!(data)}>{"Aucun employé administratif ou technique en activité ce jour-là."}</Empty>}
               </tbody>
             </table>
           </div>
@@ -193,7 +193,7 @@ export function StaffAttendance({ canEdit }: { canEdit: boolean }) {
                     <td>{line.joursAbsence ? <Badge tone={line.joursAbsenceInjustifiee ? "bad" : "run"}>{number(line.joursAbsence, 1)} j{line.joursAbsenceInjustifiee ? ` · ${number(line.joursAbsenceInjustifiee, 1)} non justifié(s)` : ""}</Badge> : "—"}</td>
                   </tr>
                 ))}
-                {!recap.data?.lignes.length && <Empty columns={6}>{recap.data ? "Aucun employé à pointer ce mois-là." : "Chargement..."}</Empty>}
+                {!recap.data?.lignes.length && <Empty columns={6} loading={!(recap.data)}>{"Aucun employé à pointer ce mois-là."}</Empty>}
               </tbody>
             </table>
           </div>
@@ -262,7 +262,7 @@ export function TeacherAttendance({ canEdit }: { canEdit: boolean }) {
                     </td>
                   </tr>
                 ))}
-                {!data?.lignes.length && <Empty columns={5}>{data ? "Aucun cours prévu ce jour-là à l'emploi du temps." : "Chargement..."}</Empty>}
+                {!data?.lignes.length && <Empty columns={5} loading={!(data)}>{"Aucun cours prévu ce jour-là à l'emploi du temps."}</Empty>}
               </tbody>
             </table>
           </div>
@@ -293,7 +293,7 @@ export function TeacherAttendance({ canEdit }: { canEdit: boolean }) {
                     <td>{line.heuresManquees ? `${number(line.heuresManquees, 1)} h` : "—"}</td>
                   </tr>
                 ))}
-                {!recap.data?.lignes.length && <Empty columns={5}>{recap.data ? "Aucune séance ni absence ce mois-là." : "Chargement..."}</Empty>}
+                {!recap.data?.lignes.length && <Empty columns={5} loading={!(recap.data)}>{"Aucune séance ni absence ce mois-là."}</Empty>}
               </tbody>
             </table>
           </div>

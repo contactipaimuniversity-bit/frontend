@@ -8,7 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { navigateTo, pathForPerson, queryParam } from "@/lib/routes";
 import { tablePdf } from "@/lib/pdf-docs";
 import { User, formatDate } from "@/lib/types";
-import { Badge, Empty, PageBar, PageIntro, Panel, send, useAction, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, PageBar, PageIntro, Panel, send, useAction, useLoad, PendingValue } from "@/components/ui-kit";
 
 type FutureStudent = {
   id: string;
@@ -108,9 +108,9 @@ export function FutureStudentsPage({ user, refreshSignal }: { user: User | null;
       </PageIntro>
       {(list.error || summary.error || action.error) && <p className="form-error">{action.error || list.error || summary.error}</p>}
       <div className="stats-grid">
-        <article className="stat-card blue"><span><UsersRound size={15} aria-hidden="true" /> Lycéens enregistrés</span><strong>{stats?.total ?? "…"}</strong><p>{stats ? `${stats.semaine} sur les 7 derniers jours · ${stats.filles} fille(s)` : "depuis l'ouverture du formulaire"}</p></article>
-        <article className={`stat-card ${stats?.aContacter ? "orange" : "mint"}`}><span><PhoneCall size={15} aria-hidden="true" /> À contacter</span><strong>{stats?.aContacter ?? "…"}</strong><p>fiche(s) pas encore marquée(s) « contacté »</p></article>
-        <article className="stat-card violet"><span><GraduationCap size={15} aria-hidden="true" /> Filière la plus demandée</span><strong>{top ? top.total : "…"}</strong><p>{top ? top.filiere : "aucune réponse pour l'instant"}</p></article>
+        <article className="stat-card blue"><span><UsersRound size={15} aria-hidden="true" /> Lycéens enregistrés</span><strong>{stats?.total ?? <PendingValue />}</strong><p>{stats ? `${stats.semaine} sur les 7 derniers jours · ${stats.filles} fille(s)` : "depuis l'ouverture du formulaire"}</p></article>
+        <article className={`stat-card ${stats?.aContacter ? "orange" : "mint"}`}><span><PhoneCall size={15} aria-hidden="true" /> À contacter</span><strong>{stats?.aContacter ?? <PendingValue />}</strong><p>fiche(s) pas encore marquée(s) « contacté »</p></article>
+        <article className="stat-card violet"><span><GraduationCap size={15} aria-hidden="true" /> Filière la plus demandée</span><strong>{top ? top.total : <PendingValue />}</strong><p>{top ? top.filiere : "aucune réponse pour l'instant"}</p></article>
       </div>
       {Boolean(stats?.parFiliere.length) && (
         <Panel eyebrow="Répartition" title="Ce que les lycéens veulent étudier" subtitle={`${stats?.ecoles ?? 0} établissement(s) d'origine. Cliquez une filière pour filtrer la liste.`}>
@@ -162,7 +162,7 @@ export function FutureStudentsPage({ user, refreshSignal }: { user: User | null;
                   </td>
                 </tr>
               ))}
-              {!list.data?.data.length && <Empty columns={6}>{!list.data ? "Chargement..." : search || program || contacted ? "Aucun lycéen ne correspond à cette sélection." : "Aucun lycéen ne s'est encore enregistré. Partagez le lien du formulaire."}</Empty>}
+              {!list.data?.data.length && <Empty columns={6} loading={!list.data}>{search || program || contacted ? "Aucun lycéen ne correspond à cette sélection." : "Aucun lycéen ne s'est encore enregistré. Partagez le lien du formulaire."}</Empty>}
             </tbody>
           </table>
         </div>

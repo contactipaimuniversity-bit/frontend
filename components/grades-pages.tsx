@@ -11,7 +11,7 @@ import { formatDate } from "@/lib/types";
 import { Room } from "@/components/academic-structure-page";
 import { Student } from "@/components/academic-classes-page";
 import { CameraScanner } from "@/components/camera-scanner";
-import { Badge, Empty, FormActions, HubBack, Modal, PageIntro, Panel, downloadPdf, number, personName, send, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, HubBack, Modal, PageIntro, Panel, downloadPdf, number, personName, send, useAction, useForm, useLoad, LoadingBlock } from "@/components/ui-kit";
 
 type Evaluation = { id: string; type: string; libelle: string; date?: string | null; heureDebut?: string | null; heureFin?: string | null; bareme: string; statut: string; anonyme: boolean; notesSaisies: number; valideParNom?: string | null };
 type Copies = { evaluation: { id: string; libelle: string; bareme: number }; copies: Array<{ code: string; valeur: number | null; absent: boolean }> };
@@ -203,7 +203,7 @@ function RollCallModal({ evaluationId, onClose, onSaved }: { evaluationId: strin
               <small>{absent.has(student.inscriptionId) ? "Absent" : "Présent"}</small>
             </label>
           ))}
-          {!call.data && !call.error && <p className="panel-subtitle">Chargement...</p>}
+          {!call.data && !call.error && <LoadingBlock />}
         </div>
         {action.error && <p className="form-error">{action.error}</p>}
         <FormActions busy={action.busy} label={`Enregistrer ${absent.size} absent(s)`} onCancel={onClose} />
@@ -325,7 +325,7 @@ export function EvaluationGradesPage({ courseId, evaluationId, canEdit, refreshS
     return (
       <div className="content-scroll">
         <HubBack label="Retour à la matière" onBack={back} />
-        <p className={grid.error || data ? "form-error" : "empty-state"}>{grid.error || (data ? "Cette évaluation n'existe plus." : "Chargement...")}</p>
+        {grid.error || data ? <p className="form-error">{grid.error || "Cette évaluation n'existe plus."}</p> : <LoadingBlock />}
       </div>
     );
 
@@ -405,7 +405,7 @@ export function EvaluationGradesPage({ courseId, evaluationId, canEdit, refreshS
               );
             })}
           </div>
-          {!copies.data && !copies.error && <p className="empty-state">Chargement des copies...</p>}
+          {!copies.data && !copies.error && <LoadingBlock />}
           {editable && <div className="form-actions"><button className="primary-button compact" disabled={!dirty || action.busy} onClick={() => void save()}><PencilLine size={16} aria-hidden="true" /> {action.busy ? "Enregistrement..." : "Enregistrer les notes"}</button></div>}
         </Panel>
       )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingBlock } from "@/components/ui-kit";
 import { ActionIcon } from "@/components/action-icon";
 import { askConfirm } from "@/components/feedback";
 
@@ -252,7 +253,7 @@ export function TrashPage() {
             <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nom, type, motif, auteur..." />
           </label>
         </div>
-        {loading ? <p className="empty-state">Chargement de la corbeille...</p> : (
+        {loading ? <LoadingBlock /> : (
           <div className="table-wrap">
             <table>
               <thead><tr><th>Élément</th><th>Type</th><th>Supprimé par</th><th>Date</th><th>Motif</th><th>Actions</th></tr></thead>

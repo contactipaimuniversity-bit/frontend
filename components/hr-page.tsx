@@ -9,7 +9,7 @@ import { monthLabel } from "@/lib/pdf-docs";
 import { User, formatDate, formatMoney } from "@/lib/types";
 import { Clock, ClipboardCheck, Users } from "lucide-react";
 import { StaffAttendance, TeacherAttendance } from "@/components/attendance-pages";
-import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, Tabs, messageOf, personName, send, today, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, Tabs, messageOf, personName, send, today, useAction, useForm, useLoad, useHubSection, LoadingBlock } from "@/components/ui-kit";
 
 export const EMPLOYEE_CATEGORIES: Record<string, string> = {
   ENSEIGNANT_PERMANENT: "Enseignant permanent",
@@ -227,7 +227,7 @@ function EmployeeModal({ id, user, canEdit, onClose, onChanged }: { id: string; 
   const editable = canEdit && employee?.statut !== "SORTI";
   return (
     <Modal wide title={employee ? `${personName(employee)} · ${employee.matricule}` : "Employé"} onClose={onClose}>
-      {!employee && <p className="empty-state">{detail.error || "Chargement..."}</p>}
+      {!employee && (detail.error ? <p className="empty-state">{detail.error}</p> : <LoadingBlock />)}
       {employee && (
         <>
           <div className="expense-detail-head">
@@ -601,7 +601,7 @@ export function HrPage({ user, refreshSignal }: { user: User | null; refreshSign
                   <td><button className="row-action" onClick={() => setOpenId(item.id)}>Ouvrir</button></td>
                 </tr>
               ))}
-              {!employees.data?.data.length && <Empty columns={6}>{employees.data ? "Aucun employé sur cette sélection." : "Chargement..."}</Empty>}
+              {!employees.data?.data.length && <Empty columns={6} loading={!(employees.data)}>{"Aucun employé sur cette sélection."}</Empty>}
             </tbody>
           </table>
         </div>

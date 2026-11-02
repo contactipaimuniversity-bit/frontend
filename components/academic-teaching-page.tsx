@@ -6,7 +6,7 @@ import { hasAccess } from "@/lib/access";
 import { User, formatDate } from "@/lib/types";
 import { Room } from "@/components/academic-structure-page";
 import { Course, Student, useClassPicker } from "@/components/academic-classes-page";
-import { Badge, Empty, FormActions, Modal, PageIntro, Panel, Tabs, downloadPdf, number, personName, send, today, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, Modal, PageIntro, Panel, Tabs, downloadPdf, number, personName, send, today, useAction, useForm, useLoad, useHubSection, LoadingBlock } from "@/components/ui-kit";
 import { TeacherAttendance } from "@/components/attendance-pages";
 import { apiFetch } from "@/lib/api";
 import { timetablePdf } from "@/lib/pdf-docs";
@@ -240,7 +240,7 @@ function Logbook({ classId, canEdit, closed }: { classId: string; canEdit: boole
                 <td>{editable && !session._offline && <button className="row-action danger-row-action" onClick={() => void remove(session)}>Supprimer</button>}</td>
               </tr>
             ))}
-            {!sessions.data?.length && <Empty columns={5}>{sessions.data ? "Aucune séance déclarée pour cette classe." : "Chargement..."}</Empty>}
+            {!sessions.data?.length && <Empty columns={5} loading={!(sessions.data)}>{"Aucune séance déclarée pour cette classe."}</Empty>}
           </tbody>
         </table>
       </div>
@@ -409,7 +409,7 @@ function ExamCalendarPanel({ yearId, classId, className, canEdit, signal }: { ye
         </div>
       ))}
       {calendar.data && !exams.length && <p className="empty-state">Aucune épreuve datée. Indiquez une date et un horaire en créant une évaluation dans « Saisie des notes ».</p>}
-      {!calendar.data && !calendar.error && <p className="empty-state">Chargement...</p>}
+      {!calendar.data && !calendar.error && <LoadingBlock />}
       {planning && <PlanExam exam={planning} onClose={() => setPlanning(null)} onSaved={calendar.reload} />}
     </Panel>
   );
@@ -450,7 +450,7 @@ function GradesHome({ user, refreshSignal }: { user: User | null; refreshSignal:
                     <td><button className="row-action" onClick={() => setOpenId(course.id)}>Ouvrir les notes</button></td>
                   </tr>
                 ))}
-                {!courses.data?.length && <Empty columns={5}>{courses.data ? "Aucune matière à noter pour cette classe." : "Chargement..."}</Empty>}
+                {!courses.data?.length && <Empty columns={5} loading={!(courses.data)}>{"Aucune matière à noter pour cette classe."}</Empty>}
               </tbody>
             </table>
           </div>

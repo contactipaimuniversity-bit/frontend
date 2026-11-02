@@ -375,7 +375,7 @@ function DebtsPanel({ canEdit, signal }: { canEdit: boolean; signal: number }) {
                 <td>{canEdit && item.statut === "DETTE" && <button className="row-action" onClick={() => setRetaking(item)}>Saisir le rattrapage</button>}</td>
               </tr>
             ))}
-            {!list.length && <Empty columns={7}>{debts.data ? (status === "RATTRAPEES" ? "Aucune unité rattrapée." : "Aucun crédit à rattraper.") : "Chargement..."}</Empty>}
+            {!list.length && <Empty columns={7} loading={!(debts.data)}>{(status === "RATTRAPEES" ? "Aucune unité rattrapée." : "Aucun crédit à rattraper.")}</Empty>}
           </tbody>
         </table>
       </div>
@@ -425,7 +425,7 @@ export function AcademicResultsPage({ user, refreshSignal }: { user: User | null
                   <td>{cell(item, 0)}</td>
                 </tr>
               ))}
-              {!board.data?.classes.length && <Empty columns={6}>{board.data ? "Aucune classe pour cette année." : "Chargement..."}</Empty>}
+              {!board.data?.classes.length && <Empty columns={6} loading={!(board.data)}>{"Aucune classe pour cette année."}</Empty>}
             </tbody>
           </table>
         </div>

@@ -93,7 +93,7 @@ function AssignStudents({ classId, onClose, onSaved }: { classId: string; onClos
                   <td>{item.correspond ? <Badge tone="ok">Même filière</Badge> : <Badge tone="wait">Autre filière</Badge>}</td>
                 </tr>
               ))}
-              {!candidates.data?.length && <Empty columns={4}>{candidates.data ? "Aucune inscription en attente de classe pour cette année et ce niveau." : "Chargement..."}</Empty>}
+              {!candidates.data?.length && <Empty columns={4} loading={!(candidates.data)}>{"Aucune inscription en attente de classe pour cette année et ce niveau."}</Empty>}
             </tbody>
           </table>
         </div>
@@ -190,7 +190,7 @@ function ClassPage({ classId, section, canEdit, canPrintCards, refreshSignal }: 
                     <td className="action-group"><button className="row-action" onClick={() => navigateTo(pathForStudent(item.personne.id))}>Parcours</button>{canPrintCards && item.statut !== "ABANDONNEE" && <><button className="row-action" disabled={action.busy} onClick={() => void cards(item.id)}>Carte</button><button className="row-action" disabled={action.busy} title="Remplace une carte perdue ou volée : l'ancienne est désactivée" onClick={() => void cards(item.id, true)}>Nouvelle carte</button></>}{item.statut !== "ABANDONNEE" && <button className="row-action" disabled={action.busy} onClick={() => void certificate(item.id)}>Certificat</button>}{editable && <button className="row-action danger-row-action" onClick={() => void remove(item.id, personName(item.personne))}>Retirer</button>}</td>
                   </tr>
                 ))}
-                {!classe?.inscriptions.length && <Empty columns={5}>{classe ? "Aucun étudiant dans cette classe." : "Chargement..."}</Empty>}
+                {!classe?.inscriptions.length && <Empty columns={5} loading={!(classe)}>{"Aucun étudiant dans cette classe."}</Empty>}
               </tbody>
             </table>
           </div>
@@ -218,7 +218,7 @@ function ClassPage({ classId, section, canEdit, canPrintCards, refreshSignal }: 
                     <td>{number(course.heuresFaites, 1)} h / {course.matiere.volumeHoraire} h</td>
                   </tr>
                 ))}
-                {!courses.data?.length && <Empty columns={4}>{courses.data ? "Aucune matière : complétez la maquette de cette filière et de ce niveau." : "Chargement..."}</Empty>}
+                {!courses.data?.length && <Empty columns={4} loading={!(courses.data)}>{"Aucune matière : complétez la maquette de cette filière et de ce niveau."}</Empty>}
               </tbody>
             </table>
           </div>

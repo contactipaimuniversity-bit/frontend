@@ -5,7 +5,7 @@ import { askConfirm, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
 import { User, formatDate } from "@/lib/types";
 import { BookOpen, BookOpenCheck, CalendarDays, DoorOpen, GraduationCap, Layers, LayoutList, Network, Scale } from "lucide-react";
-import { Badge, Empty, FieldHelp, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, send, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
+import { Badge, Empty, FieldHelp, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, send, useAction, useForm, useLoad, useHubSection, LoadingBlock } from "@/components/ui-kit";
 
 export type Level = { id: string; code: string; libelle: string; cycle: string; rang: number; diplome?: string | null; actif: boolean };
 export type AcademicYear = { id: string; libelle: string; dateDebut: string; dateFin: string; finSemestre1?: string | null; statut: string; _count?: { classes: number } };
@@ -96,7 +96,7 @@ function YearsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
                 </td>
               </tr>
             ))}
-            {!years.data?.length && <Empty columns={6}>{years.data ? "Aucune année académique : ouvrez-en une pour créer des classes." : "Chargement..."}</Empty>}
+            {!years.data?.length && <Empty columns={6} loading={!(years.data)}>{"Aucune année académique : ouvrez-en une pour créer des classes."}</Empty>}
           </tbody>
         </table>
       </div>
@@ -150,7 +150,7 @@ function LevelsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
                 </td>
               </tr>
             ))}
-            {!list.length && <Empty columns={7}>{levels.data ? "Aucun niveau." : "Chargement..."}</Empty>}
+            {!list.length && <Empty columns={7} loading={!(levels.data)}>{"Aucun niveau."}</Empty>}
           </tbody>
         </table>
       </div>
@@ -227,7 +227,7 @@ function PolesTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
         ))}
       </div>
       {poles.data && !list.length && <p className="empty-state">Aucun pôle. Ajoutez-en un, ou chargez l&apos;organisation IPAIM pour partir des quatre pôles et de leurs filières.</p>}
-      {!poles.data && !poles.error && <p className="empty-state">Chargement...</p>}
+      {!poles.data && !poles.error && <LoadingBlock />}
       {editing && (
         <Modal title={`Modifier ${editing.nom}`} onClose={() => setEditing(null)}>
           <form className="entity-form" onSubmit={(event) => { event.preventDefault(); call(async () => { await send(`/academique/poles/${editing.id}`, "PATCH", edit.values); setEditing(null); }); }}>
@@ -345,7 +345,7 @@ function ProgramsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) 
                 <td>{canEdit && <button className="row-action" onClick={() => call(() => send(`/academique/filieres/${program.id}`, "PATCH", { actif: !program.actif }))}>{program.actif ? "Désactiver" : "Réactiver"}</button>}</td>
               </tr>
             ))}
-            {!shown.length && <Empty columns={6}>{programs.data ? (programs.data.length ? "Aucune filière ne correspond." : "Aucune filière.") : "Chargement..."}</Empty>}
+            {!shown.length && <Empty columns={6} loading={!(programs.data)}>{(programs.data?.length ? "Aucune filière ne correspond." : "Aucune filière.")}</Empty>}
           </tbody>
         </table>
       </div>
@@ -380,7 +380,7 @@ function RoomsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
                 <td>{canEdit && <button className="row-action" onClick={() => call(() => send(`/academique/salles/${room.id}`, "PATCH", { actif: !room.actif }))}>{room.actif ? "Mettre hors service" : "Remettre en service"}</button>}</td>
               </tr>
             ))}
-            {!rooms.data?.length && <Empty columns={4}>{rooms.data ? "Aucune salle." : "Chargement..."}</Empty>}
+            {!rooms.data?.length && <Empty columns={4} loading={!(rooms.data)}>{"Aucune salle."}</Empty>}
           </tbody>
         </table>
       </div>
@@ -726,7 +726,7 @@ function RulesTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
   const [draft, setDraft] = useState<Rules | null>(null);
   const action = useAction();
   const current = draft ?? rules.data;
-  if (!current) return <p className="empty-state">{rules.error || "Chargement..."}</p>;
+  if (!current) return (rules.error ? <p className="empty-state">{rules.error}</p> : <LoadingBlock />);
   const set = (patch: Partial<Rules>) => setDraft({ ...current, ...patch });
   const save = (event: FormEvent) => {
     event.preventDefault();

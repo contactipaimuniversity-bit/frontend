@@ -181,7 +181,39 @@ export function FormActions({ busy, disabled, label = "Enregistrer", danger, onC
   );
 }
 
-export function Empty({ columns, children }: { columns: number; children: ReactNode }) {
+// Squelettes de chargement : la forme du contenu attendu, qui pulse en attendant.
+const SKELETON_WIDTHS = ["72%", "54%", "86%", "40%", "64%", "48%"];
+
+export function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }, (_, row) => (
+        <tr className="skeleton-row" key={row} aria-hidden="true">
+          {Array.from({ length: columns }, (_, column) => (
+            <td key={column}><span className="skeleton-bar" style={{ width: SKELETON_WIDTHS[(row + column * 2) % SKELETON_WIDTHS.length] }} /></td>
+          ))}
+        </tr>
+      ))}
+      <tr className="sr-only"><td colSpan={columns} role="status">Chargement…</td></tr>
+    </>
+  );
+}
+
+export function PendingValue() {
+  return <span className="skeleton-bar skeleton-value" role="status" aria-label="Chargement" />;
+}
+
+export function LoadingBlock({ lines = 4, compact }: { lines?: number; compact?: boolean }) {
+  return (
+    <div className={`skeleton-block${compact ? " compact" : ""}`} role="status" aria-busy="true">
+      <span className="sr-only">Chargement…</span>
+      {Array.from({ length: lines }, (_, index) => <span className="skeleton-bar" key={index} aria-hidden="true" style={{ width: SKELETON_WIDTHS[index % SKELETON_WIDTHS.length] }} />)}
+    </div>
+  );
+}
+
+export function Empty({ columns, loading, children }: { columns: number; loading?: boolean; children?: ReactNode }) {
+  if (loading) return <SkeletonRows columns={columns} />;
   return (
     <tr>
       <td colSpan={columns} className="empty-state">
@@ -232,6 +264,9 @@ export function FieldHelp({ text }: { text: string }) {
   );
 }
 
+// Valeur d'une carte dont les chiffres sont encore en chargement : la carte affiche alors un squelette.
+export const PENDING_VALUE = "…";
+
 export type HubCard<Key extends string> = { key: Key; icon: LucideIcon; title: string; value: string; detail: string; tone?: "alert" | "warn"; info: string };
 
 // Une carte par tâche : son chiffre clé, sa bulle d'aide, et un clic pour ouvrir son écran.
@@ -243,7 +278,7 @@ export function HubCards<Key extends string>({ cards, onOpen }: { cards: HubCard
           <button type="button" className="hub-card-open" onClick={() => onOpen(card.key)}>
             <span className="hub-card-icon"><card.icon size={22} aria-hidden="true" focusable="false" /></span>
             <span className="hub-card-title">{card.title}</span>
-            <strong>{card.value}</strong>
+            <strong>{card.value === PENDING_VALUE ? <span className="skeleton-bar skeleton-value" aria-label="Chargement" /> : card.value}</strong>
             <small>{card.detail}</small>
             <span className="hub-card-more">Ouvrir <ChevronRight size={15} aria-hidden="true" focusable="false" /></span>
           </button>

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingBlock, PendingValue } from "@/components/ui-kit";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, ArrowLeft, ChevronDown, Clock, Download, Eye, LogIn, MousePointerClick, Pause, PencilLine, Play, Search, ShieldAlert, Users, X,
@@ -476,12 +477,12 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
       {error && <div className="api-error" role="alert">{error}</div>}
 
       {!userId && <section className="audit-kpis" aria-label="Chiffres de la période">
-        <div><span><PencilLine size={14} aria-hidden="true" /> Actions</span><strong>{summary ? summary.totaux.actions.toLocaleString("fr-FR") : "…"}</strong></div>
-        <div className={summary && summary.totaux.echecs > 0 ? "alert" : ""}><span><ShieldAlert size={14} aria-hidden="true" /> Refus et échecs</span><strong>{summary ? summary.totaux.echecs.toLocaleString("fr-FR") : "…"}</strong></div>
-        <div><span><MousePointerClick size={14} aria-hidden="true" /> Clics</span><strong>{summary ? summary.totaux.clics.toLocaleString("fr-FR") : "…"}</strong></div>
-        <div><span><Clock size={14} aria-hidden="true" /> Temps actif cumulé</span><strong>{summary ? duration(summary.totaux.tempsMs) : "…"}</strong></div>
-        <div className={summary && summary.totaux.enLigne > 0 ? "online" : ""}><span><Activity size={14} aria-hidden="true" /> En ligne maintenant</span><strong>{summary ? summary.totaux.enLigne : "…"}</strong></div>
-        <div><span><Users size={14} aria-hidden="true" /> Utilisateurs actifs</span><strong>{summary ? summary.totaux.utilisateursActifs : "…"}</strong></div>
+        <div><span><PencilLine size={14} aria-hidden="true" /> Actions</span><strong>{summary ? summary.totaux.actions.toLocaleString("fr-FR") : <PendingValue />}</strong></div>
+        <div className={summary && summary.totaux.echecs > 0 ? "alert" : ""}><span><ShieldAlert size={14} aria-hidden="true" /> Refus et échecs</span><strong>{summary ? summary.totaux.echecs.toLocaleString("fr-FR") : <PendingValue />}</strong></div>
+        <div><span><MousePointerClick size={14} aria-hidden="true" /> Clics</span><strong>{summary ? summary.totaux.clics.toLocaleString("fr-FR") : <PendingValue />}</strong></div>
+        <div><span><Clock size={14} aria-hidden="true" /> Temps actif cumulé</span><strong>{summary ? duration(summary.totaux.tempsMs) : <PendingValue />}</strong></div>
+        <div className={summary && summary.totaux.enLigne > 0 ? "online" : ""}><span><Activity size={14} aria-hidden="true" /> En ligne maintenant</span><strong>{summary ? summary.totaux.enLigne : <PendingValue />}</strong></div>
+        <div><span><Users size={14} aria-hidden="true" /> Utilisateurs actifs</span><strong>{summary ? summary.totaux.utilisateursActifs : <PendingValue />}</strong></div>
       </section>}
 
       <section className="panel audit-timeline-panel">
@@ -489,7 +490,7 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
           <div><p className="eyebrow">Activité {timeline?.pas === "heure" ? "par heure" : "par jour"}{selectedUser ? ` · ${selectedUser.nom}` : ""}</p><h3>Volume d’activité</h3></div>
           <div className="trend-legend"><span className="audit-key actions">Actions</span><span className="audit-key echecs">Refus</span><span className="audit-key clics">Clics</span></div>
         </div>
-        {timeline ? <TimelineChart timeline={timeline} /> : <p className="empty-state">Chargement…</p>}
+        {timeline ? <TimelineChart timeline={timeline} /> : <LoadingBlock />}
       </section>
 
       <div className={`audit-layout ${userId ? "solo" : ""}`}>
@@ -545,7 +546,7 @@ export function AuditPage({ refreshSignal, focusUserId }: { refreshSignal: numbe
                     </div>
                   )}
                 </>
-              ) : userId === "anonyme" ? <p className="worklist-empty">Tentatives de connexion sans compte identifié : voir le flux ci-dessous.</p> : <p className="empty-state">Chargement du profil…</p>}
+              ) : userId === "anonyme" ? <p className="worklist-empty">Tentatives de connexion sans compte identifié : voir le flux ci-dessous.</p> : <LoadingBlock />}
             </section>
           )}
 

@@ -5,7 +5,7 @@ import { CalendarDays, Coins, GraduationCap, Shirt, UserCheck } from "lucide-rea
 import { askConfirm, askReason, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
 import { TuitionAnnex, TuitionScholarship, TuitionSettings, User, formatDate, formatMoney } from "@/lib/types";
-import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, messageOf, send, useAction, useHubSection, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, messageOf, send, useAction, useHubSection, useLoad, LoadingBlock } from "@/components/ui-kit";
 
 type Section = "calendrier" | "tarifs" | "bourses" | "annexes" | "confirmer";
 const SECTIONS: Section[] = ["calendrier", "tarifs", "bourses", "annexes", "confirmer"];
@@ -398,7 +398,7 @@ export function TuitionPage({ user, refreshSignal }: { user: User | null; refres
         {canEdit && data && <button className="outline-button small" onClick={() => void applyToAll()}>Appliquer aux étudiants déjà inscrits</button>}
       </PageIntro>
       {settings.error && <p className="form-error">{settings.error}</p>}
-      {!settings.data && !settings.error && <p className="empty-state">Chargement...</p>}
+      {!settings.data && !settings.error && <LoadingBlock />}
       {data && !data.annees.length && <p className="empty-state">Créez d&apos;abord une année scolaire dans Structure académique.</p>}
       {data && data.annees.length > 0 && !section && <HubCards cards={cards} onOpen={setSection} />}
       {data && section && <HubBack label="Frais de scolarité" onBack={() => setSection(null)} />}

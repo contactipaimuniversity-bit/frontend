@@ -1,6 +1,7 @@
 "use client";
 
 import { ActionIcon } from "@/components/action-icon";
+import { SkeletonRows } from "@/components/ui-kit";
 import { FormEvent, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { ModalChoice } from "@/components/modal-choice";
@@ -354,6 +355,7 @@ export function PersonnelPage({
   onPage,
   onRefresh,
   canEdit,
+  loading = false,
 }: {
   data: PersonnelApplication[];
   meta: PersonnelApplicationPage["meta"];
@@ -364,6 +366,7 @@ export function PersonnelPage({
   onPage: (page: number) => void;
   onRefresh: () => void;
   canEdit: boolean;
+  loading?: boolean;
 }) {
   const [draft, setDraft] = useState(search);
   const [modal, setModal] = useState<"create" | PersonnelApplication | null>(
@@ -458,13 +461,13 @@ export function PersonnelPage({
                   )}
                 </tr>
               ))}
-              {!data.length && (
+              {!data.length && (loading ? <SkeletonRows columns={canEdit ? 6 : 5} /> : (
                 <tr>
                   <td colSpan={canEdit ? 6 : 5} className="empty-state">
                     Aucune candidature.
                   </td>
                 </tr>
-              )}
+              ))}
             </tbody>
           </table>
         </div>

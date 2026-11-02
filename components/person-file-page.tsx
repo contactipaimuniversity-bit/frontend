@@ -5,7 +5,7 @@ import { ArrowLeft, GraduationCap, Phone, UserRound } from "lucide-react";
 import { PhotoFrame } from "@/components/student-photo";
 import { toast } from "@/components/feedback";
 import { printStudentCards } from "@/lib/cards";
-import { Badge, Empty, PageIntro, Panel, messageOf } from "@/components/ui-kit";
+import { Badge, Empty, PageIntro, Panel, messageOf, LoadingBlock } from "@/components/ui-kit";
 import { canAccessView, hasAccess } from "@/lib/access";
 import { apiFetch } from "@/lib/api";
 import { navigateTo, pathForDossier, pathForStudent, pathForView } from "@/lib/routes";
@@ -87,7 +87,7 @@ export function PersonFilePage({ personId, user, refreshSignal }: { personId: st
 
   const back = () => (window.history.length > 1 ? window.history.back() : navigateTo(pathForView("Personnes")));
   if (error) return <div className="content-scroll"><p className="form-error">{error}</p><button className="secondary-button" onClick={back}>Retour</button></div>;
-  if (!person) return <div className="content-scroll"><p className="empty-state">Chargement de la fiche…</p></div>;
+  if (!person) return <div className="content-scroll"><LoadingBlock /></div>;
 
   const dossiers: Dossier[] = [
     ...person.demandesBourse.map((item) => ({ type: "demande-bourse" as const, id: item.id, label: "Demande de bourse", detail: [item.filiereSouhaitee, item.niveau, item.typeBourse?.nom].filter(Boolean).join(" · "), statut: item.statut, date: item.dateDepot })),

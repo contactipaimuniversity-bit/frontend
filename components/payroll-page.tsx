@@ -8,7 +8,7 @@ import { logPrint } from "@/lib/print-log";
 import { ExpenseCategory, User, formatDate, formatMoney } from "@/lib/types";
 import { PAYMENT_MODES, PAY_RHYTHMS } from "@/components/hr-page";
 import { CalendarCheck, ListChecks, SlidersHorizontal } from "lucide-react";
-import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, downloadPdf, number, personName, send, today, useAction, useForm, useLoad, useHubSection } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, downloadPdf, number, personName, send, today, useAction, useForm, useLoad, useHubSection, LoadingBlock } from "@/components/ui-kit";
 
 type PeriodRow = { id: string; annee: number; mois: number; statut: string; prepareParNom: string; valideParNom?: string | null; _count: { bulletins: number }; bulletins: Array<{ brut: string; net: string; chargesPatronales: string }> };
 type Slip = Payslip & { id: string; employeId: string; heuresVacation: string; tauxHoraire: string; joursAbsence: string; ajustements: Record<string, number> };
@@ -107,7 +107,7 @@ function PeriodModal({ id, canEdit, canApprove, onClose, onChanged }: { id: stri
   const open = data?.statut === "OUVERTE";
   return (
     <Modal wide title={data ? `Paie de ${monthLabel(data.annee, data.mois)}` : "Paie"} onClose={onClose}>
-      {!data && <p className="empty-state">{period.error || "Chargement..."}</p>}
+      {!data && (period.error ? <p className="empty-state">{period.error}</p> : <LoadingBlock />)}
       {data && (
         <div className="expense-detail">
           <div className="expense-detail-head">
@@ -270,7 +270,7 @@ function PeriodsTab({ canEdit, canApprove, signal }: { canEdit: boolean; canAppr
                 <td><button className="row-action" onClick={() => setOpenId(row.id)}>Ouvrir</button></td>
               </tr>
             ))}
-            {!periods.data?.length && <Empty columns={7}>{periods.data ? "Aucune paie préparée." : "Chargement..."}</Empty>}
+            {!periods.data?.length && <Empty columns={7} loading={!(periods.data)}>{"Aucune paie préparée."}</Empty>}
           </tbody>
         </table>
       </div>
@@ -362,7 +362,7 @@ function SettingsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) 
   const [draft, setDraft] = useState<HrSettings | null>(null);
   const action = useAction();
   const current = draft ?? settings.data;
-  if (!current) return <p className="empty-state">{settings.error || "Chargement..."}</p>;
+  if (!current) return (settings.error ? <p className="empty-state">{settings.error}</p> : <LoadingBlock />);
   const save = (event: FormEvent) => {
     event.preventDefault();
     void action.run(async () => {
