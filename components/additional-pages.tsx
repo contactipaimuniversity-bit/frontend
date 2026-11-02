@@ -10,7 +10,7 @@ import { apiFetch } from "@/lib/api";
 import { confirmNewPerson } from "@/lib/duplicates";
 import { currentUser } from "@/lib/session";
 import { logPrint } from "@/lib/print-log";
-import { navigateTo, pathForDossier, pathForPerson } from "@/lib/routes";
+import { navigateTo, pathForDossier, pathForPerson, pathForView } from "@/lib/routes";
 import { ModalChoice } from "@/components/modal-choice";
 import { DateOrderControl } from "@/components/date-order-control";
 import { COLOR_PRESETS, readColorPreset } from "@/lib/theme";
@@ -430,12 +430,10 @@ export function PeoplePage({
 }
 
 function ReferenceForm({
-  type,
   element,
   onClose,
   onSaved,
 }: {
-  type: "element" | "scholarship";
   element?: CatalogElement;
   onClose: () => void;
   onSaved: () => void;
@@ -447,8 +445,6 @@ function ReferenceForm({
     niveauApplicable: element?.niveauApplicable ?? "TOUS",
     obligatoire: element?.obligatoire ?? true,
     montantAttendu: element?.montantAttendu?.toString() ?? "",
-    fraisInscription: "",
-    tauxReduction: "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -457,27 +453,16 @@ function ReferenceForm({
     setBusy(true);
     setError("");
     try {
-      const body =
-        type === "element"
-          ? {
-              nom: form.nom,
-              categorie: form.categorie,
-              contexte: form.contexte,
-              niveauApplicable: form.niveauApplicable,
-              obligatoire: form.obligatoire,
-              montantAttendu: form.montantAttendu || null,
-            }
-          : {
-              nom: form.nom,
-              fraisInscription: form.fraisInscription,
-              tauxReduction: form.tauxReduction || null,
-            };
+      const body = {
+      nom: form.nom,
+      categorie: form.categorie,
+      contexte: form.contexte,
+      niveauApplicable: form.niveauApplicable,
+      obligatoire: form.obligatoire,
+      montantAttendu: form.montantAttendu || null,
+      };
       await apiFetch(
-        type === "element" && element
-          ? `/elements-requis/${element.id}`
-          : type === "element"
-            ? "/elements-requis"
-            : "/types-bourse",
+        element ? `/elements-requis/${element.id}` : "/elements-requis",
         { method: element ? "PATCH" : "POST", body: JSON.stringify(body) },
       );
       onSaved();
@@ -494,13 +479,7 @@ function ReferenceForm({
   };
   return (
     <Modal
-      title={
-        element
-          ? "Modifier l&apos;élément requis"
-          : type === "element"
-            ? "Nouvel élément requis"
-            : "Nouveau type de bourse"
-      }
+      title={element ? "Modifier l'élément requis" : "Nouvel élément requis"}
       onClose={onClose}
     >
       <form className="entity-form" onSubmit={submit}>
@@ -512,8 +491,6 @@ function ReferenceForm({
             onChange={(event) => setForm({ ...form, nom: event.target.value })}
           />
         </label>
-        {type === "element" ? (
-          <>
             <div className="form-grid">
               <ModalChoice
                 label="Catégorie"
@@ -585,37 +562,6 @@ function ReferenceForm({
               />{" "}
               Élément obligatoire
             </label>
-          </>
-        ) : (
-          <div className="form-grid">
-            <label>
-              Frais d&apos;inscription
-              <input
-                required
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.fraisInscription}
-                onChange={(event) =>
-                  setForm({ ...form, fraisInscription: event.target.value })
-                }
-              />
-            </label>
-            <label>
-              Réduction (%)
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={form.tauxReduction}
-                onChange={(event) =>
-                  setForm({ ...form, tauxReduction: event.target.value })
-                }
-              />
-            </label>
-          </div>
-        )}
         <ErrorMessage error={error} />
         <div className="form-actions">
           <button type="button" className="secondary-button" onClick={onClose}>
@@ -630,113 +576,12 @@ function ReferenceForm({
   );
 }
 
-function ScheduleForm({
-  type,
-  onClose,
-  onSaved,
-}: {
-  type: ScholarshipType;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [form, setForm] = useState({
-    libelle: "",
-    ordre: String((type.echeances?.length ?? 0) + 1),
-    dateEcheance: "",
-    montantAttendu: "",
-  });
-  const [error, setError] = useState("");
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    setError("");
-    try {
-      await apiFetch(`/types-bourse/${type.id}/echeances`, {
-        method: "POST",
-        body: JSON.stringify({
-          ...form,
-          ordre: Number(form.ordre),
-          montantAttendu: form.montantAttendu || null,
-          dateEcheance: form.dateEcheance || null,
-        }),
-      });
-      onSaved();
-      onClose();
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : "Ajout impossible.",
-      );
-    }
-  };
-  return (
-    <Modal title={`Nouvelle échéance · ${type.nom}`} onClose={onClose}>
-      <form className="entity-form" onSubmit={submit}>
-        <label>
-          Libellé
-          <input
-            required
-            value={form.libelle}
-            onChange={(event) =>
-              setForm({ ...form, libelle: event.target.value })
-            }
-          />
-        </label>
-        <div className="form-grid">
-          <label>
-            Ordre
-            <input
-              required
-              type="number"
-              min="1"
-              value={form.ordre}
-              onChange={(event) =>
-                setForm({ ...form, ordre: event.target.value })
-              }
-            />
-          </label>
-          <label>
-            Montant attendu
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.montantAttendu}
-              onChange={(event) =>
-                setForm({ ...form, montantAttendu: event.target.value })
-              }
-            />
-          </label>
-        </div>
-        <label>
-          Date d&apos;échéance
-          <input
-            type="date"
-            value={form.dateEcheance}
-            onChange={(event) =>
-              setForm({ ...form, dateEcheance: event.target.value })
-            }
-          />
-        </label>
-        <ErrorMessage error={error} />
-        <div className="form-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>
-            Annuler
-          </button>
-          <button className="primary-button compact">Ajouter</button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
 export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
   const [elements, setElements] = useState<CatalogElement[]>([]);
   const [types, setTypes] = useState<ScholarshipType[]>([]);
   const [error, setError] = useState("");
-  const [modal, setModal] = useState<
-    "element" | "scholarship" | "schedule" | null
-  >(null);
+  const [modal, setModal] = useState<"element" | null>(null);
   const [selectedElement, setSelectedElement] = useState<CatalogElement>();
-  const [selectedType, setSelectedType] = useState<ScholarshipType>();
   const [section, setSection] = useHubSection<"bourses" | "dossiers">(["bourses", "dossiers"]);
   const referenceCards: HubCard<"bourses" | "dossiers">[] = [
     { key: "bourses", icon: Award, title: "Types de bourse", value: `${types.length}`, detail: `type(s) · ${types.reduce((total, type) => total + (type.echeances?.length ?? 0), 0)} échéance(s) prévue(s)`, info: "Les bourses que l'établissement accorde : pour chacune, ses frais d'inscription, son taux de réduction et le calendrier de ses échéances (libellé, date limite, montant). Une demande de bourse acceptée suit le plan de son type." },
@@ -832,15 +677,6 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
           >
             + Élément
           </button>
-          <button
-            className="primary-button compact"
-            onClick={() => {
-              setSelectedType(undefined);
-              setModal("scholarship");
-            }}
-          >
-            + Type de bourse
-          </button>
         </div>}
       </div>
       <ErrorMessage error={error} />
@@ -911,6 +747,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
               <p className="eyebrow">Financement</p>
               <h3>Types de bourse</h3>
             </div>
+            <button className="outline-button small" onClick={() => navigateTo(`${pathForView("Frais de scolarité")}?vue=bourses`)}>Paramétrer dans Frais de scolarité</button>
           </div>
           <div className="scholarship-grid">
             {types.map((type) => (
@@ -920,24 +757,8 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                     <strong>{type.nom}</strong>
                     <small>{type.echeances?.length ? `${type.echeances.length} échéance(s)` : "Aucune échéance configurée"}</small>
                   </div>
-                  {canEdit && <div className="scholarship-card-actions">
-                    <button
-                      className="row-action icon-action"
-                      onClick={() => {
-                        setSelectedType(type);
-                        setModal("schedule");
-                      }} aria-label="Ajouter une échéance"><ActionIcon name="schedule" /></button>
-                    <button
-                      className="row-action icon-action danger-row-action"
-                      onClick={() => {
-                        setDeleteError("");
-                        setDeleteReason("");
-                        setDeleteTarget({ kind: "scholarship", id: type.id, label: type.nom });
-                      }} aria-label="Mettre à la corbeille"><ActionIcon name="delete" /></button>
-                  </div>}
                 </header>
                 <dl className="scholarship-figures">
-                  <div><dt>Frais d&apos;inscription</dt><dd>{formatMoney(type.fraisInscription)}</dd></div>
                   <div><dt>Réduction</dt><dd>{type.tauxReduction ?? 0} %</dd></div>
                 </dl>
                 {type.echeances?.length ? (
@@ -950,8 +771,6 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                       </li>
                     ))}
                   </ol>
-                ) : canEdit ? (
-                  <button type="button" className="scholarship-empty" onClick={() => { setSelectedType(type); setModal("schedule"); }}>+ Ajouter la première échéance</button>
                 ) : null}
               </article>
             ))}
@@ -964,22 +783,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
       </div>
       {modal === "element" && (
         <ReferenceForm
-          type="element"
           element={selectedElement}
-          onClose={() => setModal(null)}
-          onSaved={saved}
-        />
-      )}
-      {modal === "scholarship" && (
-        <ReferenceForm
-          type="scholarship"
-          onClose={() => setModal(null)}
-          onSaved={saved}
-        />
-      )}
-      {modal === "schedule" && selectedType && (
-        <ScheduleForm
-          type={selectedType}
           onClose={() => setModal(null)}
           onSaved={saved}
         />
@@ -1043,7 +847,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
 type LateInstalment = {
   echeance: { libelle: string; dateEcheance?: string; typeBourse?: { nom: string } };
   resteAPayer: string;
-  dossiers?: Array<{ demandeBourseId: string; personne?: Person; resteAPayer: string }>;
+  dossiers?: Array<{ inscriptionId: string; personne?: Person; resteAPayer: string }>;
 };
 
 const normalizeText = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase();
@@ -1157,7 +961,7 @@ function RecoveryReport({ latePayments }: { latePayments: LateInstalment[] | nul
             {(item.dossiers ?? []).length > 0 && (
               <div className="report-bubbles">
                 {(item.dossiers ?? []).map((dossier) => (
-                  <button type="button" className="report-bubble missing" key={dossier.demandeBourseId} title="Ouvrir la demande de bourse" onClick={() => navigateTo(pathForDossier({ type: "demande-bourse", id: dossier.demandeBourseId }))}>
+                  <button type="button" className="report-bubble missing" key={dossier.inscriptionId} title="Ouvrir le dossier d'inscription" onClick={() => navigateTo(pathForDossier({ type: "inscription", id: dossier.inscriptionId }))}>
                     <small>Reste {formatMoney(dossier.resteAPayer)}</small>
                     {fullName(dossier.personne)}
                   </button>

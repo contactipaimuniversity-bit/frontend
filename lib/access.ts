@@ -48,6 +48,8 @@ export const ACCESS_FEATURES = [
   { key: "hr", label: "Personnel (RH)" },
   { key: "payroll", label: "Paie · préparation et versement" },
   { key: "payroll-approval", label: "Paie · validation" },
+  { key: "tuition-settings", label: "Frais de scolarité · paramétrage" },
+  { key: "tuition-adjustments", label: "Frais de scolarité · réductions et échéanciers individuels" },
 ] as const;
 
 export type AccessArea = (typeof ACCESS_FEATURES)[number]["key"];
@@ -75,6 +77,7 @@ export const VIEW_ACCESS: Partial<Record<ViewName, AccessArea | AccessArea[]>> =
   "Exécution des dépenses": "expense-payment",
   Budget: ["finance-settings", "expense-approval", "expense-final-approval", "expense-payment"],
   "Paramètres finances": "finance-settings",
+  "Frais de scolarité": "tuition-settings",
   Comptabilité: "accounting",
   "Tableau de bord académique": ["academics", "teaching", "grades", "deliberations", "academic-stats"],
   "Structure académique": "academics",

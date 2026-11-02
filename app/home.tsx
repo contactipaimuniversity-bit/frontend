@@ -46,6 +46,7 @@ import { UserManualPage } from "@/components/user-manual-page";
 import { PersonFilePage } from "@/components/person-file-page";
 import { CardCheckPage } from "@/components/card-check-page";
 import { PaymentHandoverPage } from "@/components/payment-handover-page";
+import { TuitionPage } from "@/components/tuition-page";
 import { MANUALS } from "@/lib/manuals";
 import { useWork, workBadges } from "@/lib/work";
 import { FeedbackHost } from "@/components/feedback";
@@ -620,6 +621,8 @@ export default function Home() {
         <ExpenseExecutionPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Budget" ? (
         <BudgetPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Frais de scolarité" ? (
+        <TuitionPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Paramètres finances" ? (
         <FinanceSettingsPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Rapports" ? (

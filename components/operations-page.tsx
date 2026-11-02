@@ -16,6 +16,7 @@ import { EditApplicationModal, EditEnrollmentModal } from "@/components/dossier-
 import { confirmNewPerson } from "@/lib/duplicates";
 import { logPrint } from "@/lib/print-log";
 import { DocumentsPanel } from "@/components/hr-page";
+import { TuitionPlanPanel } from "@/components/tuition-plan";
 import { PersonPhotoCard, PhotoField, attachPhotoAfterSave } from "@/components/student-photo";
 import { RefundReceipt } from "@/components/refund-receipt";
 import { SurplusPanel, surplusOf } from "@/components/surplus-panel";
@@ -48,6 +49,7 @@ import {
   pdfSafe,
   fullName,
   statusLabels,
+  TuitionPlan,
 } from "@/lib/types";
 
 function Modal({
@@ -793,13 +795,11 @@ function ProspectSources() {
 function CreatePayment({
   applications,
   enrollments,
-  scholarshipTypes,
   onClose,
   onSaved,
 }: {
   applications: Application[];
   enrollments: Enrollment[];
-  scholarshipTypes: ScholarshipType[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -809,19 +809,28 @@ function CreatePayment({
     montant: "",
     typePaiement: "FRAIS_DEPOT",
     modePaiement: "ESPECES",
-    echeanceId: "",
+    ligneScolariteId: "",
   });
+  const [plan, setPlan] = useState<{ id: string; data: TuitionPlan } | null>(null);
   const [matchingApplications, setMatchingApplications] = useState(applications);
   const [matchingEnrollments, setMatchingEnrollments] = useState(enrollments);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const dossiers =
     form.dossierType === "demandeBourseId" ? matchingApplications : matchingEnrollments;
-  const selectedDossier = dossiers.find((dossier) => dossier.id === form.dossierId);
-  const selectedTypeId = form.dossierType === "demandeBourseId"
-    ? (selectedDossier as Application | undefined)?.typeBourse?.id
-    : (selectedDossier as Enrollment | undefined)?.demandeBourse?.typeBourseId;
-  const selectedType = scholarshipTypes.find((type) => type.id === selectedTypeId);
+  // L'échéancier de l'inscription choisie : il propose le montant et les frais à régler.
+  const inscriptionId = form.dossierType === "inscriptionId" ? form.dossierId : "";
+  useEffect(() => {
+    if (!inscriptionId) return;
+    let active = true;
+    void apiFetch<TuitionPlan>(`/frais-scolarite/inscriptions/${inscriptionId}`, { skipCache: true })
+      .then((data) => { if (active) setPlan({ id: inscriptionId, data }); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [inscriptionId]);
+  const currentPlan = plan?.id === inscriptionId ? plan.data : null;
+  const nextMonth = currentPlan?.mensualites.find((ligne) => ligne.reste > 0);
+  const unpaidAnnexes = currentPlan?.annexes.filter((ligne) => ligne.reste > 0) ?? [];
   const loadPaymentDossiers = useCallback(async (query: string, page: number) => {
     if (form.dossierType === "demandeBourseId") {
       const result = await apiFetch<ApplicationPage>(
@@ -848,7 +857,7 @@ function CreatePayment({
           montant: form.montant,
           typePaiement: form.typePaiement,
           modePaiement: form.modePaiement,
-          echeanceId: form.echeanceId || undefined,
+          ligneScolariteId: form.typePaiement === "FRAIS_ANNEXE" ? form.ligneScolariteId : undefined,
         }),
       });
       onSaved();
@@ -876,7 +885,8 @@ function CreatePayment({
             dossierType: value,
             dossierId: "",
             // Frais de dépôt pour une demande de bourse, frais d'inscription pour une inscription.
-            typePaiement: form.typePaiement === "ECHEANCE_BOURSE" ? form.typePaiement : value === "inscriptionId" ? "FRAIS_INSCRIPTION" : "FRAIS_DEPOT",
+            typePaiement: value === "inscriptionId" ? "FRAIS_INSCRIPTION" : "FRAIS_DEPOT",
+            ligneScolariteId: "",
           })}
         />
         <ModalChoice
@@ -905,24 +915,26 @@ function CreatePayment({
           label="Type de paiement"
           placeholder="Sélectionner un type"
           value={form.typePaiement}
-          choices={[
-            form.dossierType === "demandeBourseId" ? { value: "FRAIS_DEPOT", label: "Frais de dépôt" } : { value: "FRAIS_INSCRIPTION", label: "Frais d'inscription" },
-            { value: "ECHEANCE_BOURSE", label: "Échéance bourse" },
-          ]}
-          onChange={(value) => setForm({ ...form, typePaiement: value, echeanceId: "" })}
+          choices={form.dossierType === "demandeBourseId"
+            ? [{ value: "FRAIS_DEPOT", label: "Frais de dépôt" }]
+            : [
+                { value: "FRAIS_INSCRIPTION", label: "Frais d'inscription" },
+                { value: "MENSUALITE", label: "Scolarité mensuelle" },
+                { value: "FRAIS_ANNEXE", label: "Frais annexe" },
+              ]}
+          onChange={(value) => setForm({ ...form, typePaiement: value, ligneScolariteId: "", montant: value === "MENSUALITE" && nextMonth ? String(nextMonth.reste) : form.montant })}
         />
-        {form.typePaiement === "ECHEANCE_BOURSE" && (
+        {form.typePaiement === "MENSUALITE" && currentPlan && (
+          <p className="panel-subtitle">{currentPlan.regime}{nextMonth ? ` · prochain mois : ${nextMonth.libelle} (${formatMoney(nextMonth.reste)}), reste sur l'année : ${formatMoney(currentPlan.resteMensualites)}` : " · tous les mois sont soldés"}</p>
+        )}
+        {form.typePaiement === "FRAIS_ANNEXE" && (
           <ModalChoice
             required
-            label="Échéance de bourse"
-            placeholder={selectedType ? "Sélectionner une échéance" : "Le dossier n'a pas de bourse"}
-            value={form.echeanceId}
-            choices={selectedType?.echeances?.map((echeance) => ({
-              value: echeance.id,
-              label: echeance.libelle,
-              detail: echeance.montantAttendu ? formatMoney(echeance.montantAttendu) : undefined,
-            })) ?? []}
-            onChange={(value) => setForm({ ...form, echeanceId: value })}
+            label="Frais annexe"
+            placeholder={unpaidAnnexes.length ? "Sélectionner un frais" : "Aucun frais à régler sur ce dossier"}
+            value={form.ligneScolariteId}
+            choices={unpaidAnnexes.map((ligne) => ({ value: ligne.id, label: ligne.libelle, detail: `Reste ${formatMoney(ligne.reste)}` }))}
+            onChange={(value) => setForm({ ...form, ligneScolariteId: value, montant: String(unpaidAnnexes.find((ligne) => ligne.id === value)?.reste ?? form.montant) })}
           />
         )}
         <PaymentModeSelect value={form.modePaiement} onChange={(modePaiement) => setForm({ ...form, modePaiement })} />
@@ -1548,13 +1560,15 @@ const paymentLabels: Record<string, string> = {
   FRAIS_DEPOT: "Frais de dépôt",
   FRAIS_INSCRIPTION: "Frais d’inscription",
   ECHEANCE_BOURSE: "Échéance de bourse",
+  MENSUALITE: "Scolarité mensuelle",
+  FRAIS_ANNEXE: "Frais annexe",
   REMBOURSEMENT: "Remboursement",
   REPORT: "Report de trop-perçu",
   ANNULATION: "Annulation",
 };
 
 // Seul un encaissement s'annule ; les régularisations restent telles quelles.
-const cancellablePaymentTypes = ["FRAIS_DEPOT", "FRAIS_INSCRIPTION", "ECHEANCE_BOURSE"];
+const cancellablePaymentTypes = ["FRAIS_DEPOT", "FRAIS_INSCRIPTION", "ECHEANCE_BOURSE", "MENSUALITE", "FRAIS_ANNEXE"];
 
 // Numéro de reçu suivi ; une saisie hors ligne garde sa référence provisoire jusqu'à l'envoi.
 const receiptNumber = (payment: PaymentTransaction) => payment.numeroRecu ?? `IPAIM-${payment.id.slice(0, 8).toUpperCase()}`;
@@ -1618,7 +1632,10 @@ function situationHeadline(situation: DossierSituation) {
   ].join(" · ");
 }
 
-async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation: DossierSituation | null) {
+// Ce qu'il reste à payer sur l'année, affiché sur le reçu.
+const tuitionRemaining = (plan: TuitionPlan) => [...plan.mensualites, ...plan.annexes].filter((ligne) => ligne.reste > 0);
+
+async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation: DossierSituation | null, plan: TuitionPlan | null) {
   const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadReceiptLogo()]);
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -1823,6 +1840,52 @@ async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation:
     y += 4;
   }
 
+  if (plan && (plan.mensualites.length || plan.annexes.length)) {
+    const remaining = tuitionRemaining(plan);
+    ensureSpace(20 + remaining.length * 6.5);
+    pdf.setTextColor(20, 40, 92);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8);
+    pdf.text("SCOLARITÉ · RESTE À PAYER", 18, y);
+    y += 4.5;
+    pdf.setTextColor(102, 114, 140);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(pdfSafe(plan.regime), 18, y);
+    y += 6;
+    if (remaining.length) {
+      pdf.setFontSize(7);
+      pdf.text("MOIS / FRAIS", 20, y);
+      pdf.text("DATE LIMITE", 128, y, { align: "right" });
+      pdf.text("MONTANT", 158, y, { align: "right" });
+      pdf.text("RESTE À PAYER", 190, y, { align: "right" });
+      pdf.setDrawColor(226, 232, 242);
+      pdf.line(18, y + 2, 192, y + 2);
+      y += 7;
+      for (const ligne of remaining) {
+        pdf.setTextColor(36, 51, 76);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8.5);
+        pdf.text(pdf.splitTextToSize(ligne.libelle, 80)[0], 20, y);
+        pdf.text(ligne.dateLimite ? formatDate(ligne.dateLimite) : "-", 128, y, { align: "right" });
+        pdf.text(pdfSafe(formatMoney(ligne.montant)), 158, y, { align: "right" });
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(170, 60, 50);
+        pdf.text(pdfSafe(formatMoney(ligne.reste)), 190, y, { align: "right" });
+        y += 6.5;
+      }
+      pdf.setTextColor(36, 51, 76);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9);
+      pdf.text(`Total restant : ${pdfSafe(formatMoney(plan.resteTotal))}`, 190, y + 1, { align: "right" });
+      y += 8;
+    } else {
+      pdf.setTextColor(25, 116, 88);
+      pdf.setFontSize(8.5);
+      pdf.text("Toute la scolarité est soldée.", 20, y);
+      y += 7;
+    }
+  }
+
   // Visa en bas de page : signature de la comptabilité et emplacement du cachet.
   ensureSpace(19, 284);
   const signatureY = Math.max(y, 264);
@@ -1854,6 +1917,16 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
     return () => { active = false; };
   }, [payment.dossierId, payment.dossierType]);
   const knownSituation = situation && situation !== "indisponible" ? situation : null;
+  const [plan, setPlan] = useState<TuitionPlan | null>(null);
+  useEffect(() => {
+    if (payment.dossierType !== "inscription") return;
+    let active = true;
+    void apiFetch<TuitionPlan>(`/frais-scolarite/inscriptions/${payment.dossierId}`)
+      .then((data) => { if (active) setPlan(data); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [payment.dossierId, payment.dossierType]);
+  const tuitionRows = plan ? tuitionRemaining(plan) : [];
   const [generatedBy] = useState(() => generatedByLine());
   const recordPrint = (mode: "IMPRESSION" | "PDF") =>
     logPrint({ typeDocument: "RECU_PAIEMENT", mode, dossierType: payment.dossierType, dossierId: payment.dossierId, libelle: `${fullName(payment.personne)} · ${formatMoney(payment.montant)}`, reference: payment.id.slice(0, 8).toUpperCase() });
@@ -1861,7 +1934,7 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
     setPdfBusy(true);
     setPdfError("");
     try {
-      await downloadPaymentReceiptPdf(payment, knownSituation);
+      await downloadPaymentReceiptPdf(payment, knownSituation, plan);
       recordPrint("PDF");
     } catch (failure) {
       setPdfError(failure instanceof Error ? failure.message : "Impossible de générer le PDF.");
@@ -1935,6 +2008,23 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
               </>
             )}
           </section>
+          {plan && (plan.mensualites.length > 0 || plan.annexes.length > 0) && (
+            <section className="receipt-situation" aria-label="Scolarité restant à payer">
+              <h3>Scolarité · reste à payer</h3>
+              <p className="receipt-situation-note">{plan.regime}</p>
+              {tuitionRows.length > 0 ? (
+                <table className="receipt-obligations">
+                  <thead><tr><th>Mois / frais</th><th>Date limite</th><th>Montant</th><th>Reste à payer</th></tr></thead>
+                  <tbody>
+                    {tuitionRows.map((ligne) => (
+                      <tr key={ligne.id}><td>{ligne.libelle}</td><td>{ligne.dateLimite ? formatDate(ligne.dateLimite) : "-"}</td><td>{formatMoney(ligne.montant)}</td><td className="due">{formatMoney(ligne.reste)}</td></tr>
+                    ))}
+                    <tr><td colSpan={3}><strong>Total restant</strong></td><td className="due"><strong>{formatMoney(plan.resteTotal)}</strong></td></tr>
+                  </tbody>
+                </table>
+              ) : <p className="receipt-situation-note paid">Toute la scolarité est soldée.</p>}
+            </section>
+          )}
           <p className="receipt-thanks">Nous vous remercions pour votre paiement.</p>
           <footer className="receipt-signature">
             <div><span>Le service de comptabilité</span><i /></div>
@@ -2038,7 +2128,7 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange, onChanged }:
       {error && <p className="form-error">{error}</p>}
       {loading && <p className="empty-state">Chargement de l&apos;historique...</p>}
       {!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Payeur</th><th>Dossier</th><th>Obligation / échéance</th><th>Type</th><th>Montant</th><th>Mode</th><th>Encaissé par</th><th>État</th><th>Actions</th></tr></thead><tbody>
-        {pagePayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td>{payment.typePaiement === "REPORT" ? "—" : paymentModeLabel(payment.modePaiement)}</td><td>{payment.saisiParNom ?? "—"}</td><td>{payment.typePaiement === "REMBOURSEMENT" ? <span className="status status-refusee">Remboursé</span> : payment.typePaiement === "REPORT" ? <span className="status status-neutre">Report</span> : payment.typePaiement === "ANNULATION" ? <span className="status status-neutre" title={payment.motif ?? undefined}>Annulation</span> : payment.annule ? <span className="status status-refusee">Annulé</span> : <span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span>}{["FRAIS_DEPOT", "FRAIS_INSCRIPTION", "ECHEANCE_BOURSE"].includes(payment.typePaiement) && !payment.annule && payment.statutRemise && <small className={`cell-detail remise-${payment.statutRemise.toLowerCase()}`}>{payment.statutRemise === "VALIDE" ? `Remise validée${payment.remiseTraiteeParNom ? ` · ${payment.remiseTraiteeParNom}` : ""}` : payment.statutRemise === "NON_RECU" ? "Remise : non reçu" : "Remise : en attente"}</small>}{payment._offline && <small className="local-payment-note">En attente de synchronisation</small>}</td><td>{payment.typePaiement !== "REPORT" && payment.typePaiement !== "ANNULATION" && !payment.annule && <button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label={payment.typePaiement === "REMBOURSEMENT" ? "Imprimer le reçu de remboursement" : "Imprimer le reçu"}><ActionIcon name="print" /></button>}{canCancel && !payment.annule && !payment._offline && cancellablePaymentTypes.includes(payment.typePaiement) && <button className="row-action icon-action" onClick={() => void cancel(payment)} aria-label="Annuler ce paiement saisi par erreur"><ActionIcon name="cancel" /></button>}</td></tr>)}
+        {pagePayments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}{payment.personne?.telephone && <small className="payment-phone">{payment.personne.telephone}</small>}</td><td>{payment.dossier}</td><td>{payment.obligation ?? payment.echeance ?? "Non affecté"}</td><td>{paymentLabels[payment.typePaiement] ?? statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td className="strong-cell">{formatMoney(payment.montant)}</td><td>{payment.typePaiement === "REPORT" ? "—" : paymentModeLabel(payment.modePaiement)}</td><td>{payment.saisiParNom ?? "—"}</td><td>{payment.typePaiement === "REMBOURSEMENT" ? <span className="status status-refusee">Remboursé</span> : payment.typePaiement === "REPORT" ? <span className="status status-neutre">Report</span> : payment.typePaiement === "ANNULATION" ? <span className="status status-neutre" title={payment.motif ?? undefined}>Annulation</span> : payment.annule ? <span className="status status-refusee">Annulé</span> : <span className={`status ${payment.affecte ? "status-complete" : "status-en_attente"}`}>{payment.affecte ? "Affecté" : "À affecter"}</span>}{cancellablePaymentTypes.includes(payment.typePaiement) && !payment.annule && payment.statutRemise && <small className={`cell-detail remise-${payment.statutRemise.toLowerCase()}`}>{payment.statutRemise === "VALIDE" ? `Remise validée${payment.remiseTraiteeParNom ? ` · ${payment.remiseTraiteeParNom}` : ""}` : payment.statutRemise === "NON_RECU" ? "Remise : non reçu" : "Remise : en attente"}</small>}{payment._offline && <small className="local-payment-note">En attente de synchronisation</small>}</td><td>{payment.typePaiement !== "REPORT" && payment.typePaiement !== "ANNULATION" && !payment.annule && <button className="row-action icon-action" onClick={() => setSelectedReceipt(payment)} aria-label={payment.typePaiement === "REMBOURSEMENT" ? "Imprimer le reçu de remboursement" : "Imprimer le reçu"}><ActionIcon name="print" /></button>}{canCancel && !payment.annule && !payment._offline && cancellablePaymentTypes.includes(payment.typePaiement) && <button className="row-action icon-action" onClick={() => void cancel(payment)} aria-label="Annuler ce paiement saisi par erreur"><ActionIcon name="cancel" /></button>}</td></tr>)}
         {!filteredPayments.length && <tr><td colSpan={10} className="empty-state">{payments.length ? "Aucune transaction ne correspond à cette recherche." : "Aucune transaction enregistrée."}</td></tr>}
       </tbody></table></div>}
       {!loading && pageCount > 1 && (
@@ -2252,7 +2342,6 @@ export function DossierDetailsPage({
               <DetailField label="Entretien prévu" value={fullDate((dossier as DetailedApplication).dateEntretien)} />
               <DetailField label="Équipe d'entretien" value={(dossier as DetailedApplication).equipeEntretien} />
               <DetailField label="Type de bourse" value={(dossier as DetailedApplication).typeBourse?.nom} />
-              <DetailField label="Frais d'inscription" value={(dossier as DetailedApplication).typeBourse ? formatMoney((dossier as DetailedApplication).typeBourse!.fraisInscription) : undefined} />
               <DetailField label="Taux de réduction" value={(dossier as DetailedApplication).typeBourse?.tauxReduction != null ? `${(dossier as DetailedApplication).typeBourse!.tauxReduction}%` : undefined} />
             </dl> : <dl className="dossier-detail-fields">
               <DetailField label="Filière" value={(dossier as DetailedEnrollment).filiere} />
@@ -2280,6 +2369,11 @@ export function DossierDetailsPage({
             <h4 className="dossier-subheading">Paiements enregistrés</h4>
             {payments.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Échéance / précision</th><th>Montant</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{fullDate(payment.datePaiement)}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{payment.echeance?.libelle ?? payment.motif ?? "-"}</td><td>{formatMoney(payment.montant)}</td></tr>)}</tbody></table></div> : <p className="panel-subtitle">Aucun paiement enregistré pour ce dossier.</p>}
           </section>
+
+          {!isApplication && <section className="dossier-detail-section">
+            <div className="dossier-section-heading"><div><h3>Scolarité</h3><p>Les mois et frais annexes de l&apos;étudiant.</p></div></div>
+            <TuitionPlanPanel inscriptionId={reference.id} user={user} onChanged={() => { refreshDetails(); onRefresh(); }} />
+          </section>}
 
           {canViewDocuments && <section className="dossier-detail-section">
             <div className="dossier-section-heading"><div><h3>Pièces numérisées</h3><p>Scans des pièces du dossier, conservés avec lui.</p></div></div>
@@ -3001,7 +3095,6 @@ export function OperationsPage({
         <CreatePayment
           applications={applications}
           enrollments={enrollments}
-          scholarshipTypes={scholarshipTypes}
           onClose={() => setModal(null)}
           onSaved={refreshAfterPayment}
         />

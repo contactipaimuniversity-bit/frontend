@@ -1,13 +1,14 @@
 "use client";
 
 import { SetupChecklist } from "@/components/setup-checklist";
-import { askReason } from "@/components/feedback";
+import { askConfirm, askReason, toast } from "@/components/feedback";
 
 import { FormEvent, useEffect, useState, useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api";
+import { clearAppCacheAndReload } from "@/lib/app-cache";
 import { ModalChoice } from "@/components/modal-choice";
 import { ProfilePhotoCard, UserAvatar } from "@/components/student-photo";
-import { ChevronLeft, ChevronRight, Coins, DatabaseBackup, Landmark, type LucideIcon, Palette, School, ShieldCheck, SlidersHorizontal, Users, ListChecks } from "lucide-react";
+import { ChevronLeft, ChevronRight, Coins, DatabaseBackup, Landmark, type LucideIcon, Palette, School, ShieldCheck, SlidersHorizontal, Users, ListChecks, RefreshCw } from "lucide-react";
 import { applyColorMode, applyColorPreset, applyFont, applyTextSize, applyUiStyle, COLOR_PRESETS, ColorMode, ColorPresetId, FontId, FONTS, readColorMode, readColorPreset, readFont, readTextSize, readUiStyle, subscribeToColorMode, subscribeToColorPreset, subscribeToTypography, subscribeToUiStyle, TEXT_SIZES, TextSizeId, UI_STYLES, UiStyleId } from "@/lib/theme";
 import { SettingsSection } from "@/lib/routes";
 import { User, ViewName } from "@/lib/types";
@@ -178,6 +179,14 @@ export function SettingsPage({
     ...(hasAccess(currentUser, "references") ? [{ view: "Référentiels" as const, label: "Référentiels", hint: "Types de bourse, frais et pièces demandées", icon: SlidersHorizontal }] : []),
     ...(isAdmin ? [{ view: "Sauvegardes" as const, label: "Sauvegardes", hint: "Copies de la base et test de restauration", icon: DatabaseBackup }] : []),
   ];
+  const refreshApp = async () => {
+    if (!(await askConfirm({ title: "Vider le cache et recharger ?", message: "Les pages et fichiers de l'application seront retéléchargés. Vous restez connecté, et vos données ainsi que vos saisies hors ligne en attente sont conservées.", confirmLabel: "Vider et recharger" }))) return;
+    try {
+      await clearAppCacheAndReload();
+    } catch (failure) {
+      toast(failure instanceof Error ? failure.message : "Le cache n'a pas pu être vidé.", "error");
+    }
+  };
   const positionHolders = positions.find((position) => position.id === positionForm.id)?._count?.utilisateurs ?? 0;
   const chooseColorPreset = (id: ColorPresetId) => {
     applyColorPreset(id);
@@ -493,6 +502,11 @@ export function SettingsPage({
             <button type="button" className="settings-option" onClick={() => onOpenSection("apparence")}>
               <span className="settings-option-icon"><Palette size={21} aria-hidden="true" /></span>
               <span><strong>Apparence</strong><small>Style d&apos;interface, couleurs, mode sombre, police et taille du texte</small></span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+            <button type="button" className="settings-option" onClick={() => void refreshApp()}>
+              <span className="settings-option-icon"><RefreshCw size={21} aria-hidden="true" /></span>
+              <span><strong>Vider le cache et recharger</strong><small>Retélécharge les pages et fichiers de l&apos;application si un écran semble ancien ou ne s&apos;affiche pas bien</small></span>
               <ChevronRight size={18} aria-hidden="true" />
             </button>
           </div>

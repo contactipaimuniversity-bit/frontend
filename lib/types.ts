@@ -22,6 +22,44 @@ export type PersonPage = {
   meta: { page: number; limit: number; total: number; totalPages: number };
 };
 // Le serveur n'envoie que les cartes attribuées à l'utilisateur.
+export type TuitionLine = { id: string; libelle: string; dateLimite?: string | null; ordre: number; montant: number; paye: number; reste: number; fraisAnnexeId?: string | null };
+export type TuitionPlan = {
+  inscriptionId: string;
+  anneeScolaire: string;
+  regime: string;
+  reductionIndividuelle: number | null;
+  personnalise: boolean;
+  bourseRetiree: boolean;
+  mensualites: TuitionLine[];
+  annexes: TuitionLine[];
+  resteMensualites: number;
+  resteAnnexes: number;
+  resteTotal: number;
+  annexesDisponibles: Array<{ id: string; nom: string; montant: string | number }>;
+};
+export type TuitionScholarship = {
+  id: string;
+  nom: string;
+  modeScolarite: string;
+  tauxReduction?: string | number | null;
+  reductionSurInscription: boolean;
+  moyenneMinimale: string | number | null;
+  verificationMoyenne: string;
+  echeances: Array<{ id: string; libelle: string; ordre: number; dateEcheance?: string | null; montantAttendu?: string | number | null }>;
+  _count?: { demandesBourse: number };
+};
+export type TuitionAnnex = { id: string; nom: string; montant: string | number; anneeScolaire: string; cible: string; niveau?: string | null; filiereId?: string | null; filiere?: { nom: string } | null; dateLimite?: string | null; actif: boolean };
+export type TuitionSettings = {
+  annee: string;
+  annees: Array<{ libelle: string; dateDebut: string; dateFin: string; statut: string }>;
+  niveaux: Array<{ code: string; libelle: string }>;
+  filieres: Array<{ id: string; code: string; nom: string }>;
+  mois: Array<{ id: string; ordre: number; libelle: string; dateLimite: string }>;
+  tarifs: Array<{ niveau: string; filiereId: string | null; montantMensuel: string | number }>;
+  bourses: TuitionScholarship[];
+  annexes: TuitionAnnex[];
+  aConfirmer: number;
+};
 export type Summary = Partial<SummaryFigures> & {
   dernieresDemandes?: Array<{ id: string; filiereSouhaitee: string; statut: string; dateDepot: string; personne?: Pick<Person, "nom" | "prenom"> }>;
   dernieresInscriptions?: Array<{ id: string; filiere: string; anneeScolaire: string; dateInscription: string; personne?: Pick<Person, "nom" | "prenom"> }>;
@@ -36,6 +74,7 @@ type SummaryFigures = {
   totalEncaisse: string;
   resteBourses: string;
   resteInscriptions: string;
+  resteScolarite: string;
   totalResteARecouvrer: string;
   tendance: Array<{ label: string; demandes: number; inscriptions: number }>;
 };
@@ -248,7 +287,7 @@ export type ApplicationFinance = {
   totalAttendu: string;
   totalPaye: string;
 };
-export type ViewName = "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Aide de la page" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "États de besoin" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Futurs étudiants" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Tableau de bord académique" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Évaluations et notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI" | "Manuel d'utilisation" | "Contrôle des cartes" | "Validation des encaissements";
+export type ViewName = "Frais de scolarité" | "Vue d'ensemble" | "Demandes de bourse" | "Inscriptions" | "Fiche dossier" | "Aide de la page" | "Suppression des dossiers" | "Résumé de la journée" | "Certificats" | "Paiements" | "États de besoin" | "Validation des dépenses" | "Exécution des dépenses" | "Budget" | "Paramètres finances" | "Prospects" | "Futurs étudiants" | "Personnes" | "Recrutement" | "Référentiels" | "Synchronisation" | "Rapports" | "Corbeille" | "Impressions" | "Tableau de bord académique" | "Structure académique" | "Classes et étudiants" | "Enseignement" | "Évaluations et notes" | "Délibérations" | "Statistiques académiques" | "Personnel" | "Paie" | "Comptabilité" | "Sauvegardes" | "Audit" | "Profil" | "Paramètres" | "À propos du SGI" | "Manuel d'utilisation" | "Contrôle des cartes" | "Validation des encaissements";
 
 export type DailyActivityReport = {
   date: string;

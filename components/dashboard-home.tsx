@@ -93,7 +93,7 @@ export function DashboardHome({
       area: "dashboard-receivables",
       label: "Reste à recouvrer",
       value: summary ? `${Number(summary.totalResteARecouvrer).toLocaleString("fr-FR")} F` : "--",
-      detail: "Bourses + inscriptions",
+      detail: "Bourses, inscriptions et scolarité",
       tone: "orange",
     },
   ] satisfies Array<{ area: AccessArea; label: string; value: string | number; detail: string; tone: string }>).filter((card) => sees(card.area));

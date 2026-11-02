@@ -125,6 +125,13 @@ const SOURCES: Source[] = [
     },
   },
   {
+    areas: ["tuition-settings"],
+    load: async () => {
+      const pending = await apiFetch<unknown[]>("/frais-scolarite/bourses/a-confirmer", { skipCache: true });
+      return [item("bourses-a-confirmer", "Bourses à confirmer", "moyenne insuffisante : maintenir ou retirer", pending.length, "Frais de scolarité", "warn", "confirmer")];
+    },
+  },
+  {
     areas: ["accounting"],
     load: async () => {
       const journal = await apiFetch<{ meta: { total: number } }>("/comptabilite/journal?page=1&limit=1&statut=BROUILLON", { skipCache: true });
@@ -148,6 +155,7 @@ const EDIT_AREA: Partial<Record<string, AccessArea[]>> = {
   "paie-a-verser": ["payroll"],
   "ecritures-brouillon": ["accounting"],
   conges: ["hr"],
+  "bourses-a-confirmer": ["tuition-settings"],
 };
 
 /** Le travail en attente de l'utilisateur, toutes rubriques confondues. */

@@ -22,6 +22,7 @@ const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page" |
   "Exécution des dépenses": "/depenses/execution",
   Budget: "/budget",
   "Paramètres finances": "/finances/parametres",
+  "Frais de scolarité": "/finances/scolarite",
   Prospects: "/prospects",
   "Futurs étudiants": "/futurs-etudiants",
   Personnes: "/personnes",

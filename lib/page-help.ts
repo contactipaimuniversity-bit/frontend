@@ -301,6 +301,27 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { question: "D'où viennent les recettes affichées ?", answer: "Des paiements encaissés sur les dossiers pendant l'exercice." },
     ],
   },
+  "Frais de scolarité": {
+    summary: "Ce que doit chaque étudiant : ses mois, sa bourse et ses frais annexes.",
+    purpose: [
+      "Fixer les mois à payer de l'année et le prix d'un mois par niveau et par filière.",
+      "Dire pour chaque bourse ce que paie l'étudiant : une réduction en %, ou seulement certaines échéances.",
+      "Créer les frais annexes (polos, badges...), dus par un groupe ou à la demande.",
+      "Décider du sort des boursiers passés sous la moyenne à conserver.",
+    ],
+    steps: [
+      { title: "Renseigner les mois", detail: "Carte « Mois à payer » : indiquez le premier mois, le nombre de mois et le jour limite, puis « Préparer les mois ». Ajustez si besoin et enregistrez." },
+      { title: "Renseigner les tarifs", detail: "Carte « Tarifs » : remplissez le prix de chaque niveau sur la première ligne. Pour une filière, ne saisissez un prix que s'il est différent." },
+      { title: "Régler les bourses", detail: "Carte « Bourses » : choisissez « Réduction en % » ou « Nombre de mois », puis la moyenne à conserver. L'aperçu montre ce que paiera l'étudiant." },
+      { title: "Ajouter des frais annexes", detail: "Carte « Frais annexes » : « Tout un groupe » les ajoute d'office, « À la demande » se règle ensuite étudiant par étudiant." },
+      { title: "Accorder une faveur à un étudiant", detail: "Ouvrez son dossier d'inscription, section « Scolarité » : réduction, nombre de mois ou échéance sur mesure." },
+    ],
+    faq: [
+      { question: "Modifier un tarif change-t-il ce que doivent les étudiants déjà inscrits ?", answer: "Pas tout seul : chaque étudiant garde son échéancier. Cliquez « Appliquer aux étudiants déjà inscrits » pour recalculer les mois non payés. Ce qui est déjà payé et les échéanciers retouchés à la main ne changent pas." },
+      { question: "Que se passe-t-il si un boursier passe sous la moyenne ?", answer: "Il apparaît dans « Bourses à confirmer » après la clôture de la délibération. Si vous retirez la bourse, les mois à venir passent au tarif normal ; sinon, rien ne change." },
+      { question: "Un étudiant paie plus qu'un mois ?", answer: "Le versement solde les mois du plus ancien au plus récent : le reste passe automatiquement sur le mois suivant." },
+    ],
+  },
   "Paramètres finances": {
     summary: "Les règles du circuit de dépense et les référentiels financiers.",
     purpose: [
