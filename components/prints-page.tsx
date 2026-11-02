@@ -30,6 +30,7 @@ const DOCUMENT_LABELS: Record<string, string> = {
   CERTIFICAT_INSCRIPTION: "Certificat d'inscription",
   BON_COMMANDE: "Bon de commande",
   RAPPORT_ACTIVITE: "Rapport d'activité",
+  LISTE_BOURSIERS: "Liste des boursiers",
   BULLETIN_NOTES: "Bulletin de notes",
   PV_DELIBERATION: "Procès-verbal de délibération",
   BULLETIN_PAIE: "Bulletin de paie",

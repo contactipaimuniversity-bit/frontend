@@ -17,6 +17,7 @@ import { confirmNewPerson } from "@/lib/duplicates";
 import { logPrint } from "@/lib/print-log";
 import { DocumentsPanel } from "@/components/hr-page";
 import { TuitionPlanPanel } from "@/components/tuition-plan";
+import { ScholarsListModal } from "@/components/scholars-list";
 import { PersonPhotoCard, PhotoField, attachPhotoAfterSave } from "@/components/student-photo";
 import { RefundReceipt } from "@/components/refund-receipt";
 import { SurplusPanel, surplusOf } from "@/components/surplus-panel";
@@ -2586,6 +2587,7 @@ export function OperationsPage({
     | null
   >(null);
   const [selectedId, setSelectedId] = useState("");
+  const [scholarsOpen, setScholarsOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [completeness, setCompleteness] = useState<Record<string, { complete: boolean; missing: number }>>({});
@@ -2694,8 +2696,12 @@ export function OperationsPage({
                     : "Consultez et mettez à jour les dossiers."}
           </p>
         </div>
-        {addButton}
+        <div className="form-actions">
+          {view === "Demandes de bourse" && <button className="outline-button small" onClick={() => setScholarsOpen(true)}>Liste des boursiers (PDF)</button>}
+          {addButton}
+        </div>
       </div>
+      {scholarsOpen && <ScholarsListModal scholarshipTypes={scholarshipTypes} onClose={() => setScholarsOpen(false)} />}
       {view === "Paiements" ? (
         <PaymentsHub latePayments={latePayments} refreshKey={paymentsRefreshKey} dateOrder={dateOrder} onDateOrderChange={onDateOrderChange} onChanged={() => { setPaymentsRefreshKey((current) => current + 1); onRefresh(); }} onRefresh={onRefresh} />
       ) : (

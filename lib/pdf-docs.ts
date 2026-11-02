@@ -148,6 +148,46 @@ export function listPdf(fileName: string, title: string, subtitle: string, rows:
   });
 }
 
+// ---------- Liste des boursiers ----------
+
+export type Scholar = {
+  id: string;
+  filiereSouhaitee: string;
+  typeBourse: string;
+  personne: { nom: string; prenom: string; telephone?: string | null; matricule?: string | null; quartier?: string | null; tuteurTelephone?: string | null };
+  inscription: { anneeScolaire: string; niveau: string; filiere: string } | null;
+};
+
+export const scholarSituation = (item: Scholar) => (item.inscription ? `Inscrit · ${item.inscription.niveau} · ${item.inscription.anneeScolaire}` : "Pas encore inscrit");
+
+export function scholarsPdf(rows: Scholar[], title: string, typeName: string) {
+  return tablePdf({
+    title: title.toUpperCase(),
+    subtitle: `${typeName} · ${rows.length} étudiant(s)`,
+    fileName: `${title.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+    columns: [
+      { label: "N°", width: 10, align: "right" },
+      { label: "Nom et prénom", width: 60 },
+      { label: "Téléphone", width: 30 },
+      { label: "Tél. tuteur", width: 30 },
+      { label: "Matricule", width: 25 },
+      { label: "Bourse", width: 37 },
+      { label: "Filière", width: 40 },
+      { label: "Situation", width: 35 },
+    ],
+    rows: rows.map((item, index) => [
+      index + 1,
+      `${item.personne.nom} ${item.personne.prenom}`,
+      item.personne.telephone || "Non renseigné",
+      item.personne.tuteurTelephone || "-",
+      item.personne.matricule || "-",
+      item.typeBourse,
+      item.inscription?.filiere ?? item.filiereSouhaitee,
+      scholarSituation(item),
+    ]),
+  });
+}
+
 // ---------- Bulletin de notes ----------
 
 type SubjectResult = { code: string; nom: string; coefficient: number; controle: number | null; examen: number | null; rattrapage: number | null; moyenne: number | null };
