@@ -155,10 +155,13 @@ export type Scholar = {
   filiereSouhaitee: string;
   typeBourse: string;
   personne: { nom: string; prenom: string; telephone?: string | null; matricule?: string | null; quartier?: string | null; tuteurTelephone?: string | null };
-  inscription: { anneeScolaire: string; niveau: string; filiere: string } | null;
+  inscription: { anneeScolaire: string; niveau: string; filiere: string; statut?: string } | null;
 };
 
-export const scholarSituation = (item: Scholar) => (item.inscription ? `Inscrit · ${item.inscription.niveau} · ${item.inscription.anneeScolaire}` : "Pas encore inscrit");
+export const scholarSituation = (item: Scholar) =>
+  item.inscription
+    ? `Inscrit · ${item.inscription.niveau} · ${item.inscription.anneeScolaire}${item.inscription.statut === "ABANDONNEE" ? " · inscription abandonnée" : ""}`
+    : "Pas encore inscrit";
 
 export function scholarsPdf(rows: Scholar[], title: string, typeName: string) {
   return tablePdf({
