@@ -6,7 +6,7 @@ import { User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/student-photo";
 import { GlobalSearch } from "@/components/global-search";
-import { canAccessView, hasAccess } from "@/lib/access";
+import { canAccessView } from "@/lib/access";
 import { MANUAL_BY_GROUP } from "@/lib/manuals";
 import { ManualSection, navigateTo, pathForManual } from "@/lib/routes";
 
@@ -167,7 +167,7 @@ export function DashboardLayout({ activeView, activeManual, setActiveView, user,
   const go = (action: () => void) => { setMenuOpen(false); action(); };
   const canSee = (label: ViewName) =>
     label === "À propos du SGI" ||
-    (label === "Résumé de la journée" ? hasAccess(user, "dashboard") : label === "Corbeille" || label === "Audit" || label === "Impressions" || label === "Sauvegardes" ? user?.role === "admin" : canAccessView(user, label));
+    (label === "Corbeille" || label === "Audit" || label === "Impressions" || label === "Sauvegardes" ? user?.role === "admin" : canAccessView(user, label));
   // Une entrée qui réunit plusieurs écrans ouvre le premier auquel l'utilisateur a accès.
   const groups = navGroups
     .map((group) => ({

@@ -94,7 +94,7 @@ export function PersonFilePage({ personId, user, refreshSignal }: { personId: st
     ...person.inscriptions.map((item) => ({ type: "inscription" as const, id: item.id, label: `Inscription ${item.anneeScolaire}`, detail: [item.filiere, item.niveau].filter(Boolean).join(" · "), statut: item.statut, date: item.dateInscription, inClass: Boolean(item.classeId) })),
   ].sort((first, second) => new Date(second.date).getTime() - new Date(first.date).getTime());
   const totals = Object.values(money).reduce((sum, item) => ({ attendu: sum.attendu + item.attendu, paye: sum.paye + item.paye, reste: sum.reste + item.reste }), { attendu: 0, paye: 0, reste: 0 });
-  const canOpen = (dossier: Dossier) => canAccessView(user, dossier.type === "demande-bourse" ? "Demandes de bourse" : "Inscriptions");
+  const canOpen = (dossier: Dossier) => seesPayments || canAccessView(user, dossier.type === "demande-bourse" ? "Demandes de bourse" : "Inscriptions");
   const cancelled = new Set((payments ?? []).map((payment) => payment.annulePaiementId).filter(Boolean));
   const seesSchooling = Boolean(person.matricule) && (hasAccess(user, "academics") || hasAccess(user, "deliberations"));
 

@@ -117,7 +117,7 @@ function PermissionEditor({ permissions, onChange }: { permissions: string[]; on
       {ACCESS_FEATURES.map((feature) => (
         <div className="permission-row" key={feature.key}>
           <strong>{feature.label}</strong>
-          {(["view", "edit"] as const).map((mode) => (
+          {(("viewOnly" in feature ? ["view"] : ["view", "edit"]) as Array<"view" | "edit">).map((mode) => (
             <label className="permission-toggle" key={mode}>
               <input type="checkbox" checked={permissions.includes(`${mode}:${feature.key}`)} onChange={(event) => toggle(feature.key, mode, event.target.checked)} />
               <span className="sr-only">{mode === "view" ? "Consulter" : "Modifier"} : {feature.label}</span>
@@ -178,6 +178,7 @@ export function SettingsPage({
     ...(hasAccess(currentUser, "references") ? [{ view: "Référentiels" as const, label: "Référentiels", hint: "Types de bourse, frais et pièces demandées", icon: SlidersHorizontal }] : []),
     ...(isAdmin ? [{ view: "Sauvegardes" as const, label: "Sauvegardes", hint: "Copies de la base et test de restauration", icon: DatabaseBackup }] : []),
   ];
+  const positionHolders = positions.find((position) => position.id === positionForm.id)?._count?.utilisateurs ?? 0;
   const chooseColorPreset = (id: ColorPresetId) => {
     applyColorPreset(id);
   };
@@ -247,7 +248,7 @@ export function SettingsPage({
         body: JSON.stringify({ nom: positionForm.nom, permissions: positionForm.permissions }),
       });
       setPositionModalOpen(false);
-      await loadPositions();
+      await Promise.all([loadPositions(), loadUsers()]);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Enregistrement du poste impossible.");
     } finally {
@@ -304,7 +305,7 @@ export function SettingsPage({
         <div>
           <p className="eyebrow">{page ? "Paramètres" : "Réglages"}</p>
           <h2>{page === "mise-en-route" ? "Mise en route" : page === "apparence" ? "Apparence" : page === "postes" ? "Postes et accès" : page === "utilisateurs" ? "Utilisateurs" : "Paramètres"}</h2>
-          <p>{page === "mise-en-route" ? "Tout ce qui doit être réglé avant de travailler, vérifié en direct. Chaque ligne en orange mène au réglage à faire." : page === "apparence" ? "Style d'interface, couleurs, mode d'affichage, police et taille du texte. Ces choix sont propres à cet appareil." : page === "postes" ? "Chaque poste métier porte les accès donnés par défaut à ceux qui l'occupent." : page === "utilisateurs" ? "Les comptes autorisés à se connecter, leur poste et leurs accès." : "Choisissez une rubrique pour l'ouvrir."}</p>
+          <p>{page === "mise-en-route" ? "Tout ce qui doit être réglé avant de travailler, vérifié en direct. Chaque ligne en orange mène au réglage à faire." : page === "apparence" ? "Style d'interface, couleurs, mode d'affichage, police et taille du texte. Ces choix sont propres à cet appareil." : page === "postes" ? "Chaque poste métier porte les accès de ceux qui l'occupent : le modifier s'applique aussitôt à eux." : page === "utilisateurs" ? "Les comptes autorisés à se connecter, leur poste et leurs accès." : "Choisissez une rubrique pour l'ouvrir."}</p>
         </div>
         <div className="form-actions">
           {page === "postes" && <button className="primary-button compact" onClick={() => { setPositionForm({ id: "", nom: "", permissions: [] }); setPositionModalOpen(true); }}>+ Nouveau poste</button>}
@@ -408,13 +409,13 @@ export function SettingsPage({
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Postes métiers</p>
-            <h3>Postes et accès par défaut</h3>
+            <h3>Postes et accès</h3>
           </div>
         </div>
         <div className="position-list">
           {positions.map((position) => (
             <div className="position-row" key={position.id}>
-              <div><strong>{position.nom}</strong><span>{position._count?.utilisateurs ?? 0} utilisateur(s) · {position.permissions.filter((permission) => permission.startsWith("view:")).length} page(s) consultable(s)</span></div>
+              <div><strong>{position.nom}</strong><span>{position._count?.utilisateurs ?? 0} utilisateur(s) · {position.permissions.filter((permission) => permission.startsWith("view:") && !permission.startsWith("view:dashboard-")).length} page(s) consultable(s) · {position.permissions.filter((permission) => permission.startsWith("view:dashboard-")).length} élément(s) de la vue d&apos;ensemble</span></div>
               <button className="outline-button small" onClick={() => { setPositionForm({ id: position.id, nom: position.nom, permissions: [...position.permissions] }); setPositionModalOpen(true); }}>Modifier</button>
             </div>
           ))}
@@ -604,6 +605,7 @@ export function SettingsPage({
             <form className="entity-form" onSubmit={savePosition}>
               <label>Nom du poste<input required value={positionForm.nom} onChange={(event) => setPositionForm({ ...positionForm, nom: event.target.value })} placeholder="Ex. Gestionnaire des inscriptions" /></label>
               <PermissionEditor permissions={positionForm.permissions} onChange={(permissions) => setPositionForm({ ...positionForm, permissions })} />
+              {positionHolders > 0 && <p className="panel-subtitle">Ce changement s&apos;appliquera aussitôt à {positionHolders} personne(s) qui occupe(nt) ce poste. Les droits ajoutés individuellement sont conservés.</p>}
               {error && <p className="form-error">{error}</p>}
               <div className="form-actions"><button type="button" className="secondary-button" onClick={() => setPositionModalOpen(false)}>Annuler</button><button className="primary-button compact" disabled={busy}>{busy ? "Enregistrement..." : "Enregistrer le poste"}</button></div>
             </form>

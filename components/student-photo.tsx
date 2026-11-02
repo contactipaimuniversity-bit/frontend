@@ -248,7 +248,7 @@ export function ProfilePhotoCard({ user, onUpdated }: { user: User | null; onUpd
 }
 
 // Emplacement de la photo sur la fiche d'un dossier : affichage, ajout, remplacement, retrait.
-export function PersonPhotoCard({ person, onChanged }: { person: Person; onChanged: () => void }) {
+export function PersonPhotoCard({ person, canEdit = true, onChanged }: { person: Person; canEdit?: boolean; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const run = async (action: () => Promise<unknown>, done: string) => {
@@ -273,7 +273,7 @@ export function PersonPhotoCard({ person, onChanged }: { person: Person; onChang
       <PhotoFrame owner={person} alt={`Photo de ${person.prenom} ${person.nom}`} />
       {!person.photoUrl && <small className="photo-card-note">Aucune photo</small>}
       {busy && <small className="photo-card-note">Envoi en cours...</small>}
-      <PhotoSources busy={busy} hasPhoto={Boolean(person.photoUrl)} onPicked={(photo) => void run(() => uploadPersonPhoto(person.id, photo), "Photo enregistrée.")} onRemove={() => void remove()} onError={setError} />
+      {canEdit && <PhotoSources busy={busy} hasPhoto={Boolean(person.photoUrl)} onPicked={(photo) => void run(() => uploadPersonPhoto(person.id, photo), "Photo enregistrée.")} onRemove={() => void remove()} onError={setError} />}
       {error && <p className="form-error" role="alert">{error}</p>}
     </div>
   );

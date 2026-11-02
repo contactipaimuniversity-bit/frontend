@@ -1269,6 +1269,7 @@ function ElementsModal({
   const [error, setError] = useState("");
   const resource =
     dossierType === "demande-bourse" ? "demandes-bourse" : "inscriptions";
+  const canEdit = hasAccess(currentUser(), dossierType === "demande-bourse" ? "scholarships" : "enrollments", "edit");
   useEffect(() => {
     void apiFetch<RequiredElement[]>(`/${resource}/${dossierId}/elements`)
       .then(setElements)
@@ -1320,21 +1321,25 @@ function ElementsModal({
                   : "Facultatif"}
               </small>
             </div>
-            <ModalChoice
-              label="Statut"
-              placeholder="Sélectionner un statut"
-              value={element.statut}
-              choices={[
-                { value: "ATTENDU", label: "Attendu" },
-                { value: "FOURNI", label: "Fourni" },
-                { value: "MANQUANT", label: "Manquant" },
-                // « Substitué » n'existe que si le référentiel prévoit un substitut.
-                ...(element.elementRequis.elementSubstitutId || element.statut === "SUBSTITUE"
-                  ? [{ value: "SUBSTITUE", label: "Substitué" }]
-                  : []),
-              ]}
-              onChange={(value) => void update(element, value)}
-            />
+            {canEdit ? (
+              <ModalChoice
+                label="Statut"
+                placeholder="Sélectionner un statut"
+                value={element.statut}
+                choices={[
+                  { value: "ATTENDU", label: "Attendu" },
+                  { value: "FOURNI", label: "Fourni" },
+                  { value: "MANQUANT", label: "Manquant" },
+                  // « Substitué » n'existe que si le référentiel prévoit un substitut.
+                  ...(element.elementRequis.elementSubstitutId || element.statut === "SUBSTITUE"
+                    ? [{ value: "SUBSTITUE", label: "Substitué" }]
+                    : []),
+                ]}
+                onChange={(value) => void update(element, value)}
+              />
+            ) : (
+              <span>{statusLabels[element.statut] ?? element.statut}</span>
+            )}
           </div>
         ))}
       </div>
@@ -1352,6 +1357,7 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
   const [busy, setBusy] = useState(false);
   const [collectError, setCollectError] = useState("");
   const resource = dossierType === "demande-bourse" ? "demandes-bourse" : "inscriptions";
+  const canCollect = hasAccess(currentUser(), "payments", "edit");
   useEffect(() => {
     void apiFetch<ApplicationFinance>(`/${resource}/${dossierId}/finance`)
       .then(setFinance)
@@ -1409,7 +1415,7 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
       {finance && (
         <>
           <div className="payment-summary"><strong>{formatMoney(finance.totalAttendu)}</strong><span>attendu</span><strong>{formatMoney(finance.totalPaye)}</strong><span>payé</span><strong>{formatMoney(totalRemaining)}</strong><span>reste</span></div>
-          <SurplusPanel obligations={finance.obligations} onChanged={reload} />
+          {canCollect && <SurplusPanel obligations={finance.obligations} onChanged={reload} />}
           <div className="table-wrap">
             <table>
               <thead><tr><th>Obligation</th><th>Statut</th><th>Attendu</th><th>Payé</th><th>Reste</th><th /></tr></thead>
@@ -1421,7 +1427,7 @@ function FinanceModal({ dossierType, dossierId, onClose, onChanged }: { dossierT
                     <td>{formatMoney(item.montantAttendu)}</td>
                     <td>{formatMoney(item.montantPaye)}</td>
                     <td>{surplusOf(item) > 0 ? <span className="status status-en_attente" title="Trop-perçu : payé en plus du montant dû">+{formatMoney(surplusOf(item))} en trop</span> : <span className="status status-refusee">{formatMoney(item.resteAPayer)}</span>}</td>
-                    <td>{collectable(item) > 0 && <button type="button" className="row-action" disabled={busy} onClick={() => startCollect(item)}>Encaisser</button>}</td>
+                    <td>{canCollect && collectable(item) > 0 && <button type="button" className="row-action" disabled={busy} onClick={() => startCollect(item)}>Encaisser</button>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1515,6 +1521,7 @@ function UnassignedPaymentsPanel({ onRefresh }: { onRefresh: () => void }) {
   const [selected, setSelected] = useState<UnassignedPayment | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const canAssign = hasAccess(currentUser(), "payments", "edit");
   const load = async () => {
     setLoading(true);
     try {
@@ -1534,7 +1541,7 @@ function UnassignedPaymentsPanel({ onRefresh }: { onRefresh: () => void }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
-  return <><section className="panel full-panel"><div className="panel-heading"><div><p className="eyebrow">Affectation</p><h3>{payments.length} paiement(s) à affecter</h3></div><button className="outline-button small" onClick={() => void load()}>Actualiser</button></div>{error && <p className="form-error">{error}</p>}{loading && <p className="empty-state">Chargement...</p>}{!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Personne</th><th>Dossier</th><th>Type</th><th>Montant</th><th /></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}</td><td>{payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{formatMoney(payment.montant)}</td><td><button className="row-action icon-action" onClick={() => setSelected(payment)} aria-label="Affecter le paiement à une obligation"><ActionIcon name="assign" /></button></td></tr>)}{!payments.length && <tr><td colSpan={6} className="empty-state">Tous les paiements sont affectés.</td></tr>}</tbody></table></div>}</section>{selected && <AssignPaymentModal payment={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); void load(); onRefresh(); }} />}</>;
+  return <><section className="panel full-panel"><div className="panel-heading"><div><p className="eyebrow">Affectation</p><h3>{payments.length} paiement(s) à affecter</h3></div><button className="outline-button small" onClick={() => void load()}>Actualiser</button></div>{error && <p className="form-error">{error}</p>}{loading && <p className="empty-state">Chargement...</p>}{!loading && <div className="table-wrap"><table><thead><tr><th>Date</th><th>Personne</th><th>Dossier</th><th>Type</th><th>Montant</th><th /></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{formatDate(payment.datePaiement)}</td><td className="strong-cell">{fullName(payment.personne)}</td><td>{payment.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription"}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{formatMoney(payment.montant)}</td><td>{canAssign && <button className="row-action icon-action" onClick={() => setSelected(payment)} aria-label="Affecter le paiement à une obligation"><ActionIcon name="assign" /></button>}</td></tr>)}{!payments.length && <tr><td colSpan={6} className="empty-state">Tous les paiements sont affectés.</td></tr>}</tbody></table></div>}</section>{selected && <AssignPaymentModal payment={selected} onClose={() => setSelected(null)} onSaved={() => { setSelected(null); void load(); onRefresh(); }} />}</>;
 }
 
 const paymentLabels: Record<string, string> = {
@@ -1955,7 +1962,7 @@ function PaymentHistory({ refreshKey, dateOrder, onDateOrderChange, onChanged }:
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentTransaction | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [page, setPage] = useState(1);
-  const [canCancel] = useState(() => hasAccess(currentUser(), "payment-cancellation", "edit"));
+  const canCancel = hasAccess(currentUser(), "payment-cancellation", "edit");
   // Un paiement saisi par erreur ne s'efface pas : une ligne inverse, motivée, le neutralise.
   const cancel = async (payment: PaymentTransaction) => {
     const motif = await askReason({
@@ -2126,6 +2133,14 @@ export function DossierDetailsPage({
   const [action, setAction] = useState<"elements" | "finance" | "status" | "dossier" | "interview" | "delete" | "person" | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const user = currentUser();
+  const canEditDossier = hasAccess(user, isApplication ? "scholarships" : "enrollments", "edit");
+  const canEditPerson = hasAccess(user, "people", "edit");
+  const canCollect = hasAccess(user, "payments", "edit");
+  // Mêmes règles que le backend : photo et pièces numérisées suivent les droits du dossier.
+  const canEditPhoto = canEditPerson || hasAccess(user, "scholarships", "edit") || hasAccess(user, "enrollments", "edit");
+  const canEditDocuments = canEditDossier || (!isApplication && hasAccess(user, "academics", "edit"));
+  const canViewDocuments = hasAccess(user, isApplication ? "scholarships" : "enrollments") || hasAccess(user, "certificates") || (!isApplication && hasAccess(user, "academics"));
 
   useEffect(() => {
     let active = true;
@@ -2196,21 +2211,23 @@ export function DossierDetailsPage({
               <p className="panel-subtitle">Créé le {fullDate(isApplication ? (dossier as DetailedApplication).dateDepot : (dossier as DetailedEnrollment).dateInscription)}</p>
             </div>
             <div className="dossier-detail-actions">
-              {isApplication ? <>
+              {canEditDossier && <>
                 <button className="outline-button small" onClick={() => setAction("dossier")}>Modifier le dossier</button>
-                <button className="outline-button small" onClick={() => setAction("status")}>Décider</button>
-                <button className="outline-button small" onClick={() => setAction("interview")}>Entretien</button>
-              </> : <button className="outline-button small" onClick={() => setAction("dossier")}>Modifier le dossier</button>}
-              <button className="outline-button small" onClick={() => setAction("elements")}>Pièces</button>
+                {isApplication && <>
+                  <button className="outline-button small" onClick={() => setAction("status")}>Décider</button>
+                  <button className="outline-button small" onClick={() => setAction("interview")}>Entretien</button>
+                </>}
+                <button className="outline-button small" onClick={() => setAction("elements")}>Pièces</button>
+              </>}
               <button className="outline-button small" onClick={() => setAction("finance")}>Finance</button>
-              <button className="row-action icon-action danger-row-action" onClick={() => { setDeleteError(""); setAction("delete"); }} aria-label="Supprimer"><ActionIcon name="delete" /></button>
+              {canEditDossier && <button className="row-action icon-action danger-row-action" onClick={() => { setDeleteError(""); setAction("delete"); }} aria-label="Supprimer"><ActionIcon name="delete" /></button>}
             </div>
           </div>
 
           <section className="dossier-detail-section">
-            <div className="dossier-section-heading"><h3>Personne</h3><span className="action-group">{person && <button className="row-action" onClick={() => navigateTo(pathForPerson(person.id))}>Fiche complète</button>}<button className="row-action" onClick={() => setAction("person")}>Modifier les informations</button></span></div>
+            <div className="dossier-section-heading"><h3>Personne</h3><span className="action-group">{person && <button className="row-action" onClick={() => navigateTo(pathForPerson(person.id))}>Fiche complète</button>}{canEditPerson && <button className="row-action" onClick={() => setAction("person")}>Modifier les informations</button>}</span></div>
             <div className="dossier-person-layout">
-              {person && <PersonPhotoCard person={person} onChanged={() => { refreshDetails(); onRefresh(); }} />}
+              {person && <PersonPhotoCard person={person} canEdit={canEditPhoto} onChanged={() => { refreshDetails(); onRefresh(); }} />}
               <dl className="dossier-detail-fields">
                 <DetailField label="Nom complet" value={fullName(person)} />
                 <DetailField label="Matricule" value={person?.matricule} />
@@ -2250,7 +2267,7 @@ export function DossierDetailsPage({
           </section>
 
           <section className="dossier-detail-section">
-            <div className="dossier-section-heading"><div><h3>Pièces du dossier</h3><p>{missingElements.length ? `${missingElements.length} pièce(s) à compléter` : "Toutes les pièces sont complètes"}</p></div><button className="row-action" onClick={() => setAction("elements")}>Gérer les pièces</button></div>
+            <div className="dossier-section-heading"><div><h3>Pièces du dossier</h3><p>{missingElements.length ? `${missingElements.length} pièce(s) à compléter` : "Toutes les pièces sont complètes"}</p></div>{canEditDossier && <button className="row-action" onClick={() => setAction("elements")}>Gérer les pièces</button>}</div>
             <div className="table-wrap"><table><thead><tr><th>Élément requis</th><th>Statut</th><th>Attendu</th><th>Payé</th><th>Reste</th></tr></thead><tbody>{elements.map((element) => {
               const obligation = finance?.obligations.find((item) => item.id === element.id);
               return <tr key={element.id}><td className="strong-cell">{element.elementRequis.nom}<small className="dossier-item-note">{element.elementRequis.obligatoire ? "Obligatoire" : "Facultatif"}</small></td><td>{statusLabels[element.statut] ?? element.statut}</td><td>{formatMoney(element.montantAttendu ?? 0)}</td><td>{formatMoney(obligation?.montantPaye ?? 0)}</td><td>{formatMoney(obligation?.resteAPayer ?? 0)}</td></tr>;
@@ -2264,19 +2281,19 @@ export function DossierDetailsPage({
             {payments.length ? <div className="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Échéance / précision</th><th>Montant</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id}><td>{fullDate(payment.datePaiement)}</td><td>{statusLabels[payment.typePaiement] ?? payment.typePaiement}</td><td>{payment.echeance?.libelle ?? payment.motif ?? "-"}</td><td>{formatMoney(payment.montant)}</td></tr>)}</tbody></table></div> : <p className="panel-subtitle">Aucun paiement enregistré pour ce dossier.</p>}
           </section>
 
-          <section className="dossier-detail-section">
+          {canViewDocuments && <section className="dossier-detail-section">
             <div className="dossier-section-heading"><div><h3>Pièces numérisées</h3><p>Scans des pièces du dossier, conservés avec lui.</p></div></div>
-            <DocumentsPanel target={isApplication ? "DEMANDE_BOURSE" : "INSCRIPTION"} id={reference.id} canEdit suggestions={elements.map((element) => element.elementRequis.nom)} />
-          </section>
+            <DocumentsPanel target={isApplication ? "DEMANDE_BOURSE" : "INSCRIPTION"} id={reference.id} canEdit={canEditDocuments} suggestions={elements.map((element) => element.elementRequis.nom)} />
+          </section>}
 
-          <section className="dossier-detail-section dossier-next-actions"><h3>À faire</h3>
-            {missingElements.length > 0 && <button className="row-action" onClick={() => setAction("elements")}>Compléter les pièces manquantes ({missingElements.length})</button>}
-            {unpaidAmount > 0 && <button className="row-action debt-action" onClick={() => setAction("finance")}>Suivre les paiements en attente ({formatMoney(unpaidAmount)})</button>}
-            {surplusAmount > 0 && <button className="row-action debt-action" onClick={() => setAction("finance")}>Régulariser le trop-perçu ({formatMoney(surplusAmount)}) : le reporter ou le rembourser</button>}
-            {isApplication && !(dossier as DetailedApplication).dateEntretien && !["ACCEPTEE", "REFUSEE"].includes(dossier.statut) && <button className="row-action" onClick={() => setAction("interview")}>Planifier un entretien</button>}
-            {isApplication && !["ACCEPTEE", "REFUSEE"].includes(dossier.statut) && <button className="row-action" onClick={() => setAction("status")}>Prendre une décision</button>}
-            {!missingElements.length && unpaidAmount <= 0 && surplusAmount <= 0 && (!isApplication || Boolean((dossier as DetailedApplication).dateEntretien) || ["ACCEPTEE", "REFUSEE"].includes(dossier.statut)) && (isApplication ? ["ACCEPTEE", "REFUSEE"].includes(dossier.statut) : dossier.statut === "COMPLETE") && <p className="panel-subtitle">Aucune action en attente n&apos;a été détectée.</p>}
-          </section>
+          {(canEditDossier || (canCollect && (unpaidAmount > 0 || surplusAmount > 0))) && <section className="dossier-detail-section dossier-next-actions"><h3>À faire</h3>
+            {canEditDossier && missingElements.length > 0 && <button className="row-action" onClick={() => setAction("elements")}>Compléter les pièces manquantes ({missingElements.length})</button>}
+            {canCollect && unpaidAmount > 0 && <button className="row-action debt-action" onClick={() => setAction("finance")}>Suivre les paiements en attente ({formatMoney(unpaidAmount)})</button>}
+            {canCollect && surplusAmount > 0 && <button className="row-action debt-action" onClick={() => setAction("finance")}>Régulariser le trop-perçu ({formatMoney(surplusAmount)}) : le reporter ou le rembourser</button>}
+            {canEditDossier && isApplication && !(dossier as DetailedApplication).dateEntretien && !["ACCEPTEE", "REFUSEE"].includes(dossier.statut) && <button className="row-action" onClick={() => setAction("interview")}>Planifier un entretien</button>}
+            {canEditDossier && isApplication && !["ACCEPTEE", "REFUSEE"].includes(dossier.statut) && <button className="row-action" onClick={() => setAction("status")}>Prendre une décision</button>}
+            {canEditDossier && !missingElements.length && unpaidAmount <= 0 && surplusAmount <= 0 && (!isApplication || Boolean((dossier as DetailedApplication).dateEntretien) || ["ACCEPTEE", "REFUSEE"].includes(dossier.statut)) && (isApplication ? ["ACCEPTEE", "REFUSEE"].includes(dossier.statut) : dossier.statut === "COMPLETE") && <p className="panel-subtitle">Aucune action en attente n&apos;a été détectée.</p>}
+          </section>}
         </section>
       )}
 
@@ -2530,29 +2547,34 @@ export function OperationsPage({
       const hasOutstandingPayment = (dossier?.obligationsImpayees?.length ?? 0) > 0;
       return { ...current, [id]: { complete: complete && !hasOutstandingPayment, missing } };
     });
+  const user = currentUser();
+  const canEditApplications = hasAccess(user, "scholarships", "edit");
+  const canEditEnrollments = hasAccess(user, "enrollments", "edit");
+  const canEditProspects = hasAccess(user, "prospects", "edit");
+  const canEditPeople = hasAccess(user, "people", "edit");
   const addButton =
-    view === "Demandes de bourse" ? (
+    view === "Demandes de bourse" && canEditApplications ? (
       <button
         className="primary-button compact"
         onClick={() => open("application")}
       >
         + Nouvelle demande
       </button>
-    ) : view === "Inscriptions" ? (
+    ) : view === "Inscriptions" && canEditEnrollments ? (
       <button
         className="primary-button compact"
         onClick={() => open("enrollment")}
       >
         + Nouvelle inscription
       </button>
-    ) : view === "Prospects" ? (
+    ) : view === "Prospects" && canEditProspects ? (
       <button
         className="primary-button compact"
         onClick={() => open("prospect")}
       >
         + Nouveau prospect
       </button>
-    ) : view === "Paiements" ? (
+    ) : view === "Paiements" && hasAccess(user, "payments", "edit") ? (
       <button
         className="primary-button compact"
         onClick={() => open("payment")}
@@ -2727,23 +2749,25 @@ export function OperationsPage({
                     </td>
                     <td>{formatDate(item.dateDepot)}</td>
                     <td className="action-group">
-                      <button
-                        className="row-action icon-action"
-                        onClick={() => open("dossier", item.id)} aria-label="Modifier le dossier (niveau, filières, école)"><ActionIcon name="edit" /></button>
-                      <button
-                        className="row-action icon-action"
-                        onClick={() => open("status", item.id)} aria-label="Prendre une décision"><ActionIcon name="decide" /></button>
-                      <button
-                        className="row-action icon-action"
-                        onClick={() => open("elements", item.id)} aria-label="Gérer les pièces"><ActionIcon name="pieces" /></button>
+                      {canEditApplications && <>
+                        <button
+                          className="row-action icon-action"
+                          onClick={() => open("dossier", item.id)} aria-label="Modifier le dossier (niveau, filières, école)"><ActionIcon name="edit" /></button>
+                        <button
+                          className="row-action icon-action"
+                          onClick={() => open("status", item.id)} aria-label="Prendre une décision"><ActionIcon name="decide" /></button>
+                        <button
+                          className="row-action icon-action"
+                          onClick={() => open("elements", item.id)} aria-label="Gérer les pièces"><ActionIcon name="pieces" /></button>
+                      </>}
                       <button className="row-action icon-action" onClick={() => open("finance", item.id)} aria-label="Situation financière"><ActionIcon name="finance" /></button>
-                      <button
+                      {canEditApplications && <button
                         className="row-action icon-action"
-                        onClick={() => open("interview", item.id)} aria-label="Planifier l'entretien"><ActionIcon name="interview" /></button>
-                      <button className="row-action icon-action" onClick={() => open("person", item.id)} aria-label="Modifier les informations de l'étudiant"><ActionIcon name="person" /></button>
-                      <button
+                        onClick={() => open("interview", item.id)} aria-label="Planifier l'entretien"><ActionIcon name="interview" /></button>}
+                      {canEditPeople && <button className="row-action icon-action" onClick={() => open("person", item.id)} aria-label="Modifier les informations de l'étudiant"><ActionIcon name="person" /></button>}
+                      {canEditApplications && <button
                         className="row-action icon-action danger-row-action"
-                        onClick={() => open("deleteApplication", item.id)} aria-label="Supprimer"><ActionIcon name="delete" /></button>
+                        onClick={() => open("deleteApplication", item.id)} aria-label="Supprimer"><ActionIcon name="delete" /></button>}
                     </td>
                   </tr>
                 ))}
@@ -2800,16 +2824,18 @@ export function OperationsPage({
                       <DossierStatus item={item} override={completeness[item.id]} onOpen={() => open("elements", item.id)} onOpenFinance={() => open("finance", item.id)} />
                     </td>
                     <td className="action-group">
-                      <button
-                        className="row-action icon-action"
-                        onClick={() => open("status", item.id)} aria-label="Modifier"><ActionIcon name="edit" /></button>
-                      <button
-                        className="row-action icon-action"
-                        onClick={() => open("elements", item.id)} aria-label="Gérer les pièces"><ActionIcon name="pieces" /></button>
-                      <button className="row-action icon-action" onClick={() => open("person", item.id)} aria-label="Modifier les informations de l'étudiant"><ActionIcon name="person" /></button>
-                      <button
+                      {canEditEnrollments && <>
+                        <button
+                          className="row-action icon-action"
+                          onClick={() => open("status", item.id)} aria-label="Modifier"><ActionIcon name="edit" /></button>
+                        <button
+                          className="row-action icon-action"
+                          onClick={() => open("elements", item.id)} aria-label="Gérer les pièces"><ActionIcon name="pieces" /></button>
+                      </>}
+                      {canEditPeople && <button className="row-action icon-action" onClick={() => open("person", item.id)} aria-label="Modifier les informations de l'étudiant"><ActionIcon name="person" /></button>}
+                      {canEditEnrollments && <button
                         className="row-action icon-action danger-row-action"
-                        onClick={() => open("deleteEnrollment", item.id)} aria-label="Supprimer"><ActionIcon name="delete" /></button>
+                        onClick={() => open("deleteEnrollment", item.id)} aria-label="Supprimer"><ActionIcon name="delete" /></button>}
                     </td>
                   </tr>
                 ))}
@@ -2863,10 +2889,12 @@ export function OperationsPage({
                       </span>
                     </td>
                     <td>
-                      <button
-                        className="row-action icon-action"
-                        onClick={() => open("status", item.id)} aria-label="Modifier"><ActionIcon name="edit" /></button>
-                      <button className="row-action icon-action" onClick={() => open("relance", item.id)} aria-label="Enregistrer une relance"><ActionIcon name="relance" /></button>
+                      {canEditProspects && <>
+                        <button
+                          className="row-action icon-action"
+                          onClick={() => open("status", item.id)} aria-label="Modifier"><ActionIcon name="edit" /></button>
+                        <button className="row-action icon-action" onClick={() => open("relance", item.id)} aria-label="Enregistrer une relance"><ActionIcon name="relance" /></button>
+                      </>}
                     </td>
                   </tr>
                 ))}

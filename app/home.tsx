@@ -39,7 +39,7 @@ import { apiFetch, notifySessionChanged } from "@/lib/api";
 import { applyColorMode, applyColorPreset, applyFont, applyTextSize, applyUiStyle, readColorMode, readColorPreset, readFont, readTextSize, readUiStyle } from "@/lib/theme";
 import { OfflineAccount } from "@/lib/offline";
 import { forgetDataKey } from "@/lib/local-crypto";
-import { canAccessView, canOpenPersonFile, hasAccess } from "@/lib/access";
+import { DASHBOARD_FIGURE_AREAS, canAccessView, canOpenPersonFile, hasAccess } from "@/lib/access";
 import { helpReturnPath, navigateTo, parsePath, pathForDossier, pathForHelp, pathForView } from "@/lib/routes";
 import { PageHelpPage } from "@/components/page-help-page";
 import { UserManualPage } from "@/components/user-manual-page";
@@ -67,6 +67,8 @@ import {
   User,
   ViewName,
 } from "@/lib/types";
+
+const RIGHTS_REFRESH_MS = 60 * 1000;
 
 const subscribeToSession = (onChange: () => void) => {
   window.addEventListener("storage", onChange);
@@ -173,7 +175,7 @@ export default function Home() {
   const user =
     temporaryUser ?? (storedUser ? (JSON.parse(storedUser) as User) : null) ??
     (storedOfflineSession ? (JSON.parse(storedOfflineSession) as OfflineAccount).user : null);
-  const canViewDashboard = hasAccess(user, "dashboard");
+  const canViewDashboard = DASHBOARD_FIGURE_AREAS.some((area) => hasAccess(user, area));
   const canViewScholarships = hasAccess(user, "scholarships");
   const canViewEnrollments = hasAccess(user, "enrollments");
   const canViewProspects = hasAccess(user, "prospects");
@@ -414,6 +416,33 @@ export default function Home() {
     return () => window.removeEventListener("ipaim-sync-complete", refreshAfterSync);
   }, []);
 
+  // Un administrateur peut changer les droits à tout moment : le menu et les
+  // écrans les suivent sans nouvelle connexion.
+  useEffect(() => {
+    if (!token) return;
+    const reload = () => {
+      void apiFetch<User>("/auth/me", { skipCache: true })
+        .then((fresh) => {
+          const serialized = JSON.stringify(fresh);
+          if (!window.sessionStorage.getItem("ipaim-token") || window.sessionStorage.getItem("ipaim-user") === serialized) return;
+          window.sessionStorage.setItem("ipaim-user", serialized);
+          setTemporaryUser((current) => (current ? fresh : current));
+          notifySessionChanged();
+        })
+        .catch(() => undefined);
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") reload(); };
+    reload();
+    const intervalId = window.setInterval(reload, RIGHTS_REFRESH_MS);
+    window.addEventListener("focus", reload);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", reload);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [token, refreshKey]);
+
   const logout = () => {
     window.sessionStorage.removeItem("ipaim-token");
     window.sessionStorage.removeItem("ipaim-user");
@@ -488,8 +517,6 @@ export default function Home() {
       {activeView === "Vue d'ensemble" ? (
         <DashboardHome
           summary={summary}
-          applications={applications}
-          enrollments={enrollments}
           user={user}
           loading={loading}
           onOpen={setView}

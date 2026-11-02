@@ -1,7 +1,26 @@
 import { User, ViewName } from "@/lib/types";
 
+// Le détail de la Vue d'ensemble : chaque carte et chaque bloc s'attribue séparément.
+// Ces rubriques ne font qu'afficher : elles n'ont pas de droit « Modifier ».
 export const ACCESS_FEATURES = [
-  { key: "dashboard", label: "Vue d'ensemble" },
+  { key: "daily-summary", label: "Résumé de la journée", viewOnly: true },
+  { key: "dashboard-my-work", label: "Vue d'ensemble · Mon travail du jour", viewOnly: true },
+  { key: "dashboard-followups", label: "Vue d'ensemble · Prospects à relancer", viewOnly: true },
+  { key: "dashboard-interviews", label: "Vue d'ensemble · Entretiens sous 7 jours", viewOnly: true },
+  { key: "dashboard-incomplete", label: "Vue d'ensemble · Dossiers incomplets (liste)", viewOnly: true },
+  { key: "dashboard-unpaid", label: "Vue d'ensemble · Restes à payer", viewOnly: true },
+  { key: "dashboard-trend", label: "Vue d'ensemble · Évolution sur 6 mois", viewOnly: true },
+  { key: "dashboard-prospects", label: "Vue d'ensemble · Carte Prospects actifs", viewOnly: true },
+  { key: "dashboard-applications", label: "Vue d'ensemble · Carte Demandes de bourse", viewOnly: true },
+  { key: "dashboard-applications-open", label: "Vue d'ensemble · Carte Demandes en cours", viewOnly: true },
+  { key: "dashboard-people", label: "Vue d'ensemble · Carte Effectif total", viewOnly: true },
+  { key: "dashboard-enrollments", label: "Vue d'ensemble · Carte Inscriptions", viewOnly: true },
+  { key: "dashboard-collected", label: "Vue d'ensemble · Carte Total encaissé", viewOnly: true },
+  { key: "dashboard-receivables", label: "Vue d'ensemble · Carte Reste à recouvrer", viewOnly: true },
+  { key: "dashboard-scholarship-types", label: "Vue d'ensemble · Effectifs par type de bourse", viewOnly: true },
+  { key: "dashboard-recent-applications", label: "Vue d'ensemble · Derniers dossiers de bourse", viewOnly: true },
+  { key: "dashboard-recent-enrollments", label: "Vue d'ensemble · Inscriptions récentes", viewOnly: true },
+  { key: "dashboard-incomplete-note", label: "Vue d'ensemble · Rappel des dossiers incomplets", viewOnly: true },
   { key: "scholarships", label: "Demandes de bourse" },
   { key: "enrollments", label: "Inscriptions" },
   { key: "certificates", label: "Certificats" },
@@ -36,8 +55,9 @@ export type AccessPermission = `view:${AccessArea}` | `edit:${AccessArea}`;
 
 // Une page ouverte à plusieurs rôles liste toutes les fonctionnalités qui y donnent accès.
 export const VIEW_ACCESS: Partial<Record<ViewName, AccessArea | AccessArea[]>> = {
-  // La vue d'ensemble est ouverte à tous : chacun y trouve son travail du jour ;
-  // les chiffres d'activité n'y apparaissent qu'avec le droit « Vue d'ensemble ».
+  // La vue d'ensemble est la page d'accueil de tous ; chacun n'y voit que les
+  // cartes et les blocs attribués à son poste.
+  "Résumé de la journée": "daily-summary",
   "Demandes de bourse": "scholarships",
   Inscriptions: "enrollments",
   Certificats: "certificates",
@@ -68,6 +88,10 @@ export const VIEW_ACCESS: Partial<Record<ViewName, AccessArea | AccessArea[]>> =
   Personnel: "hr",
   Paie: ["payroll", "payroll-approval"],
 };
+
+// Les rubriques servies par /rapports/synthese et /rapports/a-faire.
+export const DASHBOARD_FIGURE_AREAS: AccessArea[] = ["dashboard-trend", "dashboard-prospects", "dashboard-applications", "dashboard-applications-open", "dashboard-people", "dashboard-enrollments", "dashboard-collected", "dashboard-receivables", "dashboard-scholarship-types", "dashboard-recent-applications", "dashboard-recent-enrollments"];
+export const DASHBOARD_WORKLIST_AREAS: AccessArea[] = ["dashboard-followups", "dashboard-interviews", "dashboard-incomplete", "dashboard-unpaid"];
 
 export function hasAccess(user: User | null, area: AccessArea, mode: "view" | "edit" = "view") {
   return user?.role === "admin" || Boolean(user?.permissions?.includes(`${mode}:${area}`));

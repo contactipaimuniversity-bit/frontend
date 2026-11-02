@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  Application,
-  Enrollment,
   Summary,
   ScholarshipType,
   User,
@@ -13,15 +11,18 @@ import {
 import { WorklistPanel } from "@/components/worklist";
 import { navigateTo, pathForView } from "@/lib/routes";
 import { MyWorkPanel } from "@/components/my-work";
-import { hasAccess } from "@/lib/access";
+import { AccessArea, DASHBOARD_WORKLIST_AREAS, canAccessView, hasAccess } from "@/lib/access";
 import { Work } from "@/lib/work";
 
-const ADMISSIONS_WORK = ["prospects-a-relancer", "entretiens", "dossiers-incomplets"];
+// Tâches des admissions détaillées, avec les noms, par la liste de travail.
+const ADMISSIONS_WORK: Array<[string, AccessArea]> = [
+  ["prospects-a-relancer", "dashboard-followups"],
+  ["entretiens", "dashboard-interviews"],
+  ["dossiers-incomplets", "dashboard-incomplete"],
+];
 
 export function DashboardHome({
   summary,
-  applications,
-  enrollments,
   user,
   loading,
   onOpen,
@@ -32,8 +33,6 @@ export function DashboardHome({
   work,
 }: {
   summary: Summary | null;
-  applications: Application[];
-  enrollments: Enrollment[];
   user: User | null;
   loading: boolean;
   onOpen: (view: "Demandes de bourse" | "Inscriptions" | "Paiements") => void;
@@ -43,39 +42,46 @@ export function DashboardHome({
   refreshSignal: number;
   work: Work | null;
 }) {
-  const canViewActivity = hasAccess(user, "dashboard");
-  const cards = [
+  const sees = (area: AccessArea) => hasAccess(user, area);
+  const canOpenEnrollments = canAccessView(user, "Inscriptions");
+  const cards = ([
     {
+      area: "dashboard-prospects",
       label: "Prospects actifs",
       value: summary?.prospectsActifs ?? "--",
       detail: "À relancer ou déjà relancés",
       tone: "orange",
     },
     {
+      area: "dashboard-applications",
       label: "Demandes de bourse",
       value: summary?.demandesTotal ?? "--",
       detail: "Total des dossiers déposés",
       tone: "blue",
     },
     {
+      area: "dashboard-applications-open",
       label: "Demandes en cours",
       value: summary?.demandesEnCours ?? "--",
       detail: "À traiter ou en délibération",
       tone: "orange",
     },
     {
+      area: "dashboard-people",
       label: "Effectif total",
       value: summary?.effectifsTotal ?? "--",
       detail: "Personnes ayant une demande ou une inscription",
       tone: "violet",
     },
     {
+      area: "dashboard-enrollments",
       label: "Inscriptions",
       value: summary?.inscriptionsTotal ?? "--",
       detail: "Dossiers enregistrés",
       tone: "mint",
     },
     {
+      area: "dashboard-collected",
       label: "Total encaissé",
       value: summary
         ? `${Number(summary.totalEncaisse).toLocaleString("fr-FR")} F`
@@ -84,13 +90,18 @@ export function DashboardHome({
       tone: "violet",
     },
     {
+      area: "dashboard-receivables",
       label: "Reste à recouvrer",
       value: summary ? `${Number(summary.totalResteARecouvrer).toLocaleString("fr-FR")} F` : "--",
       detail: "Bourses + inscriptions",
       tone: "orange",
     },
-  ];
+  ] satisfies Array<{ area: AccessArea; label: string; value: string | number; detail: string; tone: string }>).filter((card) => sees(card.area));
   const scholarshipCounts = summary?.inscriptionsParType ?? [];
+  const recentApplications = summary?.dernieresDemandes ?? [];
+  const recentEnrollments = summary?.dernieresInscriptions ?? [];
+  // Rien d'attribué : on le dit plutôt que d'afficher une page vide.
+  const nothingAssigned = !sees("dashboard-my-work") && !sees("dashboard-trend") && !cards.length && !sees("dashboard-scholarship-types") && !sees("dashboard-recent-applications") && !sees("dashboard-recent-enrollments") && !sees("dashboard-incomplete-note") && !DASHBOARD_WORKLIST_AREAS.some(sees);
     const displayedScholarshipTypes = scholarshipTypes.length
       ? scholarshipTypes
       : scholarshipCounts.flatMap((item) => item.typeBourseId ? [{ id: item.typeBourseId, nom: item.typeBourse }] : []);
@@ -115,15 +126,15 @@ export function DashboardHome({
           </p>
         </div>
         <div className="welcome-actions">
-          {canViewActivity && <button className="daily-summary-trigger" onClick={onOpenDaily}>Voir le récapitulatif de la journée <span>→</span></button>}
+          {sees("daily-summary") && <button className="daily-summary-trigger" onClick={onOpenDaily}>Voir le récapitulatif de la journée <span>→</span></button>}
           {hasAccess(user, "scholarships", "edit") && <button className="primary-button compact" onClick={() => onOpen("Demandes de bourse")}>+ Nouvelle demande</button>}
         </div>
       </section>
+      {nothingAssigned && <p className="empty-state">Aucun élément de la vue d&apos;ensemble n&apos;est attribué à votre poste. Utilisez le menu pour accéder à vos rubriques.</p>}
       {/* Les tâches des admissions sont détaillées, avec les noms, juste en dessous. */}
-      <MyWorkPanel work={work} hidden={canViewActivity ? ADMISSIONS_WORK : []} />
-      {!canViewActivity ? null : <>
-      <WorklistPanel refreshSignal={refreshSignal} />
-      <section className="panel trend-panel">
+      {sees("dashboard-my-work") && <MyWorkPanel work={work} hidden={ADMISSIONS_WORK.filter(([, area]) => sees(area)).map(([key]) => key)} />}
+      {DASHBOARD_WORKLIST_AREAS.some(sees) && <WorklistPanel refreshSignal={refreshSignal} />}
+      {sees("dashboard-trend") && <section className="panel trend-panel">
         <div className="panel-heading">
           <div><p className="eyebrow">Évolution · 6 derniers mois</p><h3>Nombre de nouveaux dossiers par mois</h3><p className="trend-caption">Chaque point représente le nombre de demandes ou d&apos;inscriptions enregistrées pendant le mois.</p></div>
           <div className="trend-legend"><span className="trend-key applications-key">Demandes de bourse</span><span className="trend-key enrollments-key">Inscriptions</span></div>
@@ -153,8 +164,8 @@ export function DashboardHome({
             </svg>
           </div>
         ) : <p className="empty-state">Aucune tendance disponible.</p>}
-      </section>
-      <section className="stats-grid">
+      </section>}
+      {cards.length > 0 && <section className="stats-grid">
         {cards.map((card) => (
           <article className={`stat-card ${card.tone}`} key={card.label}>
             <div className="stat-top">
@@ -165,8 +176,8 @@ export function DashboardHome({
             <p>{card.detail}</p>
           </article>
         ))}
-      </section>
-      <section className="panel scholarship-type-panel">
+      </section>}
+      {sees("dashboard-scholarship-types") && <section className="panel scholarship-type-panel">
         <div className="panel-heading">
           <div>
             <p className="eyebrow">Répartition des étudiants</p>
@@ -183,6 +194,7 @@ export function DashboardHome({
                 <button
                   className="scholarship-type-card"
                   key={type.id}
+                  disabled={!canOpenEnrollments}
                   onClick={() => onOpenScholarship(type.id)}
                   aria-label={`${type.nom} : ${inscrits} inscrit(s), ${acceptesEnAttente} accepté(s) en attente d'inscription`}
                 >
@@ -199,20 +211,20 @@ export function DashboardHome({
         ) : (
           <p className="empty-state">Aucun type de bourse n&apos;est configuré dans les référentiels.</p>
         )}
-      </section>
-      <section className="dashboard-grid">
-        <article className="panel applications-panel">
+      </section>}
+      {(sees("dashboard-recent-applications") || sees("dashboard-recent-enrollments")) && <section className="dashboard-grid">
+        {sees("dashboard-recent-applications") && <article className="panel applications-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Derniers dossiers</p>
               <h3>Demandes de bourse</h3>
             </div>
-            <button
+            {canAccessView(user, "Demandes de bourse") && <button
               className="text-button"
               onClick={() => onOpen("Demandes de bourse")}
             >
               Voir tout <span>→</span>
-            </button>
+            </button>}
           </div>
           <div className="table-wrap">
             <table>
@@ -225,7 +237,7 @@ export function DashboardHome({
                 </tr>
               </thead>
               <tbody>
-                {applications.slice(0, 5).map((item) => (
+                {recentApplications.map((item) => (
                   <tr key={item.id}>
                     <td>
                       <div className="person-cell">
@@ -246,7 +258,7 @@ export function DashboardHome({
                     <td>{formatDate(item.dateDepot)}</td>
                   </tr>
                 ))}
-                {!applications.length && (
+                {!recentApplications.length && (
                   <tr>
                     <td colSpan={4} className="empty-state">
                       Aucune demande à afficher.
@@ -256,8 +268,8 @@ export function DashboardHome({
               </tbody>
             </table>
           </div>
-        </article>
-        <article className="panel activity-panel">
+        </article>}
+        {sees("dashboard-recent-enrollments") && <article className="panel activity-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">Suivi rapide</p>
@@ -266,7 +278,7 @@ export function DashboardHome({
             <span className="panel-dot">●</span>
           </div>
           <div className="activity-list">
-            {enrollments.slice(0, 4).map((item) => (
+            {recentEnrollments.map((item) => (
               <div className="activity-item" key={item.id}>
                 <span className="activity-avatar">
                   {fullName(item.personne).slice(0, 1)}
@@ -282,19 +294,19 @@ export function DashboardHome({
                 </span>
               </div>
             ))}
-            {!enrollments.length && (
+            {!recentEnrollments.length && (
               <p className="empty-state">Aucune inscription à afficher.</p>
             )}
           </div>
-          <button
+          {canOpenEnrollments && <button
             className="outline-button"
             onClick={() => onOpen("Inscriptions")}
           >
             Gérer les inscriptions <span>→</span>
-          </button>
-        </article>
-      </section>
-      <section className="bottom-note">
+          </button>}
+        </article>}
+      </section>}
+      {sees("dashboard-incomplete-note") && <section className="bottom-note">
         <span className="note-icon">!</span>
         <div>
           <strong>Gardez un œil sur les dossiers incomplets</strong>
@@ -302,11 +314,10 @@ export function DashboardHome({
             Le rapport des pièces manquantes vous aide à prioriser les relances.
           </p>
         </div>
-        <button className="text-button" onClick={() => navigateTo(`${pathForView("Rapports")}?vue=pieces`)}>
+        {canAccessView(user, "Rapports") && <button className="text-button" onClick={() => navigateTo(`${pathForView("Rapports")}?vue=pieces`)}>
           Ouvrir le rapport des pièces manquantes <span>→</span>
-        </button>
-      </section>
-      </>}
+        </button>}
+      </section>}
     </div>
   );
 }

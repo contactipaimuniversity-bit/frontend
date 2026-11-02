@@ -6,11 +6,12 @@ import { navigateTo, pathForDossier, pathForView } from "@/lib/routes";
 import { Person, ViewName, formatDate, formatMoney, fullName } from "@/lib/types";
 
 type DossierItem = { dossierType: "demande-bourse" | "inscription"; dossierId: string; personne?: Person };
+// Le serveur n'envoie que les listes attribuées à l'utilisateur.
 type Worklist = {
-  relances: { total: number; items: Array<{ id: string; personne?: Person; filiere?: string | null; rappel?: string | null; dernierEchange?: string | null }> };
-  entretiens: { total: number; items: Array<DossierItem & { date?: string | null; equipe?: string | null }> };
-  incomplets: { total: number; items: Array<DossierItem & { manquants: number }> };
-  impayes: { total: number; montant: string; items: Array<DossierItem & { reste: string }> };
+  relances?: { total: number; items: Array<{ id: string; personne?: Person; filiere?: string | null; rappel?: string | null; dernierEchange?: string | null }> };
+  entretiens?: { total: number; items: Array<DossierItem & { date?: string | null; equipe?: string | null }> };
+  incomplets?: { total: number; items: Array<DossierItem & { manquants: number }> };
+  impayes?: { total: number; montant: string; items: Array<DossierItem & { reste: string }> };
 };
 
 const dossierLabel = (item: DossierItem) => (item.dossierType === "demande-bourse" ? "Demande de bourse" : "Inscription");
@@ -52,26 +53,26 @@ export function WorklistPanel({ refreshSignal }: { refreshSignal: number }) {
     <section className="worklist" aria-label="Admissions : le détail">
       <p className="eyebrow">Admissions · le détail</p>
       <div className="worklist-grid">
-        <Card title="Prospects à relancer" total={worklist.relances.total} empty="Aucune relance en attente." moreLabel="Voir les prospects" moreView="Prospects">
+        {worklist.relances && <Card title="Prospects à relancer" total={worklist.relances.total} empty="Aucune relance en attente." moreLabel="Voir les prospects" moreView="Prospects">
           {worklist.relances.items.map((item) => (
             <Item key={item.id} title={fullName(item.personne)} detail={item.rappel ? `Rappel prévu le ${formatDate(item.rappel)}` : item.dernierEchange ? `Dernier échange le ${formatDate(item.dernierEchange)}` : "Jamais relancé"} onOpen={() => navigateTo(pathForView("Prospects"))} />
           ))}
-        </Card>
-        <Card title="Entretiens sous 7 jours" total={worklist.entretiens.total} empty="Aucun entretien programmé cette semaine." moreLabel="Voir les demandes" moreView="Demandes de bourse">
+        </Card>}
+        {worklist.entretiens && <Card title="Entretiens sous 7 jours" total={worklist.entretiens.total} empty="Aucun entretien programmé cette semaine." moreLabel="Voir les demandes" moreView="Demandes de bourse">
           {worklist.entretiens.items.map((item) => (
             <Item key={item.dossierId} title={fullName(item.personne)} detail={[item.date ? new Date(item.date).toLocaleString("fr-FR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : null, item.equipe].filter(Boolean).join(" · ")} onOpen={() => openDossier(item)} />
           ))}
-        </Card>
-        <Card title="Dossiers incomplets" total={worklist.incomplets.total} empty="Tous les dossiers sont complets." moreLabel="Voir le rapport" moreView="Rapports" moreSection="pieces">
+        </Card>}
+        {worklist.incomplets && <Card title="Dossiers incomplets" total={worklist.incomplets.total} empty="Tous les dossiers sont complets." moreLabel="Voir le rapport" moreView="Rapports" moreSection="pieces">
           {worklist.incomplets.items.map((item) => (
             <Item key={item.dossierId} title={fullName(item.personne)} detail={`${dossierLabel(item)} · ${item.manquants} pièce${item.manquants > 1 ? "s" : ""} à fournir`} onOpen={() => openDossier(item)} />
           ))}
-        </Card>
-        <Card title="Restes à payer" total={worklist.impayes.total} tone="alert" empty="Aucun reste à payer." moreLabel={`${formatMoney(worklist.impayes.montant)} à recouvrer`} moreView="Paiements">
+        </Card>}
+        {worklist.impayes && <Card title="Restes à payer" total={worklist.impayes.total} tone="alert" empty="Aucun reste à payer." moreLabel={`${formatMoney(worklist.impayes.montant)} à recouvrer`} moreView="Paiements">
           {worklist.impayes.items.map((item) => (
             <Item key={item.dossierId} title={fullName(item.personne)} detail={`${dossierLabel(item)} · reste ${formatMoney(item.reste)}`} onOpen={() => openDossier(item)} />
           ))}
-        </Card>
+        </Card>}
       </div>
     </section>
   );

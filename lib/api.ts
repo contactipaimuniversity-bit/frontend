@@ -480,9 +480,11 @@ async function prefetchOfflineData(force: boolean | "complet") {
   const since = fullDue ? "" : remembered(":serveur") ?? "";
   const changes = await apiFetch<Changes>(`/synchronisation/changements?depuis=${encodeURIComponent(since)}`, { skipCache: true }).catch(() => null);
 
+  // Mêmes règles que le backend (auth/access-control.ts) pour ces deux catalogues.
+  const seesCatalog = can("references") || can("scholarships") || can("enrollments") || can("payments");
   const [, , applications, enrollments, prospects] = await Promise.allSettled([
-    apiFetch<unknown[]>("/elements-requis"),
-    apiFetch<unknown[]>("/types-bourse"),
+    seesCatalog ? apiFetch<unknown[]>("/elements-requis") : none,
+    seesCatalog ? apiFetch<unknown[]>("/types-bourse") : none,
     can("scholarships") || can("payments") || can("certificates") ? loadDossierIds("demandes-bourse") : none,
     can("enrollments") || can("payments") || can("certificates") ? loadDossierIds("inscriptions") : none,
     can("prospects") ? loadDossierIds("prospects") : none,

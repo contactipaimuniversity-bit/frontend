@@ -5,8 +5,10 @@ import { HubBack, HubCard, HubCards, PageBar, usePaged, useHubSection } from "@/
 import { listPdf } from "@/lib/pdf-docs";
 import { ActionIcon } from "@/components/action-icon";
 import { FormEvent, useEffect, useState } from "react";
+import { hasAccess } from "@/lib/access";
 import { apiFetch } from "@/lib/api";
 import { confirmNewPerson } from "@/lib/duplicates";
+import { currentUser } from "@/lib/session";
 import { logPrint } from "@/lib/print-log";
 import { navigateTo, pathForDossier, pathForPerson } from "@/lib/routes";
 import { ModalChoice } from "@/components/modal-choice";
@@ -250,6 +252,7 @@ export function PeoplePage({
   const [searchDraft, setSearchDraft] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const canEdit = hasAccess(currentUser(), "people", "edit");
   const open = (next: typeof modal, person?: Person) => {
     setSelected(person);
     setDeleteError("");
@@ -284,12 +287,12 @@ export function PeoplePage({
           <h2>Personnes</h2>
           <p>Centralisez les candidats, étudiants et responsables.</p>
         </div>
-        <button
+        {canEdit && <button
           className="primary-button compact"
           onClick={() => open("create")}
         >
           + Nouvelle personne
-        </button>
+        </button>}
       </div>
       <section className="panel full-panel">
         <div className="panel-heading">
@@ -350,12 +353,14 @@ export function PeoplePage({
                     <button
                       className="row-action icon-action"
                       onClick={() => navigateTo(pathForPerson(person.id))} aria-label="Ouvrir la fiche complète"><ActionIcon name="history" /></button>
-                    <button
-                      className="row-action icon-action"
-                      onClick={() => open("edit", person)} aria-label="Modifier"><ActionIcon name="edit" /></button>
-                    <button
-                      className="row-action icon-action danger-row-action"
-                      onClick={() => open("delete", person)} aria-label="Supprimer"><ActionIcon name="delete" /></button>
+                    {canEdit && <>
+                      <button
+                        className="row-action icon-action"
+                        onClick={() => open("edit", person)} aria-label="Modifier"><ActionIcon name="edit" /></button>
+                      <button
+                        className="row-action icon-action danger-row-action"
+                        onClick={() => open("delete", person)} aria-label="Supprimer"><ActionIcon name="delete" /></button>
+                    </>}
                   </td>
                 </tr>
               ))}
@@ -746,6 +751,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
   const [deleteReason, setDeleteReason] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const canEdit = hasAccess(currentUser(), "references", "edit");
   const load = async () => {
     try {
       const [elementData, typeData] = await Promise.all([
@@ -816,7 +822,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
           <h2>Référentiels</h2>
           <p>Paramétrez les pièces exigées et les plans de bourse.</p>
         </div>
-        <div className="toolbar">
+        {canEdit && <div className="toolbar">
           <button
             className="outline-button small"
             onClick={() => {
@@ -835,7 +841,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
           >
             + Type de bourse
           </button>
-        </div>
+        </div>}
       </div>
       <ErrorMessage error={error} />
       {!section && <HubCards cards={referenceCards} onOpen={setSection} />}
@@ -868,19 +874,21 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                     <td>{item.contexte}</td>
                     <td>{item.obligatoire ? "Oui" : "Non"}</td>
                     <td>
-                      <button
-                        className="row-action icon-action"
-                        onClick={() => {
-                          setSelectedElement(item);
-                          setModal("element");
-                        }} aria-label="Modifier"><ActionIcon name="edit" /></button>
-                      <button
-                        className="row-action icon-action danger-row-action"
-                        onClick={() => {
-                          setDeleteError("");
-                          setDeleteReason("");
-                          setDeleteTarget({ kind: "element", id: item.id, label: item.nom, dossiers: item._count?.elementsDossier });
-                        }} aria-label="Mettre à la corbeille"><ActionIcon name="delete" /></button>
+                      {canEdit && <>
+                        <button
+                          className="row-action icon-action"
+                          onClick={() => {
+                            setSelectedElement(item);
+                            setModal("element");
+                          }} aria-label="Modifier"><ActionIcon name="edit" /></button>
+                        <button
+                          className="row-action icon-action danger-row-action"
+                          onClick={() => {
+                            setDeleteError("");
+                            setDeleteReason("");
+                            setDeleteTarget({ kind: "element", id: item.id, label: item.nom, dossiers: item._count?.elementsDossier });
+                          }} aria-label="Mettre à la corbeille"><ActionIcon name="delete" /></button>
+                      </>}
                     </td>
                   </tr>
                 ))}
@@ -912,7 +920,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                     <strong>{type.nom}</strong>
                     <small>{type.echeances?.length ? `${type.echeances.length} échéance(s)` : "Aucune échéance configurée"}</small>
                   </div>
-                  <div className="scholarship-card-actions">
+                  {canEdit && <div className="scholarship-card-actions">
                     <button
                       className="row-action icon-action"
                       onClick={() => {
@@ -926,7 +934,7 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                         setDeleteReason("");
                         setDeleteTarget({ kind: "scholarship", id: type.id, label: type.nom });
                       }} aria-label="Mettre à la corbeille"><ActionIcon name="delete" /></button>
-                  </div>
+                  </div>}
                 </header>
                 <dl className="scholarship-figures">
                   <div><dt>Frais d&apos;inscription</dt><dd>{formatMoney(type.fraisInscription)}</dd></div>
@@ -942,9 +950,9 @@ export function ReferencesPage({ onRefresh }: { onRefresh: () => void }) {
                       </li>
                     ))}
                   </ol>
-                ) : (
+                ) : canEdit ? (
                   <button type="button" className="scholarship-empty" onClick={() => { setSelectedType(type); setModal("schedule"); }}>+ Ajouter la première échéance</button>
-                )}
+                ) : null}
               </article>
             ))}
             {!types.length && (

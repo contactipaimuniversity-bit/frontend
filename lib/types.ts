@@ -21,7 +21,12 @@ export type PersonPage = {
   data: Person[];
   meta: { page: number; limit: number; total: number; totalPages: number };
 };
-export type Summary = {
+// Le serveur n'envoie que les cartes attribuées à l'utilisateur.
+export type Summary = Partial<SummaryFigures> & {
+  dernieresDemandes?: Array<{ id: string; filiereSouhaitee: string; statut: string; dateDepot: string; personne?: Pick<Person, "nom" | "prenom"> }>;
+  dernieresInscriptions?: Array<{ id: string; filiere: string; anneeScolaire: string; dateInscription: string; personne?: Pick<Person, "nom" | "prenom"> }>;
+};
+type SummaryFigures = {
   prospectsActifs: number;
   demandesEnCours: number;
   demandesTotal: number;
@@ -300,7 +305,7 @@ export const formatDate = (date?: string) =>
     : "-";
 export const formatMoney = (value: string | number) =>
   `${Number(value).toLocaleString("fr-FR", { minimumFractionDigits: 0 })} F`;
-export const fullName = (person?: Person) =>
+export const fullName = (person?: Pick<Person, "nom" | "prenom">) =>
   person ? `${person.prenom} ${person.nom}` : "Personne inconnue";
 // Les polices standard des PDF ne connaissent pas les espaces insécables du format fr-FR :
 // sans ce remplacement, les montants s'impriment avec des caractères parasites.

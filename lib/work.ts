@@ -26,7 +26,7 @@ const at = (view: ViewName, section?: string) => `${pathForView(view)}${section 
 const item = (key: string, label: string, detail: string, count: number, view: ViewName, tone: WorkItem["tone"], section?: string): WorkItem => ({ key, label, detail, count, view, path: at(view, section), tone });
 
 type ExpenseCounters = { brouillons: number; rejetees: number; aValider: number; aExecuter: number };
-type AFaire = { relances: { total: number }; entretiens: { total: number }; incomplets: { total: number } };
+type AFaire = { relances?: { total: number }; entretiens?: { total: number }; incomplets?: { total: number } };
 type AcademicToday = {
   cours: { aPointer: number } | null;
   evaluations: { aValider: unknown[]; enRetard: unknown[]; fichesAGenerer: unknown[] } | null;
@@ -72,13 +72,13 @@ const SOURCES: Source[] = [
     },
   },
   {
-    areas: ["dashboard"],
+    areas: ["dashboard-followups", "dashboard-interviews", "dashboard-incomplete"],
     load: async () => {
       const todo = await apiFetch<AFaire>("/rapports/a-faire", { skipCache: true });
       return [
-        item("prospects-a-relancer", "Prospects à relancer", "rappel prévu aujourd'hui ou dépassé", todo.relances.total, "Prospects", "warn"),
-        item("entretiens", "Entretiens sous 7 jours", "candidats à recevoir", todo.entretiens.total, "Demandes de bourse", "info"),
-        item("dossiers-incomplets", "Dossiers incomplets", "pièces encore manquantes", todo.incomplets.total, "Rapports", "info", "pieces"),
+        item("prospects-a-relancer", "Prospects à relancer", "rappel prévu aujourd'hui ou dépassé", todo.relances?.total ?? 0, "Prospects", "warn"),
+        item("entretiens", "Entretiens sous 7 jours", "candidats à recevoir", todo.entretiens?.total ?? 0, "Demandes de bourse", "info"),
+        item("dossiers-incomplets", "Dossiers incomplets", "pièces encore manquantes", todo.incomplets?.total ?? 0, "Rapports", "info", "pieces"),
       ];
     },
   },
