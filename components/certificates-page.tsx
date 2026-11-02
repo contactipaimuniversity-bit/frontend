@@ -38,6 +38,8 @@ function isPaid(balance: Balance) {
   return Number(balance.montantAttenduCumule) > 0 && Number(balance.resteAPayer) <= 0;
 }
 
+
+// Revérifie un seul dossier au moment d'éditer son certificat.
 async function loadEnrollmentBalance(enrollmentId: string): Promise<Balance> {
   const finance = await apiFetch<ApplicationFinance>(`/inscriptions/${enrollmentId}/finance`);
   return {
@@ -423,31 +425,21 @@ export function CertificatesPage({ refreshSignal, dateOrder, onDateOrderChange }
       setLoading(true);
       setError("");
       try {
-        const [accepted, enrollments] = await Promise.all([
+        // Tous les soldes arrivent d'un seul appel, en même temps que les listes.
+        const [accepted, enrollments, balances] = await Promise.all([
           fetchAllPages<Application>(`/demandes-bourse?statut=ACCEPTEE&ordreDate=${dateOrder}`),
           fetchAllPages<Enrollment>(`/inscriptions?ordreDate=${dateOrder}`),
+          apiFetch<Array<Balance & { inscriptionId: string }>>("/inscriptions/soldes"),
         ]);
-        const candidates = enrollments.filter((item) => item.statut !== "ABANDONNEE");
-        const eligible: PaidEnrollment[] = [];
-        let failedChecks = 0;
-        for (let index = 0; index < candidates.length; index += 8) {
-          const results = await Promise.all(
-            candidates.slice(index, index + 8).map(async (enrollment) => {
-              try {
-                const balance = await loadEnrollmentBalance(enrollment.id);
-                return isPaid(balance) ? { enrollment, balance } : null;
-              } catch {
-                failedChecks += 1;
-                return null;
-              }
-            }),
-          );
-          eligible.push(...results.filter((item): item is PaidEnrollment => item !== null));
-        }
+        const balanceOf = new Map(balances.map((item) => [item.inscriptionId, item]));
+        const eligible = enrollments.flatMap((enrollment) => {
+          const balance = enrollment.statut === "ABANDONNEE" ? undefined : balanceOf.get(enrollment.id);
+          return balance && isPaid(balance) ? [{ enrollment, balance }] : [];
+        });
         if (active) {
           setApplications(accepted.filter((item) => item.typeBourse));
           setPaidEnrollments(eligible);
-          setVerificationErrors(failedChecks);
+          setVerificationErrors(0);
         }
       } catch (failure) {
         if (active) setError(failure instanceof Error ? failure.message : "Impossible de charger les certificats.");
