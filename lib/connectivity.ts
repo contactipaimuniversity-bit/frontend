@@ -4,7 +4,8 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000
 // courant côté serveur, le Wi-Fi reste souvent allumé : on sonde donc le serveur
 // lui-même pour savoir s'il faut travailler sur les données locales.
 const PROBE_INTERVAL_MS = 15_000;
-const PROBE_TIMEOUT_MS = 4_000;
+// Assez large pour qu'un serveur simplement lent ne passe pas pour une panne.
+const PROBE_TIMEOUT_MS = 8_000;
 let serverDown = false;
 let probing: Promise<boolean> | null = null;
 let probeTimer: number | undefined;

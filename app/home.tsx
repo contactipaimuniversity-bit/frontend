@@ -436,10 +436,12 @@ export default function Home() {
     reload();
     const intervalId = window.setInterval(reload, RIGHTS_REFRESH_MS);
     window.addEventListener("focus", reload);
+    window.addEventListener("ipaim-server-online", reload);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener("focus", reload);
+      window.removeEventListener("ipaim-server-online", reload);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [token, refreshKey]);
