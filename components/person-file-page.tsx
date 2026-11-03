@@ -139,7 +139,7 @@ export function PersonFilePage({ personId, user, refreshSignal }: { personId: st
                     <td>{amounts ? (amounts.reste > 0 ? <Badge tone="bad">{formatMoney(amounts.reste)}</Badge> : <Badge tone="ok">Soldé</Badge>) : "—"}</td>
                     <td className="action-group">
                       {canOpen(dossier) && <button className="row-action" onClick={() => navigateTo(pathForDossier({ type: dossier.type, id: dossier.id }))}>Ouvrir le dossier</button>}
-                      {canPrintCard && dossier.inClass && dossier.statut !== "ABANDONNEE" && <button className="row-action" disabled={printing} onClick={() => void printCard(dossier.id)}>Carte d&apos;étudiant</button>}
+                      {canPrintCard && (dossier.inClass || Boolean(person?.matricule)) && dossier.statut !== "ABANDONNEE" && <button className="row-action" disabled={printing} onClick={() => void printCard(dossier.id)}>Carte d&apos;étudiant</button>}
                     </td>
                   </tr>
                 );

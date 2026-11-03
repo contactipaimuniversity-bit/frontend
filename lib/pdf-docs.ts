@@ -85,7 +85,8 @@ function table(pdf: Pdf, y: number, columns: Array<{ label: string; width: numbe
 export type PdfColumn = { label: string; width: number; align?: "right" | "center" };
 
 // Export d'une liste en PDF paysage : le texte long passe à la ligne au lieu d'être coupé.
-export async function tablePdf(options: { title: string; subtitle: string; columns: PdfColumn[]; rows: Array<Array<string | number | null | undefined>>; fileName: string }) {
+// groupRows : lignes d'intitulé (un pôle, une classe…) écrites en gras sur toute la largeur.
+export async function tablePdf(options: { title: string; subtitle: string; columns: PdfColumn[]; rows: Array<Array<string | number | null | undefined>>; fileName: string; groupRows?: number[] }) {
   const pdf = await createPdf(true);
   const height = pdf.internal.pageSize.getHeight();
   const { columns } = options;
@@ -106,7 +107,21 @@ export async function tablePdf(options: { title: string; subtitle: string; colum
   };
   header(pdf, options.title, options.subtitle);
   drawHead();
+  const groupRows = new Set(options.groupRows ?? []);
   options.rows.forEach((row, rowIndex) => {
+    if (groupRows.has(rowIndex)) {
+      if (y + 16 > height - 16) {
+        footer(pdf);
+        pdf.addPage();
+        y = 18;
+        drawHead();
+      }
+      pdf.setFillColor(226, 232, 245).rect(x, y, total, 7, "F");
+      pdf.setFont("helvetica", "bold").setFontSize(8.5).text(pdfSafe(String(row[0] ?? "")), x + 2, y + 4.8);
+      pdf.setFont("helvetica", "normal").setFontSize(8);
+      y += 7;
+      return;
+    }
     const cells = columns.map((column, index) => (pdf.splitTextToSize(pdfSafe(String(row[index] ?? "")), column.width - 4) as string[]).slice(0, 6));
     const rowHeight = Math.max(1, ...cells.map((lines) => lines.length)) * 3.6 + 2.6;
     if (y + rowHeight > height - 16) {

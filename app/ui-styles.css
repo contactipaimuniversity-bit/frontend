@@ -126,6 +126,13 @@
 .tuition-choices small { color: var(--muted); }
 .tuition-price { width: 110px; }
 .tuition-preview { padding: 10px 12px; color: var(--ink); background: color-mix(in srgb, var(--teal) 10%, transparent); border-radius: 8px; }
+/* Liste des inscrits : filtres sur plusieurs colonnes, colonnes à cocher, aperçu défilant. */
+.students-list-filters { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.students-list-columns { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.students-list-columns legend { padding: 0 6px; color: var(--muted); font-size: var(--text-xs); font-weight: 700; }
+.students-list-columns label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
+.students-list-columns input { accent-color: var(--teal); }
+.students-list-preview { max-height: 46vh; overflow: auto; }
 /* Listes regroupées par pôle : un intitulé par pôle, puis ses lignes. */
 .pole-group + .pole-group { margin-top: 22px; }
 .pole-group-heading { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; font-size: 1rem; color: var(--ink); }
