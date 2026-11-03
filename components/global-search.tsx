@@ -33,27 +33,30 @@ const EXPENSE_AREAS = ["expenses", "expense-approval", "expense-final-approval",
 
 // Une seule case pour tout retrouver : personnes, reçus, états de besoin, employés...
 // Chaque rubrique n'est interrogée que si l'utilisateur y a accès.
-async function search(query: string, user: User | null): Promise<Result[]> {
+async function search(query: string, user: User | null): Promise<{ results: Result[]; failed: boolean }> {
   const q = encodeURIComponent(query);
+  // Une rubrique qui ne répond pas est signalée : son silence ne veut pas dire « rien trouvé ».
+  let failed = false;
+  const echec = () => { failed = true; return null; };
   const options = { skipCache: true } as const;
   const can = (area: Parameters<typeof hasAccess>[1]) => hasAccess(user, area);
   const seesPeople = canOpenPersonFile(user);
   const seesExpenses = EXPENSE_AREAS.some(can);
   const expenseView = (["États de besoin", "Validation des dépenses", "Exécution des dépenses"] as const).find((view) => canAccessView(user, view));
   const [people, students, applications, enrollments, prospects, future, receipts, expenses, employees, suppliers] = await Promise.all([
-    seesPeople ? apiFetch<{ data: Person[] }>(`/personnes?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(() => null) : null,
-    !seesPeople && (can("academics") || can("deliberations")) ? apiFetch<StudentHit[]>(`/deliberations/etudiants?q=${q}`, options).catch(() => null) : null,
+    seesPeople ? apiFetch<{ data: Person[] }>(`/personnes?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(echec) : null,
+    !seesPeople && (can("academics") || can("deliberations")) ? apiFetch<StudentHit[]>(`/deliberations/etudiants?q=${q}`, options).catch(echec) : null,
     // Sans la fiche personne, on retombe sur les dossiers eux-mêmes.
-    !seesPeople && can("scholarships") ? apiFetch<ApplicationPage>(`/demandes-bourse?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(() => null) : null,
-    !seesPeople && can("enrollments") ? apiFetch<EnrollmentPage>(`/inscriptions?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(() => null) : null,
-    can("prospects") ? apiFetch<ProspectPage>(`/prospects?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(() => null) : null,
-    can("prospects") ? apiFetch<{ data: FutureStudentHit[] }>(`/futurs-etudiants?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(() => null) : null,
-    can("payments") ? apiFetch<ReceiptHit[]>(`/paiements?q=${q}&limit=${PER_GROUP}`, options).catch(() => null) : null,
-    seesExpenses ? apiFetch<{ data: ExpenseSummary[] }>(`/depenses?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(() => null) : null,
-    can("hr") || can("payroll") ? apiFetch<{ data: EmployeeHit[] }>(`/rh/employes?limit=${PER_GROUP}&q=${q}`, options).catch(() => null) : null,
-    can("finance-settings") ? apiFetch<Supplier[]>("/finances/fournisseurs", options).catch(() => null) : null,
+    !seesPeople && can("scholarships") ? apiFetch<ApplicationPage>(`/demandes-bourse?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(echec) : null,
+    !seesPeople && can("enrollments") ? apiFetch<EnrollmentPage>(`/inscriptions?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(echec) : null,
+    can("prospects") ? apiFetch<ProspectPage>(`/prospects?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(echec) : null,
+    can("prospects") ? apiFetch<{ data: FutureStudentHit[] }>(`/futurs-etudiants?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(echec) : null,
+    can("payments") ? apiFetch<ReceiptHit[]>(`/paiements?q=${q}&limit=${PER_GROUP}`, options).catch(echec) : null,
+    seesExpenses ? apiFetch<{ data: ExpenseSummary[] }>(`/depenses?page=1&limit=${PER_GROUP}&q=${q}`, options).catch(echec) : null,
+    can("hr") || can("payroll") ? apiFetch<{ data: EmployeeHit[] }>(`/rh/employes?limit=${PER_GROUP}&q=${q}`, options).catch(echec) : null,
+    can("finance-settings") ? apiFetch<Supplier[]>("/finances/fournisseurs", options).catch(echec) : null,
   ]);
-  return [
+  const results: Result[] = [
     // Une personne mène à sa fiche unique : dossiers, paiements, scolarité.
     ...take(people?.data).map((item) => ({
       key: `personne:${item.id}`,
@@ -136,11 +139,13 @@ async function search(query: string, user: User | null): Promise<Result[]> {
       path: `${pathForView("Futurs étudiants")}?q=${encodeURIComponent(item.nom)}`,
     })),
   ];
+  return { results, failed };
 }
 
 export function GlobalSearch({ user }: { user: User | null }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Result[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [loadedQuery, setLoadedQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -155,7 +160,8 @@ export function GlobalSearch({ user }: { user: User | null }) {
     const timer = window.setTimeout(() => {
       void search(term, user).then((found) => {
         if (!active) return;
-        setResults(found);
+        setResults(found.results);
+        setFailed(found.failed);
         setLoadedQuery(term);
         setActiveIndex(0);
       });
@@ -225,7 +231,8 @@ export function GlobalSearch({ user }: { user: User | null }) {
       {open && term.length >= 2 && (
         <div className="global-search-panel" id="global-search-results" role="listbox">
           {loading && !visible.length && <p className="global-search-empty">Recherche…</p>}
-          {!loading && !visible.length && <p className="global-search-empty">Rien ne correspond à « {term} ».</p>}
+          {!loading && !visible.length && !failed && <p className="global-search-empty">Rien ne correspond à « {term} ».</p>}
+          {!loading && failed && <p className="global-search-empty">Le serveur n&apos;a pas répondu pour une partie de la recherche : réessayez dans un instant.</p>}
           {visible.map((result, index) => (
             <div key={result.key}>
               {(index === 0 || visible[index - 1].group !== result.group) && <p className="global-search-group">{result.group}</p>}

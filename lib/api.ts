@@ -23,7 +23,9 @@ export class ApiError extends Error {
   }
 }
 
-const GET_TIMEOUT_MS = 5000;
+// Assez long pour un serveur qui se réveille : trop court, une lecture lente faisait
+// passer l'application hors ligne, et les saisies suivantes restaient en attente sur l'appareil.
+const GET_TIMEOUT_MS = 15000;
 const PREFETCH_INTERVAL_MS = 5 * 60 * 1000;
 // Un téléchargement complet par jour ; entre deux, seuls les dossiers modifiés sont relus.
 const FULL_PREFETCH_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -342,7 +344,8 @@ export async function apiFetch<T>(
     if (wasAborted(options.signal)) throw failure;
     // Panne possible du serveur : la sonde confirme et bascule l'application en mode local.
     void checkServer();
-    if (method === "GET") {
+    // Une recherche ne retombe pas sur une ancienne copie : elle ne montrerait pas ce qui vient d'être saisi.
+    if (method === "GET" && !options.skipCache) {
       const cached = await getCachedGet<T>(path, token);
       if (cached !== undefined) return cached;
     }

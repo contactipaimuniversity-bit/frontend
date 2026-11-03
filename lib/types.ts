@@ -22,7 +22,9 @@ export type PersonPage = {
   meta: { page: number; limit: number; total: number; totalPages: number };
 };
 // Le serveur n'envoie que les cartes attribuées à l'utilisateur.
-export type TuitionLine = { id: string; libelle: string; dateLimite?: string | null; ordre: number; montant: number; paye: number; reste: number; fraisAnnexeId?: string | null };
+// Exception accordée sur une ligne : exonération, réduction en % ou montant fixé.
+export type TuitionException = { id: string; mode: "EXONERATION" | "POURCENTAGE" | "MONTANT"; valeur: number | null; montantInitial: number; motif: string; parNom: string; le: string };
+export type TuitionLine = { id: string; libelle: string; dateLimite?: string | null; ordre?: number; montant: number; paye: number; reste: number; fraisAnnexeId?: string | null; exception?: TuitionException | null };
 export type TuitionPlan = {
   inscriptionId: string;
   anneeScolaire: string;
@@ -32,6 +34,8 @@ export type TuitionPlan = {
   bourseRetiree: boolean;
   mensualites: TuitionLine[];
   annexes: TuitionLine[];
+  fraisInscription: TuitionLine[];
+  tropPercu: number;
   resteMensualites: number;
   resteAnnexes: number;
   resteTotal: number;
@@ -328,6 +332,8 @@ export const statusLabels: Record<string, string> = {
   FRAIS_DEPOT: "Frais de dépôt",
   FRAIS_INSCRIPTION: "Frais d'inscription",
   ECHEANCE_BOURSE: "Échéance de bourse",
+  MENSUALITE: "Scolarité mensuelle",
+  FRAIS_ANNEXE: "Frais annexe",
   REMBOURSEMENT: "Remboursement",
   REPORT: "Report de trop-perçu",
   ANNULATION: "Annulation d'un encaissement",
@@ -344,6 +350,9 @@ export const formatDate = (date?: string) =>
     : "-";
 export const formatMoney = (value: string | number) =>
   `${Number(value).toLocaleString("fr-FR", { minimumFractionDigits: 0 })} F`;
+// Le badge d'une exception : « Exonéré », « −50 % » ou « fixé à 20 000 F ».
+export const tuitionExceptionLabel = (exception: TuitionException) =>
+  exception.mode === "EXONERATION" ? "Exonéré" : exception.mode === "POURCENTAGE" ? `−${exception.valeur ?? 0} %` : `fixé à ${formatMoney(exception.valeur ?? 0)}`;
 export const fullName = (person?: Pick<Person, "nom" | "prenom">) =>
   person ? `${person.prenom} ${person.nom}` : "Personne inconnue";
 // Les polices standard des PDF ne connaissent pas les espaces insécables du format fr-FR :

@@ -51,6 +51,7 @@ import {
   fullName,
   statusLabels,
   TuitionPlan,
+  tuitionExceptionLabel,
 } from "@/lib/types";
 
 function Modal({
@@ -1635,6 +1636,8 @@ function situationHeadline(situation: DossierSituation) {
 
 // Ce qu'il reste à payer sur l'année, affiché sur le reçu.
 const tuitionRemaining = (plan: TuitionPlan) => [...plan.mensualites, ...plan.annexes].filter((ligne) => ligne.reste > 0);
+// Le reçu montre le montant après exception, et le dit.
+const tuitionLineName = (ligne: TuitionPlan["mensualites"][number]) => ligne.exception ? `${ligne.libelle} (exception · ${tuitionExceptionLabel(ligne.exception)})` : ligne.libelle;
 
 async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation: DossierSituation | null, plan: TuitionPlan | null) {
   const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadReceiptLogo()]);
@@ -1866,7 +1869,7 @@ async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation:
         pdf.setTextColor(36, 51, 76);
         pdf.setFont("helvetica", "normal");
         pdf.setFontSize(8.5);
-        pdf.text(pdf.splitTextToSize(ligne.libelle, 80)[0], 20, y);
+        pdf.text(pdf.splitTextToSize(pdfSafe(tuitionLineName(ligne)), 80)[0], 20, y);
         pdf.text(ligne.dateLimite ? formatDate(ligne.dateLimite) : "-", 128, y, { align: "right" });
         pdf.text(pdfSafe(formatMoney(ligne.montant)), 158, y, { align: "right" });
         pdf.setFont("helvetica", "bold");
@@ -2018,7 +2021,7 @@ function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onC
                   <thead><tr><th>Mois / frais</th><th>Date limite</th><th>Montant</th><th>Reste à payer</th></tr></thead>
                   <tbody>
                     {tuitionRows.map((ligne) => (
-                      <tr key={ligne.id}><td>{ligne.libelle}</td><td>{ligne.dateLimite ? formatDate(ligne.dateLimite) : "-"}</td><td>{formatMoney(ligne.montant)}</td><td className="due">{formatMoney(ligne.reste)}</td></tr>
+                      <tr key={ligne.id}><td>{tuitionLineName(ligne)}</td><td>{ligne.dateLimite ? formatDate(ligne.dateLimite) : "-"}</td><td>{formatMoney(ligne.montant)}</td><td className="due">{formatMoney(ligne.reste)}</td></tr>
                     ))}
                     <tr><td colSpan={3}><strong>Total restant</strong></td><td className="due"><strong>{formatMoney(plan.resteTotal)}</strong></td></tr>
                   </tbody>
