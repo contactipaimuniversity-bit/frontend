@@ -254,9 +254,9 @@ function ExceptionDialog({ base, target, onClose, onSaved }: { base: string; tar
     <Modal title={`Exception · ${ligne.libelle}`} onClose={onClose}>
       <form className="entity-form" onSubmit={submit}>
         <p className="panel-subtitle">Montant prévu : {formatMoney(ligne.montant)}{ligne.paye > 0 ? `, dont ${formatMoney(ligne.paye)} déjà versés` : ""}.</p>
-        <div className="tuition-choices">
+        <div className="tuition-choices" role="radiogroup" aria-label="Type d’exception">
           {EXCEPTION_MODES.map((item) => (
-            <button key={item.mode} type="button" className={mode === item.mode ? "active" : ""} onClick={() => { setMode(item.mode); setValeur(""); }}>
+            <button key={item.mode} type="button" role="radio" aria-checked={mode === item.mode} className={mode === item.mode ? "active" : ""} onClick={() => { setMode(item.mode); setValeur(""); }}>
               <strong>{item.title}</strong><small>{item.detail}</small>
             </button>
           ))}

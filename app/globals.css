@@ -200,7 +200,7 @@ tbody tr:hover { background: #e5edf8; }
 .permission-row { min-height: 42px; border-top: 1px solid #e1e8f2; color: var(--brand-navy); font-size: var(--text-base); }
 .permission-row:nth-child(even) { background: #f6f8fc; }
 .permission-toggle { display: grid; place-items: center; }
-.permission-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--brand-teal); }
+.permission-toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--teal); }
 .position-list { display: grid; }
 .position-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 62px; padding: 10px 4px; border-top: 1px solid #e1e8f2; }
 .position-row > div { display: grid; gap: 5px; }
