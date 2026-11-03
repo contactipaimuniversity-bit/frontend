@@ -57,7 +57,7 @@ export type TuitionSettings = {
   annee: string;
   annees: Array<{ libelle: string; dateDebut: string; dateFin: string; statut: string }>;
   niveaux: Array<{ code: string; libelle: string }>;
-  filieres: Array<{ id: string; code: string; nom: string }>;
+  filieres: Array<{ id: string; code: string; nom: string; pole?: { nom: string; ordre: number } | null }>;
   mois: Array<{ id: string; ordre: number; libelle: string; dateLimite: string }>;
   tarifs: Array<{ niveau: string; filiereId: string | null; montantMensuel: string | number }>;
   bourses: TuitionScholarship[];

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, Fragment, useMemo, useState } from "react";
 import { CalendarDays, Coins, GraduationCap, Shirt, UserCheck } from "lucide-react";
 import { askConfirm, askReason, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
@@ -88,6 +88,15 @@ const tariffKey = (niveau: string, filiereId: string | null) => `${filiereId ?? 
 function TariffPanel({ settings, canEdit, onSaved }: { settings: TuitionSettings; canEdit: boolean; onSaved: () => void }) {
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(settings.tarifs.map((tarif) => [tariffKey(tarif.niveau, tarif.filiereId), String(Number(tarif.montantMensuel))])));
   const action = useAction();
+  const [pole, setPole] = useState("");
+  // Les filières rangées par pôle (dans l'ordre des pôles), « Sans pôle » en dernier.
+  const groups = Object.values(
+    settings.filieres.reduce<Record<string, { nom: string; ordre: number; filieres: TuitionSettings["filieres"] }>>((all, filiere) => {
+      const nom = filiere.pole?.nom ?? "Sans pôle";
+      (all[nom] ??= { nom, ordre: filiere.pole?.ordre ?? Infinity, filieres: [] }).filieres.push(filiere);
+      return all;
+    }, {}),
+  ).sort((first, second) => first.ordre - second.ordre || first.nom.localeCompare(second.nom, "fr"));
   const cell = (niveau: string, filiereId: string | null) => {
     const key = tariffKey(niveau, filiereId);
     return canEdit ? (
@@ -106,12 +115,22 @@ function TariffPanel({ settings, canEdit, onSaved }: { settings: TuitionSettings
     });
   return (
     <Panel eyebrow="Prix d'un mois" title="Tarifs par niveau et par filière" subtitle="Remplissez la première ligne. Pour une filière, ne saisissez un prix que s'il est différent : une case vide reprend le prix du niveau.">
+      {groups.length > 1 && (
+        <div className="tuition-generator">
+          <label>Pôle<select value={pole} onChange={(event) => setPole(event.target.value)}><option value="">Tous les pôles</option>{groups.map((group) => <option key={group.nom} value={group.nom}>{group.nom} ({group.filieres.length})</option>)}</select></label>
+        </div>
+      )}
       <div className="table-wrap"><table>
         <thead><tr><th>Filière</th>{settings.niveaux.map((niveau) => <th key={niveau.code}>{niveau.code}</th>)}</tr></thead>
         <tbody>
           <tr><td className="strong-cell">Prix du niveau</td>{settings.niveaux.map((niveau) => <td key={niveau.code}>{cell(niveau.code, null)}</td>)}</tr>
-          {settings.filieres.map((filiere) => (
-            <tr key={filiere.id}><td>{filiere.nom}</td>{settings.niveaux.map((niveau) => <td key={niveau.code}>{cell(niveau.code, filiere.id)}</td>)}</tr>
+          {groups.filter((group) => !pole || group.nom === pole).map((group) => (
+            <Fragment key={group.nom}>
+              <tr className="tariff-pole-row"><td colSpan={settings.niveaux.length + 1}>{group.nom}</td></tr>
+              {group.filieres.map((filiere) => (
+                <tr key={filiere.id}><td>{filiere.nom}</td>{settings.niveaux.map((niveau) => <td key={niveau.code}>{cell(niveau.code, filiere.id)}</td>)}</tr>
+              ))}
+            </Fragment>
           ))}
         </tbody>
       </table></div>

@@ -11,7 +11,7 @@ import { ClassSection, navigateTo, pathForClass, pathForStudent, pathForView } f
 import { User } from "@/lib/types";
 import { AcademicYear, Pole, Program, useLevels } from "@/components/academic-structure-page";
 import { StudentJourneyPage } from "@/components/student-journey";
-import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, number, personName, send, useAction, useForm, useLoad } from "@/components/ui-kit";
+import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, LoadingBlock, Modal, PageIntro, Panel, number, personName, send, useAction, useForm, useLoad } from "@/components/ui-kit";
 
 export type Student = { id: string; nom: string; prenom: string; matricule?: string | null; sexe?: string | null; telephone?: string | null; dateNaissance?: string | null; lieuNaissance?: string | null };
 export type ClassSummary = { id: string; nom: string; niveau: string; groupe: string; capacite?: number | null; effectif: number; filiere: Program; _count: { cours: number }; deliberations: Array<{ semestre: number; statut: string }> };
@@ -256,6 +256,20 @@ export function AcademicClassesPage({ user, refreshSignal, classId, classSection
   return <ClassListPage canEdit={canEdit} refreshSignal={refreshSignal} />;
 }
 
+function groupByPole<T extends { niveau: string; filiere: { nom: string } }>(classes: T[], poles: Pole[]) {
+  const order = new Map(poles.map((pole, index) => [pole.id, index]));
+  const groups = new Map<string, { key: string; nom: string; rank: number; classes: T[] }>();
+  for (const item of classes) {
+    const pole = (item.filiere as ClassProgram).pole;
+    const key = pole?.id ?? "aucun";
+    if (!groups.has(key)) groups.set(key, { key, nom: pole?.nom ?? "Sans pôle", rank: pole ? order.get(pole.id) ?? poles.length : Infinity, classes: [] });
+    groups.get(key)!.classes.push(item);
+  }
+  return [...groups.values()]
+    .sort((first, second) => first.rank - second.rank || first.nom.localeCompare(second.nom, "fr"))
+    .map((group) => ({ ...group, classes: group.classes.sort((first, second) => first.filiere.nom.localeCompare(second.filiere.nom, "fr") || first.niveau.localeCompare(second.niveau, "fr")) }));
+}
+
 // L'année et le pôle choisis restent en place quand on revient d'une classe.
 const listFilters = { yearId: "", poleId: "" };
 
@@ -282,6 +296,8 @@ function ClassListPage({ canEdit, refreshSignal }: { canEdit: boolean; refreshSi
     });
   };
   const students = (list.data?.classes ?? []).reduce((total, item) => total + item.effectif, 0);
+  // Une section par pôle (dans l'ordre des pôles), les classes triées par filière puis niveau.
+  const groups = groupByPole(list.data?.classes ?? [], poles.data ?? []);
   return (
     <div className="content-scroll">
       <PageIntro eyebrow="Académique" title="Classes et étudiants" text="Créez les classes de l'année, affectez-y les étudiants inscrits et suivez leurs cours et leur assiduité.">
@@ -302,24 +318,30 @@ function ClassListPage({ canEdit, refreshSignal }: { canEdit: boolean; refreshSi
       {list.data && !year && <Panel title="Aucune année académique">Ouvrez une année dans « Structure académique » pour créer des classes.</Panel>}
       {year && (
         <Panel eyebrow={`Année ${year.libelle}`} title={`${list.data?.classes.length ?? 0} classe(s) · ${students} étudiant(s)`}>
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Classe</th><th>Filière</th><th>Niveau</th><th>Effectif</th><th>Matières</th><th /></tr></thead>
-              <tbody>
-                {(list.data?.classes ?? []).map((item) => (
-                  <tr key={item.id}>
-                    <td><button className="dossier-open-button" onClick={() => navigateTo(pathForClass(item.id))}>{item.nom}</button></td>
-                    <td>{item.filiere.nom}<small className="cell-detail">{(item.filiere as ClassProgram).pole?.nom ?? "Sans pôle"}</small></td>
-                    <td>{item.niveau}</td>
-                    <td>{item.effectif}{item.capacite ? ` / ${item.capacite}` : ""}</td>
-                    <td>{item._count.cours}</td>
-                    <td><button className="row-action" onClick={() => navigateTo(pathForClass(item.id))}>Ouvrir</button></td>
-                  </tr>
-                ))}
-                {!list.data?.classes.length && <Empty columns={6}>{poleId ? "Aucune classe de ce pôle pour cette année." : "Aucune classe pour cette année."}</Empty>}
-              </tbody>
-            </table>
-          </div>
+          {!list.data && <LoadingBlock />}
+          {list.data && !list.data.classes.length && <p className="panel-subtitle">{poleId ? "Aucune classe de ce pôle pour cette année." : "Aucune classe pour cette année."}</p>}
+          {groups.map((group) => (
+            <section key={group.key} className="pole-group">
+              <h4 className="pole-group-heading">{group.nom}<small>{group.classes.length} classe(s) · {group.classes.reduce((total, item) => total + item.effectif, 0)} étudiant(s)</small></h4>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Classe</th><th>Filière</th><th>Niveau</th><th>Effectif</th><th>Matières</th><th /></tr></thead>
+                  <tbody>
+                    {group.classes.map((item) => (
+                      <tr key={item.id}>
+                        <td><button className="dossier-open-button" onClick={() => navigateTo(pathForClass(item.id))}>{item.nom}</button></td>
+                        <td>{item.filiere.nom}</td>
+                        <td>{item.niveau}</td>
+                        <td>{item.effectif}{item.capacite ? ` / ${item.capacite}` : ""}</td>
+                        <td>{item._count.cours}</td>
+                        <td><button className="row-action" onClick={() => navigateTo(pathForClass(item.id))}>Ouvrir</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))}
         </Panel>
       )}
       {creating && (
