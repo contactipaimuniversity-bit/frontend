@@ -79,7 +79,7 @@ function AssignStudents({ classId, onClose, onSaved }: { classId: string; onClos
   return (
     <Modal wide title="Affecter des étudiants à la classe" onClose={onClose}>
       <form className="entity-form" onSubmit={submit}>
-        <p className="panel-subtitle">Inscriptions de la même année et du même niveau, sans classe. Celles de la filière sont cochées d&apos;avance ; affecter un étudiant d&apos;une autre filière le rattache à celle de la classe. Un matricule est attribué à la première affectation.</p>
+        <p className="panel-subtitle">Inscriptions de la même année et du même niveau, sans classe. Celles de la filière sont cochées d&apos;avance ; affecter un étudiant d&apos;une autre filière le rattache à celle de la classe. Le matricule, lui, est attribué dès que les frais d&apos;inscription sont payés.</p>
         {candidates.error && <p className="form-error">{candidates.error}</p>}
         <div className="table-wrap pick-list">
           <table>
