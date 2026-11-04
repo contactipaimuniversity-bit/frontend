@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { askReason, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
+import { printTask } from "@/lib/print-progress";
 import { apiFetch } from "@/lib/api";
 import { DECISION_LABELS, GradeReport, MinutesData, Transcript, WithheldReport, attestationsPdf, deliberationMinutesPdf, diplomaTitle, diplomasPdf, documentNumber, gradeReportsPdf, semesterCompensated, tablePdf, transcriptsPdf } from "@/lib/pdf-docs";
 import { PrintDocument, logPrint } from "@/lib/print-log";
@@ -120,7 +121,7 @@ function ResultsModal({ classId, semestre, canEdit, onClose, onChanged }: { clas
     });
   };
   const reports = (inscriptionId?: string) =>
-    action.run(async () => {
+    action.run(() => printTask(inscriptionId ? "Préparation du bulletin…" : "Préparation des bulletins de la classe…", async () => {
       const list = inscriptionId
         ? [await apiFetch<GradeReport>(`/deliberations/bulletins/${inscriptionId}/${semestre}`, { skipCache: true })]
         : await apiFetch<Array<GradeReport | WithheldReport>>(`/deliberations/classes/${classId}/semestres/${semestre}/bulletins`, { skipCache: true });
@@ -131,10 +132,10 @@ function ResultsModal({ classId, semestre, canEdit, onClose, onChanged }: { clas
       for (const report of ready)
         logPrint({ typeDocument: "BULLETIN_NOTES", mode: "PDF", dossierType: "inscription", dossierId: report.inscriptionId, libelle: `${report.etudiant.nom} ${report.etudiant.prenom} · ${report.classe.nom}`, reference: semesterLabel(semestre) });
       if (withheld) toast(`${withheld} bulletin(s) retenu(s) pour scolarité non soldée.`, "info");
-    });
+    }));
   // Documents de fin d'année : relevé pour tous, attestation pour les admis, diplôme en fin de parcours.
   const yearDocuments = (kind: YearDocument, inscriptionId?: string) =>
-    action.run(async () => {
+    action.run(() => printTask("Préparation des documents de fin d'année…", async () => {
       const list = inscriptionId
         ? [await apiFetch<Transcript>(`/deliberations/releves/${inscriptionId}`, { skipCache: true })]
         : await apiFetch<Array<Transcript | WithheldReport>>(`/deliberations/classes/${classId}/releves`, { skipCache: true });
@@ -158,13 +159,13 @@ function ResultsModal({ classId, semestre, canEdit, onClose, onChanged }: { clas
         logPrint({ typeDocument: type, mode: "PDF", dossierType: "inscription", dossierId: item.inscriptionId, libelle: `${item.etudiant.nom} ${item.etudiant.prenom} · ${item.classe.nom}`, reference: kind === "releve" ? item.classe.annee : `${kind === "diplome" ? diplomaTitle(item) : label} n° ${documentNumber(item)}` });
       if (kind !== "releve") toast(`${ready.length} ${label.toLowerCase()}(s) éditée(s).`);
       if (withheld) toast(`${withheld} document(s) retenu(s) pour scolarité non soldée.`, "info");
-    });
+    }));
   const minutes = () =>
-    action.run(async () => {
+    action.run(() => printTask("Préparation du procès-verbal…", async () => {
       if (!data) return;
       await deliberationMinutesPdf(data);
       logPrint({ typeDocument: "PV_DELIBERATION", mode: "PDF", libelle: `${data.classe.nom} · ${semesterLabel(semestre)} · ${data.classe.annee}` });
-    });
+    }));
   const exportCsv = () =>
     data &&
     downloadPdf(`resultats-${data.classe.nom}-${semestre}.pdf`, "Résultats de la classe", `${data.classe.nom} · ${semesterLabel(semestre)} · ${data.classe.annee}`, [

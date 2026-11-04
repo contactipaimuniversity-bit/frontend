@@ -1,5 +1,6 @@
 "use client";
 
+import { printStarted, savePdf } from "@/lib/print-progress";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { BrandLogo } from "@/components/brand-logo";
@@ -19,6 +20,7 @@ async function downloadRefundReceiptPdf(refund: PaymentTransaction) {
   const logo = new Image();
   logo.src = "/WhatsApp%20Image%202026-07-17%20at%2018.26.50.jpeg";
   const [{ jsPDF }] = await Promise.all([import("jspdf"), logo.decode()]);
+  printStarted();
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
 
@@ -130,7 +132,7 @@ async function downloadRefundReceiptPdf(refund: PaymentTransaction) {
   pdf.text(`Référence de transaction : ${refund.id}`, 18, 290);
   pdf.text("IPAIM UNIVERSITY", 192, 290, { align: "right" });
   pdf.text(pdfSafe(generatedByLine()), 105, 294, { align: "center" });
-  pdf.save(`recu-remboursement-ipaim-${refund.id.slice(0, 8)}.pdf`);
+  savePdf(pdf, `recu-remboursement-ipaim-${refund.id.slice(0, 8)}.pdf`);
 }
 
 // Reçu remis à l'étudiant quand un trop-perçu lui est rendu : il le signe, l'établissement en garde un exemplaire.

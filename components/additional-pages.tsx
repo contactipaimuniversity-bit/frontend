@@ -1,5 +1,6 @@
 "use client";
 
+import { printStarted, savePdf } from "@/lib/print-progress";
 import { Award, CalendarRange, FolderCheck, HandCoins, Search } from "lucide-react";
 import { HubBack, HubCard, HubCards, PageBar, usePaged, useHubSection, LoadingBlock, SkeletonRows, PENDING_VALUE } from "@/components/ui-kit";
 import { listPdf } from "@/lib/pdf-docs";
@@ -1090,6 +1091,7 @@ function PeriodicReport() {
       ]);
     try {
       const { jsPDF } = await import("jspdf");
+      printStarted();
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       const preset = COLOR_PRESETS.find((item) => item.id === readColorPreset()) ?? COLOR_PRESETS[0];
       const toRgb = (hex: string): [number, number, number] => {
@@ -1188,7 +1190,7 @@ function PeriodicReport() {
         pdf.setTextColor(110, 120, 126);
         pdf.text(`IPAIM  |  ${page}/${pageCount}`, width - margin, height - 6, { align: "right" });
       }
-      pdf.save(`rapport-ipaim-${dateDebut}-${dateFin}.pdf`);
+      savePdf(pdf, `rapport-ipaim-${dateDebut}-${dateFin}.pdf`);
       logPrint({ typeDocument: "RAPPORT_ACTIVITE", mode: "PDF", libelle: `Rapport d'activité du ${dateDebut} au ${dateFin}` });
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Impossible de générer le PDF.");

@@ -1,4 +1,5 @@
 import { generatedByLine } from "@/lib/session";
+import { printStarted, savePdf } from "@/lib/print-progress";
 import { formatDate, formatMoney, pdfSafe } from "@/lib/types";
 
 // Documents officiels en PDF : bulletins de notes, procès-verbaux de délibération, bulletins de paie.
@@ -18,6 +19,7 @@ export const DECISION_LABELS: Record<string, string> = {
 const note = (value: number | string | null | undefined) => (value === null || value === undefined ? "-" : Number(value).toFixed(2).replace(".", ","));
 
 async function createPdf(landscape = false): Promise<Pdf> {
+  printStarted();
   const { jsPDF } = await import("jspdf");
   return new jsPDF({ orientation: landscape ? "landscape" : "portrait", unit: "mm", format: "a4" });
 }
@@ -143,7 +145,7 @@ export async function tablePdf(options: { title: string; subtitle: string; colum
   });
   if (!options.rows.length) pdf.text("Aucune ligne.", x + 2, y + 6);
   footer(pdf);
-  pdf.save(options.fileName);
+  savePdf(pdf, options.fileName);
 }
 
 // Export d'une liste dont la première ligne porte les intitulés : la largeur des
@@ -297,7 +299,7 @@ export async function gradeReportsPdf(reports: GradeReport[], fileName: string) 
     if (index > 0) pdf.addPage();
     gradeReportPage(pdf, report);
   });
-  pdf.save(fileName);
+  savePdf(pdf, fileName);
 }
 
 // ---------- Relevé de notes annuel, attestation de réussite, diplôme ----------
@@ -389,7 +391,7 @@ export async function transcriptsPdf(list: Transcript[], fileName: string) {
     if (index > 0) pdf.addPage();
     transcriptPage(pdf, data);
   });
-  pdf.save(fileName);
+  savePdf(pdf, fileName);
 }
 
 // ---------- Relevé cumulé : tout le cursus sur un seul document ----------
@@ -465,7 +467,7 @@ export async function journeyPdf(data: Journey, fileName: string) {
   pdf.text("Le responsable de la scolarité", 150, y + 12, { align: "center" });
   pdf.setDrawColor(150, 160, 180).line(120, y + 28, 180, y + 28);
   footer(pdf);
-  pdf.save(fileName);
+  savePdf(pdf, fileName);
 }
 
 // ---------- Fiches d'anonymat : 18 par feuille A4 ordinaire ----------
@@ -536,7 +538,7 @@ export async function anonymitySlipsPdf(table: AnonymityTable, fileName: string)
     pdf.text(clip(`${table.classe} · ${exam}`, width - stub - 4), center, y + 42, { align: "center" });
     pdf.setTextColor(30, 40, 60);
   }
-  pdf.save(fileName);
+  savePdf(pdf, fileName);
 }
 
 // ---------- Emploi du temps hebdomadaire ----------
@@ -589,7 +591,7 @@ export async function timetablePdf(options: { title: string; subtitle: string; d
     pdf.setFont("helvetica", "normal").setFontSize(10).setTextColor(30, 40, 60);
     pdf.text("Aucun cours n'est encore placé dans l'emploi du temps.", left, y + 8);
     footer(pdf);
-    pdf.save(options.fileName);
+    savePdf(pdf, options.fileName);
     return;
   }
   // Colonnes : le jour, chaque plage, et une pause là où un creux d'au moins 30 min sépare deux plages.
@@ -682,7 +684,7 @@ export async function timetablePdf(options: { title: string; subtitle: string; d
   }
   pdf.setTextColor(30, 40, 60);
   footer(pdf);
-  pdf.save(options.fileName);
+  savePdf(pdf, options.fileName);
 }
 
 // ---------- Liste de classe et feuille d'émargement ----------
@@ -740,7 +742,7 @@ export async function rosterPdf(options: { title: string; subtitle: string; info
     pdf.setTextColor(30, 40, 60);
   }
   footer(pdf);
-  pdf.save(options.fileName);
+  savePdf(pdf, options.fileName);
 }
 
 // ---------- Certificat de scolarité ----------
@@ -865,7 +867,7 @@ export async function enrollmentCertificatePdf(data: EnrollmentCertificate, file
   pdf.text("Ce certificat n'est valable que pour l'année académique indiquée.", left, 284);
   pdf.text(pdfSafe(generatedByLine()), left, 288.5);
   pdf.setTextColor(30, 40, 60);
-  pdf.save(fileName);
+  savePdf(pdf, fileName);
 }
 
 // Paragraphe centré, renvoyé à la ligne ; retourne la position sous le texte.
@@ -912,7 +914,7 @@ export async function attestationsPdf(list: Transcript[], fileName: string) {
     pdf.setTextColor(30, 40, 60);
     footer(pdf);
   });
-  pdf.save(fileName);
+  savePdf(pdf, fileName);
 }
 
 // Diplôme au format paysage, à imprimer sur papier fort et à signer.
@@ -952,7 +954,7 @@ export async function diplomasPdf(list: Transcript[], fileName: string) {
     pdf.text(pdfSafe(`Diplôme n° ${documentNumber(data)} · délivré le ${longDate(new Date().toISOString())}`), width / 2, height - 16, { align: "center" });
     pdf.setTextColor(30, 40, 60);
   });
-  pdf.save(fileName);
+  savePdf(pdf, fileName);
 }
 
 // ---------- Procès-verbal de délibération ----------
@@ -1001,7 +1003,7 @@ export async function deliberationMinutesPdf(data: MinutesData) {
   pdf.text("Les membres du jury", 150, y + 18, { align: "center" });
   pdf.setDrawColor(150, 160, 180).line(20, y + 36, 80, y + 36).line(120, y + 36, 180, y + 36);
   footer(pdf);
-  pdf.save(`pv-deliberation-${data.classe.nom.replace(/\s+/g, "-")}-${data.semestre === 0 ? "annuel" : `s${data.semestre}`}.pdf`);
+  savePdf(pdf, `pv-deliberation-${data.classe.nom.replace(/\s+/g, "-")}-${data.semestre === 0 ? "annuel" : `s${data.semestre}`}.pdf`);
 }
 
 // ---------- Bulletin de paie ----------
@@ -1060,7 +1062,7 @@ export async function payslipsPdf(slips: Payslip[], period: { annee: number; moi
     pdf.setDrawColor(150, 160, 180).line(20, y + 28, 80, y + 28).line(120, y + 28, 180, y + 28);
     footer(pdf);
   });
-  pdf.save(fileName);
+  savePdf(pdf, fileName);
 }
 
 // ---------- Carte d'étudiant ----------
@@ -1235,5 +1237,5 @@ export async function studentCardsPdf(cards: StudentCard[], fileName: string) {
       outline(x, y);
     });
   }
-  pdf.save(fileName);
+  savePdf(pdf, fileName);
 }

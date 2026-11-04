@@ -137,6 +137,17 @@
 .compensated-unit { color: #a3642a; font-weight: 700; }
 /* Cours commun à plusieurs classes, dans la grille de la semaine. */
 .timetable-shared { color: #a3642a; font-style: italic; }
+/* Fenêtre d'impression : préparation (spinner), PDF prêt, ou erreur. */
+.print-progress-backdrop { z-index: 1200; }
+.print-progress { display: grid; justify-items: center; gap: 10px; max-width: 440px; text-align: center; }
+.print-progress h3 { margin: 4px 0 0; }
+.print-progress p { margin: 0; color: var(--muted); }
+.print-progress .form-actions { justify-content: center; width: 100%; }
+.print-progress-spinner { width: 46px; height: 46px; border: 4px solid color-mix(in srgb, var(--teal) 18%, transparent); border-top-color: var(--teal); border-radius: 50%; animation: print-progress-spin .8s linear infinite; }
+.print-progress-done, .print-progress-failed { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: #fff; font-size: 24px; font-weight: 800; background: var(--teal); }
+.print-progress-failed { background: #b4232c; }
+@keyframes print-progress-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .print-progress-spinner { animation-duration: 2.4s; } }
 /* Listes regroupées par pôle : un intitulé par pôle, puis ses lignes. */
 .pole-group + .pole-group { margin-top: 22px; }
 .pole-group-heading { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; font-size: 1rem; color: var(--ink); }

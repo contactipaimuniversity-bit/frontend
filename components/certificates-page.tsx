@@ -1,5 +1,6 @@
 "use client";
 
+import { printStarted, savePdf } from "@/lib/print-progress";
 import { generatedByLine } from "@/lib/session";
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
@@ -258,7 +259,7 @@ function printPdf(pdf: import("jspdf").jsPDF): Promise<void> {
 
 async function deliverCertificate(pdf: import("jspdf").jsPDF, fileName: string, shouldPrint = false) {
   if (!shouldPrint) {
-    pdf.save(fileName);
+    savePdf(pdf, fileName);
     return;
   }
   await printPdf(pdf);
@@ -296,6 +297,7 @@ async function downloadScholarshipCertificate(application: Application, shouldPr
   }
 
   const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadLogo()]);
+  printStarted();
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   addCertificateFrame(pdf, logo, provisional ? "CERTIFICAT D’ATTRIBUTION DE BOURSE - PROVISOIRE" : "CERTIFICAT D’ATTRIBUTION DE BOURSE");
   if (provisional) addProvisionalNotice(pdf);
@@ -348,6 +350,7 @@ async function downloadEnrollmentCertificate(item: PaidEnrollment, shouldPrint =
   }
 
   const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadLogo()]);
+  printStarted();
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   addCertificateFrame(pdf, logo, provisional ? "CERTIFICAT D’INSCRIPTION - PROVISOIRE" : "CERTIFICAT D’INSCRIPTION");
   if (provisional) addProvisionalNotice(pdf);

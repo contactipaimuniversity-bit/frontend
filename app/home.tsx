@@ -50,6 +50,7 @@ import { TuitionPage } from "@/components/tuition-page";
 import { MANUALS } from "@/lib/manuals";
 import { useWork, workBadges } from "@/lib/work";
 import { FeedbackHost } from "@/components/feedback";
+import { PrintProgressHost } from "@/components/print-progress";
 import {
   Application,
   ApplicationPage,
@@ -721,6 +722,7 @@ export default function Home() {
         </div>
       )}
       <FeedbackHost />
+      <PrintProgressHost />
       {sessionExpired && (
         <div className="modal-backdrop session-expired-backdrop">
           <section className="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="session-expired-title" aria-describedby="session-expired-text">

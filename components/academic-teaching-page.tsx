@@ -1,5 +1,6 @@
 "use client";
 
+import { printTask } from "@/lib/print-progress";
 import { FormEvent, useState } from "react";
 import { askConfirm, askReason, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
@@ -42,23 +43,25 @@ function Timetable({ classId, canEdit, closed, className, yearLabel, classDetail
   // Emploi du temps de la classe, ou celui d'un enseignant toutes classes confondues.
   const printClass = () => {
     const name = className ?? slots.data?.[0]?.classeNom ?? "classe";
-    return action.run(() => timetablePdf({
+    return action.run(() => printTask(`Préparation de l'emploi du temps de ${name}…`, () => timetablePdf({
       title: "EMPLOI DU TEMPS",
       subtitle: `Classe ${name}${yearLabel ? ` · Année académique ${yearLabel}` : ""}`,
       details: classDetails,
       fileName: `emploi-du-temps-${name.replace(/\s+/g, "-")}.pdf`,
       slots: (slots.data ?? []).map((slot) => ({ jour: slot.jour, heureDebut: slot.heureDebut, heureFin: slot.heureFin, matiere: slot.cours.matiere.nom, enseignant: slot.cours.enseignant ? personName(slot.cours.enseignant) : null, salle: slot.salle?.nom ?? null, note: slot.communAvec?.length ? `Commun avec ${slot.communAvec.join(", ")}` : null })),
-    }));
+    })));
   };
   const printTeacher = () =>
     action.run(async () => {
       const teacher = teachers.data?.data.find((item) => item.id === teacherId);
       if (!teacher) return;
+      await printTask(`Préparation de l'emploi du temps de ${personName(teacher)}…`, async () => {
       const own = await apiFetch<Slot[]>(`/academique/emploi-du-temps?enseignantId=${teacherId}`, { skipCache: true });
       // Un cours commun n'apparaît qu'une fois, avec toutes ses classes.
       const seen = new Set<string>();
       const unique = own.filter((slot) => { const key = `${slot.jour}|${slot.heureDebut}`; if (seen.has(key)) return false; seen.add(key); return true; });
       await timetablePdf({ title: "EMPLOI DU TEMPS", subtitle: `Enseignant : ${personName(teacher)}${yearLabel ? ` · Année académique ${yearLabel}` : ""}`, fileName: `emploi-du-temps-${teacher.nom.replace(/\s+/g, "-")}.pdf`, slots: unique.map((slot) => ({ jour: slot.jour, heureDebut: slot.heureDebut, heureFin: slot.heureFin, matiere: slot.cours.matiere.nom, enseignant: [slot.classeNom, ...(slot.communAvec ?? [])].join(" · "), salle: slot.salle?.nom ?? null, note: null })) });
+      });
     });
   const form = useForm({ coursId: "", jour: "1", heureDebut: "08:00", heureFin: "10:00", salleId: "" });
   // Cours commun : les autres classes qui suivent la même matière, cochées ici.

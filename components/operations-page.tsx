@@ -1,5 +1,6 @@
 "use client";
 
+import { printStarted, savePdf } from "@/lib/print-progress";
 import { currentUser, generatedByLine } from "@/lib/session";
 import { hasAccess } from "@/lib/access";
 import { ActionIcon } from "@/components/action-icon";
@@ -1618,6 +1619,7 @@ const tuitionLineName = (ligne: TuitionPlan["mensualites"][number]) => ligne.exc
 
 async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation: DossierSituation | null, plan: TuitionPlan | null) {
   const [{ jsPDF }, logo] = await Promise.all([import("jspdf"), loadReceiptLogo()]);
+  printStarted();
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const name = fullName(payment.personne);
@@ -1881,7 +1883,7 @@ async function downloadPaymentReceiptPdf(payment: PaymentTransaction, situation:
   pdf.text("Le service de comptabilité", 18, signatureY + 17.5);
   pdf.text("Cachet de l’établissement", 157, signatureY + 4.5, { align: "center" });
   footer();
-  pdf.save(receiptFileName(payment));
+  savePdf(pdf, receiptFileName(payment));
 }
 
 function PaymentReceipt({ payment, onClose }: { payment: PaymentTransaction; onClose: () => void }) {

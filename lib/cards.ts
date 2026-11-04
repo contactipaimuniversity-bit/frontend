@@ -1,5 +1,6 @@
 "use client";
 
+import { printTask } from "@/lib/print-progress";
 import { send } from "@/components/ui-kit";
 import { API_URL } from "@/lib/offline";
 import { StudentCard, studentCardsPdf } from "@/lib/pdf-docs";
@@ -46,7 +47,11 @@ async function cardPhoto(personId: string): Promise<string | null> {
  * chaque inscription et son jeton, puis le PDF recto verso est produit ici.
  * « renouveler » remplace la carte : l'ancienne ne passe plus au contrôle.
  */
-export async function printStudentCards(inscriptionIds: string[], options: { renouveler?: boolean; fileName: string; libelle: (card: IssuedCard) => string }) {
+export function printStudentCards(inscriptionIds: string[], options: { renouveler?: boolean; fileName: string; libelle: (card: IssuedCard) => string }) {
+  return printTask(inscriptionIds.length > 1 ? `Préparation de ${inscriptionIds.length} cartes d'étudiant…` : "Préparation de la carte d'étudiant…", () => issueAndPrint(inscriptionIds, options));
+}
+
+async function issueAndPrint(inscriptionIds: string[], options: { renouveler?: boolean; fileName: string; libelle: (card: IssuedCard) => string }) {
   const issued = await send<IssuedCard[]>("/cartes", "POST", { inscriptionIds, renouveler: Boolean(options.renouveler) }, true);
   const photos = await Promise.all(issued.map((card) => (card.personne.photoUrl ? cardPhoto(card.personne.id) : Promise.resolve(null))));
   const cards: StudentCard[] = issued.map((card, index) => ({

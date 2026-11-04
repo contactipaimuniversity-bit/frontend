@@ -1,5 +1,6 @@
 "use client";
 
+import { printStarted, savePdf } from "@/lib/print-progress";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { Banknote, CalendarRange, CircleCheckBig, FileText, PackageCheck, ShieldCheck, Tags, Truck } from "lucide-react";
 import { ActionIcon } from "@/components/action-icon";
@@ -364,6 +365,7 @@ function ExpenseForm({ expense, onClose, onSaved }: { expense?: ExpenseDetail; o
 
 async function printPurchaseOrder(expense: ExpenseDetail) {
   const { jsPDF } = await import("jspdf");
+  printStarted();
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   const text = (value: string, x: number, y: number, options?: { align?: "right" | "center" }) => pdf.text(pdfSafe(value), x, y, options);
   pdf.setFont("helvetica", "bold").setFontSize(16);
@@ -414,7 +416,7 @@ async function printPurchaseOrder(expense: ExpenseDetail) {
   if (expense.validation1ParNom) text(`Validé par : ${expense.validation1ParNom} · ${formatDate(expense.dateValidation1 ?? undefined)}`, 15, y + 5);
   if (expense.validation2ParNom) text(`Validation finale : ${expense.validation2ParNom} · ${formatDate(expense.dateValidation2 ?? undefined)}`, 15, y + 10);
   text("Signature et cachet", 195, y + 22, { align: "right" });
-  pdf.save(`bon-de-commande-${expense.numeroBonCommande ?? expense.numero}.pdf`);
+  savePdf(pdf, `bon-de-commande-${expense.numeroBonCommande ?? expense.numero}.pdf`);
   logPrint({ typeDocument: "BON_COMMANDE", mode: "PDF", dossierType: "depense", dossierId: expense.id, libelle: `${expense.numero} · ${expense.objet}`, reference: expense.numeroBonCommande });
 }
 
