@@ -438,7 +438,7 @@ function CreateEnrollment({
   const [programs, setPrograms] = useState<Array<{ id: string; code: string; nom: string; actif: boolean }>>([]);
   useEffect(() => {
     void apiFetch<EnrollmentLevel[]>("/academique/niveaux").then((list) => { if (list.length) setLevels(list); }).catch(() => undefined);
-    void apiFetch<Array<{ id: string; code: string; nom: string; actif: boolean }>>("/academique/filieres").then(setPrograms).catch(() => undefined);
+    void apiFetch<Array<{ id: string; code: string; nom: string; actif: boolean; troncCommun?: boolean }>>("/academique/filieres").then((list) => setPrograms(list.filter((program) => !program.troncCommun))).catch(() => undefined);
   }, []);
   const openPrograms = programs.filter((program) => program.actif);
   const program = programs.find((item) => item.nom === form.filiere);
@@ -751,7 +751,7 @@ const DEFAULT_LEVELS: EnrollmentLevel[] = [
 function ProgramSuggestions() {
   const [programs, setPrograms] = useState<Array<{ id: string; nom: string; actif: boolean }>>([]);
   useEffect(() => {
-    void apiFetch<Array<{ id: string; nom: string; actif: boolean }>>("/academique/filieres").then(setPrograms).catch(() => undefined);
+    void apiFetch<Array<{ id: string; nom: string; actif: boolean; troncCommun?: boolean }>>("/academique/filieres").then((list) => setPrograms(list.filter((program) => !program.troncCommun))).catch(() => undefined);
   }, []);
   return (
     <datalist id="filieres-referentiel">

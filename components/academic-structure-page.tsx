@@ -9,7 +9,7 @@ import { Badge, Empty, FieldHelp, FormActions, HubBack, HubCard, HubCards, Modal
 
 export type Level = { id: string; code: string; libelle: string; cycle: string; rang: number; diplome?: string | null; actif: boolean };
 export type AcademicYear = { id: string; libelle: string; dateDebut: string; dateFin: string; finSemestre1?: string | null; statut: string; _count?: { classes: number } };
-export type Program = { id: string; code: string; nom: string; actif: boolean; poleId?: string | null; pole?: { id: string; nom: string } | null; niveauFinal?: string | null };
+export type Program = { id: string; code: string; nom: string; actif: boolean; poleId?: string | null; pole?: { id: string; nom: string } | null; niveauFinal?: string | null; troncCommun?: boolean };
 export type Pole = { id: string; nom: string; description?: string | null; ordre: number; actif: boolean; filieres: Program[] };
 export type Room = { id: string; nom: string; capacite?: number | null; actif: boolean };
 type Subject = { id: string; code: string; nom: string; coefficient: string; volumeHoraire: number; actif: boolean };
@@ -250,6 +250,7 @@ function ProgramsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) 
   const pending = useLoad<PendingProgram[]>("/academique/filieres/rapprochement", signal);
   const [links, setLinks] = useState<Record<string, string>>({});
   const form = useForm({ code: "", nom: "", poleId: "" });
+  const [troncCommun, setTroncCommun] = useState(false);
   const [filter, setFilter] = useState("");
   const [search, setSearch] = useState("");
   const action = useAction();
@@ -272,16 +273,23 @@ function ProgramsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) 
   return (
     <>
       {canEdit && (
-        <form className="finance-inline-form" onSubmit={(event) => { event.preventDefault(); call(async () => { await send("/academique/filieres", "POST", { ...form.values, poleId: form.values.poleId || null }); form.setValues({ code: "", nom: "", poleId: form.values.poleId }); }); }}>
+        <form className="finance-inline-form" onSubmit={(event) => { event.preventDefault(); call(async () => { await send("/academique/filieres", "POST", { ...form.values, poleId: form.values.poleId || null, troncCommun }); form.setValues({ code: "", nom: "", poleId: form.values.poleId }); setTroncCommun(false); }); }}>
           <input required minLength={2} maxLength={12} placeholder="Code (ex. INFO)" aria-label="Code" {...form.bind("code")} />
           <input required minLength={2} placeholder="Nom de la filière" aria-label="Nom de la filière" {...form.bind("nom")} />
           <select aria-label="Pôle de la filière" value={form.values.poleId} onChange={(event) => form.setValues({ ...form.values, poleId: event.target.value })}>
             <option value="">Sans pôle</option>
             {poleOptions}
           </select>
+          <label className="check-row" title="Une classe de tronc commun réunit les étudiants de toutes les filières du pôle ; chacun garde sa propre filière.">
+            <input type="checkbox" checked={troncCommun} onChange={(event) => setTroncCommun(event.target.checked)} />
+            Tronc commun du pôle
+          </label>
           <button className="outline-button small" disabled={action.busy}>Ajouter</button>
         </form>
       )}
+      <p className="panel-subtitle">
+        <strong>Tronc commun :</strong> quand les premières années d&apos;un pôle suivent les mêmes cours, créez une « filière » de tronc commun pour ce pôle (par exemple « TC-MGT · Tronc commun Management »), sa maquette, puis sa classe. Les étudiants de toutes les filières du pôle peuvent y être affectés : chacun garde sa filière, son tarif et son matricule.
+      </p>
       {Boolean(pending.data?.length) && (
         <div className="expense-alert">
           <span>Filières saisies à la main dans des inscriptions, à rattacher au référentiel</span>
@@ -324,7 +332,11 @@ function ProgramsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) 
             {shown.map((program) => (
               <tr key={program.id}>
                 <td className="strong-cell">{program.code}</td>
-                <td>{program.nom}</td>
+                <td>
+                  {program.nom}
+                  {program.troncCommun && <span className="cell-detail"><Badge tone="run">Tronc commun</Badge></span>}
+                  {canEdit && program.poleId && <button type="button" className="row-action" onClick={() => call(() => send(`/academique/filieres/${program.id}`, "PATCH", { troncCommun: !program.troncCommun }))}>{program.troncCommun ? "Ce n'est pas un tronc commun" : "Marquer tronc commun"}</button>}
+                </td>
                 <td>
                   {canEdit ? (
                     <select className="pole-select" aria-label={`Pôle de ${program.nom}`} value={program.poleId ?? ""} disabled={action.busy} onChange={(event) => call(() => send(`/academique/filieres/${program.id}`, "PATCH", { poleId: event.target.value || null }))}>

@@ -142,7 +142,7 @@ export function StudentsListModal({ scholarshipTypes, onClose }: { scholarshipTy
     anchor.click();
     URL.revokeObjectURL(url);
   };
-  const shownPrograms = (programs.data ?? []).filter((item) => item.actif && (!filters.poleId || (filters.poleId === "aucun" ? !item.poleId : item.poleId === filters.poleId)));
+  const shownPrograms = (programs.data ?? []).filter((item) => item.actif && !item.troncCommun && (!filters.poleId || (filters.poleId === "aucun" ? !item.poleId : item.poleId === filters.poleId)));
   return (
     <Modal wide title="Liste des étudiants inscrits" onClose={onClose}>
       <div className="entity-form">

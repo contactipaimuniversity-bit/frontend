@@ -9,7 +9,7 @@ import { apiFetch } from "@/lib/api";
 import { Application, Enrollment, fullName, statusLabels } from "@/lib/types";
 
 type Level = { code: string; libelle: string; cycle?: string; actif?: boolean };
-type Program = { id: string; code: string; nom: string; actif: boolean };
+type Program = { id: string; code: string; nom: string; actif: boolean; troncCommun?: boolean };
 
 const DEMANDE_LEVELS = [{ value: "PREMIERE_ANNEE", label: "Première année" }, { value: "DEUXIEME_ANNEE", label: "Deuxième année" }];
 const ENROLLMENT_STATUSES = ["EN_COURS", "COMPLETE", "ABANDONNEE"];
@@ -29,7 +29,7 @@ function useReferential() {
     void apiFetch<Level[]>("/academique/niveaux").then((list) => { if (list.length) setLevels(list); }).catch(() => undefined);
     void apiFetch<Program[]>("/academique/filieres").then(setPrograms).catch(() => undefined);
   }, []);
-  return { levels: levels.filter((item) => item.actif !== false), programs: programs.filter((item) => item.actif) };
+  return { levels: levels.filter((item) => item.actif !== false), programs: programs.filter((item) => item.actif && !item.troncCommun) };
 }
 
 // Corriger une demande de bourse : niveau, filières, école d'origine.

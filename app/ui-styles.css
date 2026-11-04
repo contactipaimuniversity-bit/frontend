@@ -135,6 +135,8 @@
 .students-list-preview { max-height: 46vh; overflow: auto; }
 /* Unité sous la moyenne mais acquise par compensation : ni validée, ni en dette. */
 .compensated-unit { color: #a3642a; font-weight: 700; }
+/* Cours commun à plusieurs classes, dans la grille de la semaine. */
+.timetable-shared { color: #a3642a; font-style: italic; }
 /* Listes regroupées par pôle : un intitulé par pôle, puis ses lignes. */
 .pole-group + .pole-group { margin-top: 22px; }
 .pole-group-heading { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; font-size: 1rem; color: var(--ink); }

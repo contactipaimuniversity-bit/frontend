@@ -541,62 +541,146 @@ export async function anonymitySlipsPdf(table: AnonymityTable, fileName: string)
 
 // ---------- Emploi du temps hebdomadaire ----------
 
-export type TimetableSlot = { jour: number; heureDebut: string; heureFin: string; lignes: string[] };
+export type TimetableSlot = { jour: number; heureDebut: string; heureFin: string; matiere: string; enseignant: string | null; salle: string | null; note: string | null };
 
-// Grille de la semaine, en paysage : une colonne par jour, une ligne par plage horaire.
-export async function timetablePdf(options: { title: string; subtitle: string; slots: TimetableSlot[]; fileName: string }) {
-  const pdf = await createPdf(true);
-  const days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+// Une couleur douce par matière : la même matière garde la même teinte dans toute la grille.
+const SLOT_COLORS: Array<[number, number, number]> = [
+  [226, 236, 252], [227, 245, 236], [252, 240, 222], [240, 232, 250], [222, 243, 246], [250, 230, 234], [236, 242, 222], [244, 236, 226],
+];
+const colorOf = (key: string) => SLOT_COLORS[[...key].reduce((total, letter) => (total * 31 + letter.charCodeAt(0)) >>> 0, 7) % SLOT_COLORS.length];
+const minutesOf = (time: string) => { const [hours, mins] = time.split(":").map(Number); return hours * 60 + mins; };
+const hourLabel = (time: string) => time.replace(":", "h");
+
+// Emploi du temps de la semaine, en paysage : une ligne par jour, une colonne par
+// plage horaire, une colonne « pause » quand un creux sépare deux plages.
+export async function timetablePdf(options: { title: string; subtitle: string; details?: string[]; slots: TimetableSlot[]; fileName: string }) {
+  const [pdf, logo] = await Promise.all([createPdf(true), logoData()]);
+  const width = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
   const left = 15;
-  const hourWidth = 27;
-  const dayWidth = (267 - hourWidth) / days.length;
-  const lineHeight = 4.2;
-  header(pdf, options.title, options.subtitle);
-  let y = 36;
-  const head = () => {
-    pdf.setFillColor(20, 40, 92).rect(left, y, 267, 8, "F");
-    pdf.setFont("helvetica", "bold").setFontSize(9).setTextColor(255, 255, 255);
-    pdf.text("Horaire", left + 2, y + 5.4);
-    days.forEach((day, index) => pdf.text(day, left + hourWidth + index * dayWidth + dayWidth / 2, y + 5.4, { align: "center" }));
-    pdf.setTextColor(30, 40, 60);
-    y += 8;
+  const total = width - 2 * left;
+  const days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+  // En-tête : logo, établissement, titre, puis ce que réunit la classe.
+  if (logo) pdf.addImage(logo, "JPEG", left, 9, 16, 16);
+  const textLeft = logo ? left + 20 : left;
+  pdf.setFont("helvetica", "bold").setFontSize(15).setTextColor(20, 40, 92);
+  pdf.text("IPAIM UNIVERSITY", textLeft, 16);
+  pdf.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(110, 120, 135);
+  pdf.text("Institut Polytechnique Africain d'Innovation et de Management", textLeft, 21.5);
+  pdf.setFont("helvetica", "bold").setFontSize(13).setTextColor(20, 40, 92);
+  pdf.text(pdfSafe(options.title), width - left, 16, { align: "right" });
+  pdf.setFont("helvetica", "normal").setFontSize(9).setTextColor(90, 100, 120);
+  pdf.text(pdfSafe(options.subtitle), width - left, 21.5, { align: "right" });
+  pdf.setDrawColor(200, 148, 27).setLineWidth(0.8).line(left, 28, width - left, 28);
+  let y = 33;
+  for (const [index, detail] of (options.details ?? []).entries()) {
+    pdf.setFont("helvetica", index ? "normal" : "bold").setFontSize(index ? 8.5 : 10).setTextColor(index ? 90 : 20, index ? 100 : 40, index ? 120 : 92);
+    const lines = pdf.splitTextToSize(pdfSafe(detail), total) as string[];
+    pdf.text(lines, left, y);
+    y += lines.length * (index ? 4 : 5) + 1;
+  }
+  y += 2;
+
+  const bands = [...new Map(options.slots.map((slot) => [`${slot.heureDebut}-${slot.heureFin}`, { start: slot.heureDebut, end: slot.heureFin }])).values()]
+    .sort((first, second) => minutesOf(first.start) - minutesOf(second.start) || minutesOf(first.end) - minutesOf(second.end));
+  const rows = days.map((day, index) => ({ day, jour: index + 1 })).filter((row) => options.slots.some((slot) => slot.jour === row.jour));
+  if (!bands.length) {
+    pdf.setFont("helvetica", "normal").setFontSize(10).setTextColor(30, 40, 60);
+    pdf.text("Aucun cours n'est encore placé dans l'emploi du temps.", left, y + 8);
+    footer(pdf);
+    pdf.save(options.fileName);
+    return;
+  }
+  // Colonnes : le jour, chaque plage, et une pause là où un creux d'au moins 30 min sépare deux plages.
+  type Column = { kind: "band"; start: string; end: string; width: number } | { kind: "pause"; start: string; end: string; width: number };
+  const dayWidth = 26;
+  const pauseWidth = 13;
+  const columns: Column[] = [];
+  bands.forEach((band, index) => {
+    const previous = bands[index - 1];
+    if (previous && minutesOf(band.start) - minutesOf(previous.end) >= 30) columns.push({ kind: "pause", start: previous.end, end: band.start, width: pauseWidth });
+    columns.push({ kind: "band", ...band, width: 0 });
+  });
+  const pauses = columns.filter((column) => column.kind === "pause").length;
+  const bandWidth = (total - dayWidth - pauses * pauseWidth) / bands.length;
+  for (const column of columns) if (column.kind === "band") column.width = bandWidth;
+
+  // Ligne d'en-tête : les horaires.
+  const headHeight = 10;
+  pdf.setFillColor(20, 40, 92).rect(left, y, total, headHeight, "F");
+  pdf.setFont("helvetica", "bold").setFontSize(9).setTextColor(255, 255, 255);
+  pdf.text("Jour", left + dayWidth / 2, y + 6.3, { align: "center" });
+  let x = left + dayWidth;
+  for (const column of columns) {
+    if (column.kind === "pause") {
+      // La pause : son intitulé et ses heures, sur deux lignes.
+      pdf.setFontSize(7).text("Pause", x + column.width / 2, y + 4.4, { align: "center" });
+      pdf.setFont("helvetica", "normal").setFontSize(5.6).text(`${hourLabel(column.start)}-${hourLabel(column.end)}`, x + column.width / 2, y + 8, { align: "center" });
+      pdf.setFont("helvetica", "bold");
+    } else {
+      pdf.setFontSize(9).text(`${hourLabel(column.start)} – ${hourLabel(column.end)}`, x + column.width / 2, y + 6.3, { align: "center" });
+    }
+    x += column.width;
+  }
+  y += headHeight;
+
+  // Le contenu d'une case : matière en gras, enseignant, salle, mention de cours commun.
+  const lineHeight = 3.9;
+  const cellLines = (slot: TimetableSlot, cellWidth: number) => {
+    const out: Array<{ text: string; style: "bold" | "normal" | "italic"; size: number; color: [number, number, number] }> = [];
+    const push = (text: string, style: "bold" | "normal" | "italic", size: number, color: [number, number, number]) => {
+      pdf.setFont("helvetica", style).setFontSize(size);
+      for (const line of pdf.splitTextToSize(pdfSafe(text), cellWidth - 5) as string[]) out.push({ text: line, style, size, color });
+    };
+    push(slot.matiere, "bold", 8.6, [20, 40, 92]);
+    push(slot.enseignant ?? "Enseignant à désigner", slot.enseignant ? "normal" : "italic", 7.8, slot.enseignant ? [45, 55, 75] : [150, 110, 60]);
+    if (slot.salle) push(`Salle : ${slot.salle}`, "normal", 7.2, [90, 100, 120]);
+    if (slot.note) push(slot.note, "italic", 6.8, [120, 90, 30]);
+    return out;
   };
-  head();
-  const ranges = [...new Set(options.slots.map((slot) => `${slot.heureDebut}-${slot.heureFin}`))].sort();
-  for (const range of ranges) {
-    const [start, end] = range.split("-");
-    // Texte de chaque jour pour cette plage ; deux cours simultanés se suivent dans la case.
-    const cells = days.map((_, index) =>
-      options.slots
-        .filter((slot) => slot.jour === index + 1 && slot.heureDebut === start && slot.heureFin === end)
-        .flatMap((slot, position) => [...(position ? [""] : []), ...slot.lignes.flatMap((line, row) => (pdf.setFont("helvetica", row ? "normal" : "bold").setFontSize(8), pdf.splitTextToSize(pdfSafe(line), dayWidth - 4) as string[]).map((text) => ({ text, bold: !row })))]),
-    ) as Array<Array<{ text: string; bold: boolean } | "">>;
-    const height = Math.max(12, Math.max(...cells.map((cell) => cell.length)) * lineHeight + 5);
-    if (y + height > pdf.internal.pageSize.getHeight() - 14) {
+  const prepared = rows.map((row) => {
+    const cells = columns.map((column) =>
+      column.kind === "pause" ? [] : options.slots.filter((slot) => slot.jour === row.jour && slot.heureDebut === column.start && slot.heureFin === column.end),
+    );
+    const contents = cells.map((slots, index) => slots.flatMap((slot) => cellLines(slot, columns[index].width)));
+    const height = Math.max(24, ...contents.map((content) => content.length * lineHeight + 8));
+    return { ...row, cells, contents, height };
+  });
+  for (const row of prepared) {
+    if (y + row.height > pageHeight - 16) {
       footer(pdf);
       pdf.addPage();
       y = 18;
-      head();
     }
-    pdf.setDrawColor(200, 210, 228).setLineWidth(0.2);
-    pdf.setFillColor(232, 238, 248).rect(left, y, hourWidth, height, "FD");
-    pdf.setFont("helvetica", "bold").setFontSize(9);
-    pdf.text(`${start} - ${end}`, left + hourWidth / 2, y + height / 2 + 1.2, { align: "center" });
-    cells.forEach((cell, index) => {
-      const x = left + hourWidth + index * dayWidth;
-      pdf.rect(x, y, dayWidth, height);
-      cell.forEach((line, row) => {
-        if (!line) return;
-        pdf.setFont("helvetica", line.bold ? "bold" : "normal").setFontSize(8);
-        pdf.text(line.text, x + 2, y + 5 + row * lineHeight);
-      });
+    // Colonne du jour, avec un liseré doré.
+    pdf.setFillColor(238, 242, 250).rect(left, y, dayWidth, row.height, "F");
+    pdf.setFillColor(200, 148, 27).rect(left, y, 1.6, row.height, "F");
+    pdf.setFont("helvetica", "bold").setFontSize(10).setTextColor(20, 40, 92);
+    pdf.text(row.day, left + dayWidth / 2 + 0.8, y + row.height / 2 + 1.5, { align: "center" });
+    x = left + dayWidth;
+    row.contents.forEach((content, index) => {
+      const column = columns[index];
+      if (column.kind === "pause") {
+        pdf.setFillColor(246, 246, 246).rect(x, y, column.width, row.height, "F");
+      } else if (content.length) {
+        const [r, g, b] = colorOf(row.cells[index][0].matiere);
+        pdf.setFillColor(r, g, b).roundedRect(x + 1.2, y + 1.2, column.width - 2.4, row.height - 2.4, 1.6, 1.6, "F");
+        const top = y + (row.height - content.length * lineHeight) / 2 + 2.8;
+        content.forEach((line, position) => {
+          pdf.setFont("helvetica", line.style).setFontSize(line.size).setTextColor(...line.color);
+          pdf.text(line.text, x + column.width / 2, top + position * lineHeight, { align: "center" });
+        });
+      } else {
+        pdf.setFont("helvetica", "normal").setFontSize(9).setTextColor(190, 196, 206);
+        pdf.text("—", x + column.width / 2, y + row.height / 2 + 1.2, { align: "center" });
+      }
+      x += column.width;
     });
-    y += height;
+    pdf.setDrawColor(215, 222, 235).setLineWidth(0.2).line(left, y + row.height, left + total, y + row.height);
+    y += row.height;
   }
-  if (!ranges.length) {
-    pdf.setFont("helvetica", "normal").setFontSize(10);
-    pdf.text("Aucun cours n'est encore place dans l'emploi du temps.", left, y + 10);
-  }
+  pdf.setTextColor(30, 40, 60);
   footer(pdf);
   pdf.save(options.fileName);
 }

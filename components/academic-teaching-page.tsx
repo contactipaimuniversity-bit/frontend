@@ -14,7 +14,9 @@ import { CourseGradesPage, EvaluationGradesPage } from "@/components/grades-page
 import { navigateTo, pathForGrades } from "@/lib/routes";
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-type Slot = { id: string; jour: number; heureDebut: string; heureFin: string; classeNom: string; salle?: Room | null; cours: { id: string; matiere: { nom: string; code: string }; enseignant?: { nom: string; prenom: string } | null } };
+type Slot = { id: string; jour: number; heureDebut: string; heureFin: string; classeNom: string; communAvec?: string[]; salle?: Room | null; cours: { id: string; matiere: { nom: string; code: string }; enseignant?: { nom: string; prenom: string } | null } };
+// Même matière dans une autre classe de l'année : peut partager le créneau.
+type SharedCourse = { id: string; classeId: string; classeNom: string; enseignant?: { nom: string; prenom: string } | null };
 type Session = {
   id: string;
   date: string;
@@ -30,7 +32,7 @@ type Session = {
 };
 type ClassStudents = { inscriptions: Array<{ id: string; statut: string; personne: Student }> };
 
-function Timetable({ classId, canEdit, closed }: { classId: string; canEdit: boolean; closed: boolean }) {
+function Timetable({ classId, canEdit, closed, className, yearLabel, classDetails }: { classId: string; canEdit: boolean; closed: boolean; className?: string; yearLabel?: string; classDetails?: string[] }) {
   const slots = useLoad<Slot[]>(`/academique/emploi-du-temps?classeId=${classId}`);
   const courses = useLoad<Course[]>(canEdit ? `/academique/cours?classeId=${classId}` : null);
   const rooms = useLoad<Room[]>(canEdit ? "/academique/salles" : null);
@@ -38,27 +40,43 @@ function Timetable({ classId, canEdit, closed }: { classId: string; canEdit: boo
   const teachers = useLoad<{ data: Array<{ id: string; nom: string; prenom: string }> }>("/rh/employes?categorie=ENSEIGNANT&statut=ACTIF&limit=200");
   const [teacherId, setTeacherId] = useState("");
   // Emploi du temps de la classe, ou celui d'un enseignant toutes classes confondues.
-  const printClass = () => { const name = slots.data?.[0]?.classeNom ?? "classe"; return action.run(() => timetablePdf({ title: "EMPLOI DU TEMPS", subtitle: `Classe ${name}`, fileName: `emploi-du-temps-${name.replace(/\s+/g, "-")}.pdf`, slots: (slots.data ?? []).map((slot) => ({ jour: slot.jour, heureDebut: slot.heureDebut, heureFin: slot.heureFin, lignes: [slot.cours.matiere.nom, slot.cours.enseignant ? personName(slot.cours.enseignant) : "Enseignant non affecté", slot.salle?.nom ?? ""].filter(Boolean) })) })); };
+  const printClass = () => {
+    const name = className ?? slots.data?.[0]?.classeNom ?? "classe";
+    return action.run(() => timetablePdf({
+      title: "EMPLOI DU TEMPS",
+      subtitle: `Classe ${name}${yearLabel ? ` · Année académique ${yearLabel}` : ""}`,
+      details: classDetails,
+      fileName: `emploi-du-temps-${name.replace(/\s+/g, "-")}.pdf`,
+      slots: (slots.data ?? []).map((slot) => ({ jour: slot.jour, heureDebut: slot.heureDebut, heureFin: slot.heureFin, matiere: slot.cours.matiere.nom, enseignant: slot.cours.enseignant ? personName(slot.cours.enseignant) : null, salle: slot.salle?.nom ?? null, note: slot.communAvec?.length ? `Commun avec ${slot.communAvec.join(", ")}` : null })),
+    }));
+  };
   const printTeacher = () =>
     action.run(async () => {
       const teacher = teachers.data?.data.find((item) => item.id === teacherId);
       if (!teacher) return;
       const own = await apiFetch<Slot[]>(`/academique/emploi-du-temps?enseignantId=${teacherId}`, { skipCache: true });
-      await timetablePdf({ title: "EMPLOI DU TEMPS", subtitle: `Enseignant : ${personName(teacher)}`, fileName: `emploi-du-temps-${teacher.nom.replace(/\s+/g, "-")}.pdf`, slots: own.map((slot) => ({ jour: slot.jour, heureDebut: slot.heureDebut, heureFin: slot.heureFin, lignes: [slot.cours.matiere.nom, slot.classeNom, slot.salle?.nom ?? ""].filter(Boolean) })) });
+      // Un cours commun n'apparaît qu'une fois, avec toutes ses classes.
+      const seen = new Set<string>();
+      const unique = own.filter((slot) => { const key = `${slot.jour}|${slot.heureDebut}`; if (seen.has(key)) return false; seen.add(key); return true; });
+      await timetablePdf({ title: "EMPLOI DU TEMPS", subtitle: `Enseignant : ${personName(teacher)}${yearLabel ? ` · Année académique ${yearLabel}` : ""}`, fileName: `emploi-du-temps-${teacher.nom.replace(/\s+/g, "-")}.pdf`, slots: unique.map((slot) => ({ jour: slot.jour, heureDebut: slot.heureDebut, heureFin: slot.heureFin, matiere: slot.cours.matiere.nom, enseignant: [slot.classeNom, ...(slot.communAvec ?? [])].join(" · "), salle: slot.salle?.nom ?? null, note: null })) });
     });
   const form = useForm({ coursId: "", jour: "1", heureDebut: "08:00", heureFin: "10:00", salleId: "" });
+  // Cours commun : les autres classes qui suivent la même matière, cochées ici.
+  const shared = useLoad<SharedCourse[]>(adding && form.values.coursId ? `/academique/cours/${form.values.coursId}/communs` : null);
+  const [linked, setLinked] = useState<Set<string>>(new Set());
   const action = useAction();
   const editable = canEdit && !closed;
   const add = (event: FormEvent) => {
     event.preventDefault();
     void action.run(async () => {
-      await send("/academique/creneaux", "POST", { ...form.values, jour: Number(form.values.jour) });
+      await send("/academique/creneaux", "POST", { ...form.values, jour: Number(form.values.jour), coursLies: [...linked] });
       setAdding(false);
+      setLinked(new Set());
       slots.reload();
     });
   };
   const remove = async (slot: Slot) => {
-    if (!(await askConfirm({ title: `Retirer ${slot.cours.matiere.nom} du ${DAYS[slot.jour - 1].toLowerCase()} ?`, confirmLabel: "Retirer", danger: true }))) return;
+    if (!(await askConfirm({ title: `Retirer ${slot.cours.matiere.nom} du ${DAYS[slot.jour - 1].toLowerCase()} ?`, message: slot.communAvec?.length ? `C'est un cours commun : il est retiré aussi pour ${slot.communAvec.join(", ")}.` : undefined, confirmLabel: "Retirer", danger: true }))) return;
     void action.run(async () => { await send(`/academique/creneaux/${slot.id}`, "DELETE"); slots.reload(); });
   };
   return (
@@ -84,6 +102,7 @@ function Timetable({ classId, canEdit, closed }: { classId: string; canEdit: boo
                   <strong>{slot.heureDebut} – {slot.heureFin}</strong>
                   <span>{slot.cours.matiere.nom}</span>
                   <small>{slot.cours.enseignant ? personName(slot.cours.enseignant) : "Enseignant non affecté"}{slot.salle ? ` · ${slot.salle.nom}` : ""}</small>
+                  {Boolean(slot.communAvec?.length) && <small className="timetable-shared">Commun avec {slot.communAvec!.join(", ")}</small>}
                   {editable && <button className="row-action danger-row-action" onClick={() => void remove(slot)}>Retirer</button>}
                 </article>
               ))}
@@ -96,7 +115,7 @@ function Timetable({ classId, canEdit, closed }: { classId: string; canEdit: boo
         <Modal title="Nouveau créneau hebdomadaire" onClose={() => setAdding(false)}>
           <form className="entity-form" onSubmit={add}>
             <label>Cours
-              <select required {...form.bind("coursId")}>
+              <select required value={form.values.coursId} onChange={(event) => { form.setValues({ ...form.values, coursId: event.target.value }); setLinked(new Set()); }}>
                 <option value="">Sélectionner une matière</option>
                 {(courses.data ?? []).map((course) => <option key={course.id} value={course.id}>{course.matiere.nom}{course.enseignant ? ` · ${personName(course.enseignant)}` : ""}</option>)}
               </select>
@@ -112,6 +131,15 @@ function Timetable({ classId, canEdit, closed }: { classId: string; canEdit: boo
                 {(rooms.data ?? []).filter((room) => room.actif).map((room) => <option key={room.id} value={room.id}>{room.nom}{room.capacite ? ` (${room.capacite} places)` : ""}</option>)}
               </select>
             </label>
+            {Boolean(shared.data?.length) && (
+              <fieldset className="students-list-columns">
+                <legend>Cours commun avec d&apos;autres classes (facultatif)</legend>
+                {(shared.data ?? []).map((item) => (
+                  <label key={item.id}><input type="checkbox" checked={linked.has(item.id)} onChange={(event) => setLinked((current) => { const next = new Set(current); if (event.target.checked) next.add(item.id); else next.delete(item.id); return next; })} />{item.classeNom}{item.enseignant ? ` · ${personName(item.enseignant)}` : ""}</label>
+                ))}
+              </fieldset>
+            )}
+            {linked.size > 0 && <p className="tuition-preview">Un seul cours, à la même heure, pour {linked.size + 1} classes : un enseignant, une salle, une séance payée une fois.</p>}
             <p className="panel-subtitle">Un conflit de classe, d&apos;enseignant ou de salle est refusé avec son explication.</p>
             {action.error && <p className="form-error">{action.error}</p>}
             <FormActions busy={action.busy} label="Ajouter" onCancel={() => setAdding(false)} />
@@ -249,6 +277,15 @@ function Logbook({ classId, canEdit, closed }: { classId: string; canEdit: boole
   );
 }
 
+// Sous le titre de l'emploi du temps : la filière (ou le pôle et ses filières pour un tronc commun).
+function classDetails(classe: { filiere?: { nom: string; troncCommun?: boolean; pole?: { nom: string; filieres?: Array<{ nom: string; troncCommun?: boolean }> } | null } }) {
+  const filiere = classe.filiere;
+  if (!filiere) return [];
+  if (!filiere.troncCommun) return [`Filière : ${filiere.nom}`];
+  const autres = (filiere.pole?.filieres ?? []).filter((item) => !item.troncCommun).map((item) => item.nom);
+  return [`${filiere.pole?.nom ?? "Pôle"} · ${filiere.nom}`, ...(autres.length ? [`Filières réunies : ${autres.join(" · ")}`] : [])];
+}
+
 export function AcademicTeachingPage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
   type Tab = "emploi" | "cahier" | "emargement";
   const [tabParam, setTab] = useHubSection<Tab>(["emploi", "cahier", "emargement"]);
@@ -265,7 +302,7 @@ export function AcademicTeachingPage({ user, refreshSignal }: { user: User | nul
         <TeacherAttendance canEdit={canSign} />
       ) : classes.selected ? (
         <Panel eyebrow={classes.selected.nom} title={tab === "emploi" ? "Semaine type" : "Séances tenues"}>
-          {tab === "emploi" && <Timetable key={classes.selected.id} classId={classes.selected.id} canEdit={hasAccess(user, "academics", "edit")} closed={closed} />}
+          {tab === "emploi" && <Timetable key={classes.selected.id} classId={classes.selected.id} canEdit={hasAccess(user, "academics", "edit")} closed={closed} className={classes.selected.nom} yearLabel={classes.year?.libelle} classDetails={classDetails(classes.selected)} />}
           {tab === "cahier" && <p className="panel-subtitle">Pour compléter une séance déjà émargée, déclarez-la sur le même créneau : son contenu et son appel sont alors enregistrés.</p>}
           {tab === "cahier" && <Logbook key={classes.selected.id} classId={classes.selected.id} canEdit={hasAccess(user, "teaching", "edit")} closed={closed} />}
         </Panel>

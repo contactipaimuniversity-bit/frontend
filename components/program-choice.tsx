@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ModalChoice } from "@/components/modal-choice";
 import { apiFetch } from "@/lib/api";
 
-type Program = { id: string; code: string; nom: string; actif: boolean; pole?: { nom: string } | null };
+type Program = { id: string; code: string; nom: string; actif: boolean; troncCommun?: boolean; pole?: { nom: string } | null };
 
 // Filière choisie dans la liste de Structure académique plutôt que tapée : le
 // même nom partout, donc un dossier qui se rattache tout seul à sa filière.
@@ -18,7 +18,8 @@ export function ProgramChoice({ label, value, onChange, required = false }: { la
       .catch(() => { if (active) setPrograms([]); });
     return () => { active = false; };
   }, []);
-  const open = (programs ?? []).filter((program) => program.actif);
+  // Un tronc commun n'est pas la filière d'un étudiant : il n'est pas proposé ici.
+  const open = (programs ?? []).filter((program) => program.actif && !program.troncCommun);
   // Aucune filière paramétrée (ou liste illisible hors ligne) : on garde la saisie libre.
   if (programs && !open.length)
     return <label>{label}<input required={required} value={value} onChange={(event) => onChange(event.target.value)} /></label>;
