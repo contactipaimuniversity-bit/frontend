@@ -109,6 +109,8 @@ const SECTION_TITLES: Record<ClassSection, string> = { etudiants: "Étudiants", 
 // Page d'une classe : trois cartes, et derrière chacune sa rubrique.
 function ClassPage({ classId, section, canEdit, canPrintCards, refreshSignal }: { classId: string; section: ClassSection | null; canEdit: boolean; canPrintCards: boolean; refreshSignal: number }) {
   const [assigning, setAssigning] = useState(false);
+  const [moving, setMoving] = useState<string | null>(null);
+  const [splitting, setSplitting] = useState(false);
   const detail = useLoad<ClassDetail>(`/academique/classes/${classId}`, refreshSignal);
   const courses = useLoad<Course[]>(`/academique/cours?classeId=${classId}`, refreshSignal);
   const teachers = useLoad<{ data: Teacher[] }>(section === "cours" && canEdit ? "/rh/employes?categorie=ENSEIGNANT&statut=ACTIF&limit=200" : null);
@@ -170,6 +172,7 @@ function ClassPage({ classId, section, canEdit, canPrintCards, refreshSignal }: 
         text={classe ? `${classe.filiere.nom} · ${classe.niveau}${closed ? " · année clôturée, consultation seule" : ""}` : detail.error ? "" : "Chargement..."}
       >
         {section === "etudiants" && editable && <button className="primary-button compact" onClick={() => setAssigning(true)}>+ Affecter des étudiants</button>}
+        {section === "etudiants" && editable && classe?.filiere.troncCommun && Boolean(classe.inscriptions.length) && <button className="outline-button small" title="Fin du tronc commun : chaque étudiant rejoint la classe de sa filière" onClick={() => setSplitting(true)}>Répartir dans les filières</button>}
         {section === "etudiants" && <button className="outline-button small" disabled={action.busy || !classe?.inscriptions.length} onClick={() => void roster()}>Liste de classe (PDF)</button>}
         {section === "etudiants" && canPrintCards && <button className="outline-button small" disabled={action.busy || !classe?.inscriptions.length} onClick={() => void cards()}>Cartes d&apos;étudiant (PDF)</button>}
       </PageIntro>
@@ -179,18 +182,19 @@ function ClassPage({ classId, section, canEdit, canPrintCards, refreshSignal }: 
         <Panel title={`${classe?.inscriptions.length ?? "--"} étudiant(s)${classe?.capacite ? ` sur ${classe.capacite} places` : ""}`} subtitle="Cliquez sur un étudiant pour ouvrir son parcours complet.">
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Matricule</th><th>Étudiant</th><th>Téléphone</th><th>Inscription</th><th /></tr></thead>
+              <thead><tr><th>Matricule</th><th>Étudiant</th><th>Filière</th><th>Téléphone</th><th>Inscription</th><th /></tr></thead>
               <tbody>
                 {(classe?.inscriptions ?? []).map((item) => (
                   <tr key={item.id}>
                     <td className="strong-cell">{item.personne.matricule ?? "—"}</td>
                     <td><button className="dossier-open-button" onClick={() => navigateTo(pathForStudent(item.personne.id))}>{personName(item.personne)}</button></td>
+                    <td>{item.filiere}</td>
                     <td>{item.personne.telephone ?? "—"}</td>
                     <td><Badge tone={item.statut === "ABANDONNEE" ? "bad" : item.statut === "COMPLETE" ? "ok" : "wait"}>{item.statut === "ABANDONNEE" ? "Abandonnée" : item.statut === "COMPLETE" ? "Complète" : "En cours"}</Badge></td>
-                    <td className="action-group"><button className="row-action" onClick={() => navigateTo(pathForStudent(item.personne.id))}>Parcours</button>{canPrintCards && item.statut !== "ABANDONNEE" && <><button className="row-action" disabled={action.busy} onClick={() => void cards(item.id)}>Carte</button><button className="row-action" disabled={action.busy} title="Remplace une carte perdue ou volée : l'ancienne est désactivée" onClick={() => void cards(item.id, true)}>Nouvelle carte</button></>}{item.statut !== "ABANDONNEE" && <button className="row-action" disabled={action.busy} onClick={() => void certificate(item.id)}>Certificat</button>}{editable && <button className="row-action danger-row-action" onClick={() => void remove(item.id, personName(item.personne))}>Retirer</button>}</td>
+                    <td className="action-group"><button className="row-action" onClick={() => navigateTo(pathForStudent(item.personne.id))}>Parcours</button>{canPrintCards && item.statut !== "ABANDONNEE" && <><button className="row-action" disabled={action.busy} onClick={() => void cards(item.id)}>Carte</button><button className="row-action" disabled={action.busy} title="Remplace une carte perdue ou volée : l'ancienne est désactivée" onClick={() => void cards(item.id, true)}>Nouvelle carte</button></>}{item.statut !== "ABANDONNEE" && <button className="row-action" disabled={action.busy} onClick={() => void certificate(item.id)}>Certificat</button>}{editable && item.statut !== "ABANDONNEE" && <button className="row-action" title="Passer dans une autre classe de sa filière (ou le tronc commun de son pôle) ; c'est gardé dans son parcours" onClick={() => setMoving(item.id)}>Changer de classe</button>}{editable && <button className="row-action danger-row-action" onClick={() => void remove(item.id, personName(item.personne))}>Retirer</button>}</td>
                   </tr>
                 ))}
-                {!classe?.inscriptions.length && <Empty columns={5} loading={!(classe)}>{"Aucun étudiant dans cette classe."}</Empty>}
+                {!classe?.inscriptions.length && <Empty columns={6} loading={!(classe)}>{"Aucun étudiant dans cette classe."}</Empty>}
               </tbody>
             </table>
           </div>
@@ -244,6 +248,8 @@ function ClassPage({ classId, section, canEdit, canPrintCards, refreshSignal }: 
           </div>
         </Panel>
       )}
+      {moving && <ChangeClassModal inscriptionId={moving} onClose={() => setMoving(null)} onSaved={() => detail.reload()} />}
+      {splitting && <SplitCommonCoreModal classId={classId} onClose={() => setSplitting(false)} onSaved={() => detail.reload()} />}
       {assigning && <AssignStudents classId={classId} onClose={() => setAssigning(false)} onSaved={detail.reload} />}
     </div>
   );
@@ -365,5 +371,108 @@ function ClassListPage({ canEdit, refreshSignal }: { canEdit: boolean; refreshSi
         </Modal>
       )}
     </div>
+  );
+}
+
+// ---------- Changer de classe, répartir un tronc commun ----------
+
+type PossibleClasses = { etudiant: { inscriptionId: string; nom: string; prenom: string; filiere: string; classe: { id: string; nom: string } | null }; classes: Array<{ id: string; nom: string; troncCommun: boolean; effectif: number; capacite: number | null }> };
+
+// Un étudiant change de classe, jamais de filière : seules les classes de sa filière
+// et le tronc commun de son pôle sont proposés. Le changement reste dans son parcours.
+function ChangeClassModal({ inscriptionId, onClose, onSaved }: { inscriptionId: string; onClose: () => void; onSaved: () => void }) {
+  const options = useLoad<PossibleClasses>(`/academique/inscriptions/${inscriptionId}/classes-possibles`);
+  const [classeId, setClasseId] = useState("");
+  const [motif, setMotif] = useState("");
+  const action = useAction();
+  const data = options.data;
+  const chosen = data?.classes.find((item) => item.id === (classeId || data.classes[0]?.id));
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!chosen) return;
+    void action.run(async () => {
+      await send(`/academique/inscriptions/${inscriptionId}/changer-classe`, "POST", { classeId: chosen.id, motif });
+      toast(`${data?.etudiant.prenom} ${data?.etudiant.nom} est maintenant en ${chosen.nom}.`);
+      onSaved();
+      onClose();
+    });
+  };
+  return (
+    <Modal title={data ? `Changer de classe · ${data.etudiant.prenom} ${data.etudiant.nom}` : "Changer de classe"} onClose={onClose}>
+      <form className="entity-form" onSubmit={submit}>
+        {!data && !options.error && <LoadingBlock />}
+        {options.error && <p className="form-error">{options.error}</p>}
+        {data && (
+          <>
+            <p className="tuition-preview">Filière : <strong>{data.etudiant.filiere}</strong> — elle ne change pas, ni son tarif, ni son matricule. Classe actuelle : <strong>{data.etudiant.classe?.nom ?? "aucune"}</strong>.</p>
+            {data.classes.length ? (
+              <div className="tuition-choices" role="radiogroup" aria-label="Nouvelle classe">
+                {data.classes.map((item) => (
+                  <button key={item.id} type="button" role="radio" aria-checked={chosen?.id === item.id} className={chosen?.id === item.id ? "active" : ""} onClick={() => setClasseId(item.id)}>
+                    <strong>{item.nom}</strong>
+                    <small>{item.troncCommun ? "Tronc commun du pôle" : "Classe de sa filière"} · {item.effectif} étudiant(s){item.capacite ? ` sur ${item.capacite}` : ""}</small>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="panel-subtitle">Aucune autre classe de sa filière (ou du tronc commun de son pôle) pour son année et son niveau. Créez d&apos;abord la classe dans « Classes et étudiants ».</p>
+            )}
+            <label>Motif (facultatif)<input maxLength={300} placeholder="Par exemple : fin du tronc commun" value={motif} onChange={(event) => setMotif(event.target.value)} /></label>
+            <p className="panel-subtitle">Ses notes, absences et résultats déjà délibérés le suivent. Le changement apparaît dans son parcours, avec la date et votre nom.</p>
+          </>
+        )}
+        {action.error && <p className="form-error">{action.error}</p>}
+        <FormActions busy={action.busy} disabled={!chosen} label={chosen ? `Passer en ${chosen.nom}` : "Changer de classe"} onCancel={onClose} />
+      </form>
+    </Modal>
+  );
+}
+
+type Split = { classe: { id: string; nom: string }; etudiants: Array<{ inscriptionId: string; personne: Student; filiere: string; destination: { id: string | null; nom: string; creee: boolean } | null; bloque: string | null }> };
+
+// Fin d'un tronc commun : chacun rejoint la classe de sa filière, créée au besoin.
+function SplitCommonCoreModal({ classId, onClose, onSaved }: { classId: string; onClose: () => void; onSaved: () => void }) {
+  const split = useLoad<Split>(`/academique/classes/${classId}/repartition`);
+  const [chosen, setChosen] = useState<Set<string> | null>(null);
+  const action = useAction();
+  const rows = split.data?.etudiants ?? [];
+  const selection = chosen ?? new Set(rows.filter((item) => !item.bloque && item.destination).map((item) => item.inscriptionId));
+  const toggle = (id: string) => { const next = new Set(selection); if (next.has(id)) next.delete(id); else next.add(id); setChosen(next); };
+  const created = [...new Set(rows.filter((item) => selection.has(item.inscriptionId) && item.destination?.creee).map((item) => item.destination!.nom))];
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    void action.run(async () => {
+      const result = await send<{ deplaces: number; ignores: Array<{ nom: string; raison: string }> }>(`/academique/classes/${classId}/repartition`, "POST", { inscriptionIds: [...selection] });
+      toast(`${result.deplaces} étudiant(s) répartis dans leur filière.${result.ignores.length ? ` ${result.ignores.length} non déplacé(s) : ${result.ignores.map((item) => `${item.nom} (${item.raison})`).join(" ; ")}` : ""}`, result.ignores.length ? "info" : "success");
+      onSaved();
+      onClose();
+    });
+  };
+  return (
+    <Modal wide title={`Répartir ${split.data?.classe.nom ?? "le tronc commun"} dans les filières`} onClose={onClose}>
+      <form className="entity-form" onSubmit={submit}>
+        <p className="panel-subtitle">Chaque étudiant coché rejoint la classe de <strong>sa propre filière</strong>, même année, même niveau. Décochez ceux qui restent dans le tronc commun. Rien d&apos;autre ne change : filière, tarif, matricule, notes et résultats du tronc commun sont gardés, et le changement entre dans leur parcours.</p>
+        {split.error && <p className="form-error">{split.error}</p>}
+        <div className="table-wrap"><table>
+          <thead><tr><th /><th>Étudiant</th><th>Sa filière</th><th>Va dans</th></tr></thead>
+          <tbody>
+            {rows.map((item) => (
+              <tr key={item.inscriptionId}>
+                <td><input type="checkbox" aria-label={`Répartir ${personName(item.personne)}`} disabled={Boolean(item.bloque) || !item.destination} checked={selection.has(item.inscriptionId)} onChange={() => toggle(item.inscriptionId)} /></td>
+                <td className="strong-cell">{personName(item.personne)}<small className="cell-detail">{item.personne.matricule ?? ""}</small></td>
+                <td>{item.filiere}</td>
+                <td>
+                  {item.bloque ? <span className="debt-action">{item.bloque}</span> : item.destination ? <>{item.destination.nom}{item.destination.creee && <> <Badge tone="run">sera créée</Badge></>}</> : "—"}
+                </td>
+              </tr>
+            ))}
+            {!rows.length && <Empty columns={4} loading={!split.data && !split.error}>{"Aucun étudiant dans ce tronc commun."}</Empty>}
+          </tbody>
+        </table></div>
+        {created.length > 0 && <p className="tuition-preview">Classe(s) créée(s) au passage : {created.join(", ")}. Leurs matières viennent de la maquette de chaque filière.</p>}
+        {action.error && <p className="form-error">{action.error}</p>}
+        <FormActions busy={action.busy} disabled={!selection.size} label={`Répartir ${selection.size} étudiant(s)`} onCancel={onClose} />
+      </form>
+    </Modal>
   );
 }

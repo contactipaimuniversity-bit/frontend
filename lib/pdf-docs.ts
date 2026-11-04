@@ -405,6 +405,8 @@ export type Journey = {
     filiere: string;
     statut: string;
     classe: { id: string; nom: string } | null;
+    // Les classes suivies dans l'année, dans l'ordre (tronc commun, puis filière…).
+    historique?: Array<{ classe: { id: string; nom: string; troncCommun: boolean }; du: string; au: string | null; motif: string | null; parNom: string | null }>;
     semestres: Transcript["semestres"];
     resultat: (Transcript["resultat"] & { effectif: number }) | null;
     absences: Transcript["absences"];

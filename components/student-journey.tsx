@@ -77,6 +77,16 @@ export function StudentJourneyPage({ personId, refreshSignal }: { personId: stri
                 }
               >
                 {year.retenue && <p className="form-error">{year.retenue}</p>}
+                {(year.historique?.length ?? 0) > 1 && (
+                  <ol className="class-history" aria-label="Classes suivies cette année">
+                    {year.historique!.map((passage, index) => (
+                      <li key={`${passage.classe.id}-${passage.du}`} className={passage.au ? "" : "current"}>
+                        <strong>{passage.classe.nom}</strong>{passage.classe.troncCommun && <> <Badge tone="run">Tronc commun</Badge></>}
+                        <small>{passage.au ? `du ${formatDate(passage.du)} au ${formatDate(passage.au)}` : `depuis le ${formatDate(passage.du)}`}{index > 0 && passage.motif ? ` · ${passage.motif}` : ""}{index > 0 && passage.parNom ? ` · par ${passage.parNom}` : ""}</small>
+                      </li>
+                    ))}
+                  </ol>
+                )}
                 <div className="table-wrap">
                   <table>
                     <thead><tr><th>Période</th><th>Moyenne</th><th>Crédits</th><th>Rang</th><th>Mention</th><th>Décision</th></tr></thead>
