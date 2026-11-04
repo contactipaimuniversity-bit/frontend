@@ -17,6 +17,7 @@ import { confirmNewPerson } from "@/lib/duplicates";
 import { logPrint } from "@/lib/print-log";
 import { DocumentsPanel } from "@/components/hr-page";
 import { TuitionPlanPanel } from "@/components/tuition-plan";
+import { ProgramChoice } from "@/components/program-choice";
 import { ScholarsListModal } from "@/components/scholars-list";
 import { StudentsListModal } from "@/components/students-list";
 import { PersonPhotoCard, PhotoField, attachPhotoAfterSave } from "@/components/student-photo";
@@ -388,25 +389,8 @@ function CreateApplication({
           choices={[{ value: "PREMIERE_ANNEE", label: "Première année" }, { value: "DEUXIEME_ANNEE", label: "Deuxième année" }]}
           onChange={(value) => setForm({ ...form, niveauDemande: value })}
         />
-        <label>
-          Filière souhaitée
-          <input
-            required
-            value={form.filiereSouhaitee}
-            onChange={(event) =>
-              setForm({ ...form, filiereSouhaitee: event.target.value })
-            }
-          />
-        </label>
-        <label>
-          Filière secondaire souhaitée (facultatif)
-          <input
-            value={form.filiereSecondaireSouhaitee}
-            onChange={(event) =>
-              setForm({ ...form, filiereSecondaireSouhaitee: event.target.value })
-            }
-          />
-        </label>
+        <ProgramChoice required label="Filière souhaitée" value={form.filiereSouhaitee} onChange={(filiereSouhaitee) => setForm({ ...form, filiereSouhaitee })} />
+        <ProgramChoice label="Filière secondaire souhaitée (facultatif)" value={form.filiereSecondaireSouhaitee} onChange={(filiereSecondaireSouhaitee) => setForm({ ...form, filiereSecondaireSouhaitee })} />
         <label>
           École d&apos;origine
           <input
@@ -733,15 +717,7 @@ function CreateProspect({
             }
           />
         </label>
-        <label>
-          Filière souhaitée
-          <input
-            value={form.filiereSouhaitee}
-            onChange={(event) =>
-              setForm({ ...form, filiereSouhaitee: event.target.value })
-            }
-          />
-        </label>
+        <ProgramChoice label="Filière souhaitée" value={form.filiereSouhaitee} onChange={(filiereSouhaitee) => setForm({ ...form, filiereSouhaitee })} />
         <label>
           Intention
           <input
@@ -1093,7 +1069,7 @@ function EditProspectForm({
           <label>Prénom du tuteur<input value={form.tuteurPrenom} onChange={(event) => setForm({ ...form, tuteurPrenom: event.target.value })} /></label>
         </div>
         <label>Téléphone du tuteur<input value={form.tuteurTelephone} onChange={(event) => setForm({ ...form, tuteurTelephone: event.target.value })} /></label>
-        <label>Filière souhaitée<input value={form.filiereSouhaitee} onChange={(event) => setForm({ ...form, filiereSouhaitee: event.target.value })} /></label>
+        <ProgramChoice label="Filière souhaitée" value={form.filiereSouhaitee} onChange={(filiereSouhaitee) => setForm({ ...form, filiereSouhaitee })} />
         <label>Intention actuelle<input value={form.intention} onChange={(event) => setForm({ ...form, intention: event.target.value })} /></label>
         <label>
           Comment a-t-il entendu parler de l&apos;IPAIM ?

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { toast } from "@/components/feedback";
 import { ModalChoice } from "@/components/modal-choice";
+import { ProgramChoice } from "@/components/program-choice";
 import { FormActions, Modal, messageOf, send } from "@/components/ui-kit";
 import { apiFetch } from "@/lib/api";
 import { Application, Enrollment, fullName, statusLabels } from "@/lib/types";
@@ -42,7 +43,7 @@ export function EditApplicationModal({ application, onClose, onSaved }: { applic
   const [form, setForm] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const { programs } = useReferential();
+
   const set = (patch: Partial<typeof initial>) => setForm((current) => ({ ...current, ...patch }));
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -66,19 +67,12 @@ export function EditApplicationModal({ application, onClose, onSaved }: { applic
       <form className="entity-form" onSubmit={(event) => void submit(event)}>
         <p className="panel-subtitle">L&apos;identité de l&apos;étudiant se corrige avec « Modifier les informations de l&apos;étudiant ». Le niveau ne change plus une fois un paiement enregistré, car les frais en dépendent.</p>
         <ModalChoice required label="Niveau demandé" placeholder="Sélectionner un niveau" value={form.niveauDemande} choices={DEMANDE_LEVELS} onChange={(niveauDemande) => set({ niveauDemande })} />
-        <label>
-          Filière souhaitée
-          <input required list="filieres-dossier" value={form.filiereSouhaitee} onChange={(event) => set({ filiereSouhaitee: event.target.value })} />
-        </label>
-        <label>
-          Filière secondaire souhaitée (facultatif)
-          <input list="filieres-dossier" value={form.filiereSecondaireSouhaitee} onChange={(event) => set({ filiereSecondaireSouhaitee: event.target.value })} />
-        </label>
+        <ProgramChoice required label="Filière souhaitée" value={form.filiereSouhaitee} onChange={(filiereSouhaitee) => set({ filiereSouhaitee })} />
+        <ProgramChoice label="Filière secondaire souhaitée (facultatif)" value={form.filiereSecondaireSouhaitee} onChange={(filiereSecondaireSouhaitee) => set({ filiereSecondaireSouhaitee })} />
         <label>
           École d&apos;origine (facultatif)
           <input value={form.ecoleOrigine} onChange={(event) => set({ ecoleOrigine: event.target.value })} />
         </label>
-        <datalist id="filieres-dossier">{programs.map((program) => <option key={program.id} value={program.nom} />)}</datalist>
         {error && <p className="form-error">{error}</p>}
         <FormActions busy={busy} onCancel={onClose} />
       </form>
