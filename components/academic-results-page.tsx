@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { askReason, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
 import { apiFetch } from "@/lib/api";
-import { DECISION_LABELS, GradeReport, MinutesData, Transcript, WithheldReport, attestationsPdf, deliberationMinutesPdf, diplomaTitle, diplomasPdf, documentNumber, gradeReportsPdf, tablePdf, transcriptsPdf } from "@/lib/pdf-docs";
+import { DECISION_LABELS, GradeReport, MinutesData, Transcript, WithheldReport, attestationsPdf, deliberationMinutesPdf, diplomaTitle, diplomasPdf, documentNumber, gradeReportsPdf, semesterCompensated, tablePdf, transcriptsPdf } from "@/lib/pdf-docs";
 import { PrintDocument, logPrint } from "@/lib/print-log";
 import { User, formatDate } from "@/lib/types";
 import { AcademicYear } from "@/components/academic-structure-page";
@@ -213,7 +213,11 @@ function ResultsModal({ classId, semestre, canEdit, onClose, onChanged }: { clas
                     <td className="strong-cell">{personName(line.personne)}<small className="cell-detail">{line.personne.matricule ?? ""}</small></td>
                     {semestre === 0
                       ? [1, 2].map((index) => <td key={index}>{number(line.detail.semestres?.find((item) => item.semestre === index)?.moyenne)}</td>)
-                      : (line.detail.unites ?? []).map((unit) => <td key={unit.code} className={unit.validee ? "" : "debt-action"} title={unit.acquise ? `Unité acquise en ${unit.acquise} : conservée, non repassée` : undefined}>{number(unit.moyenne)}{unit.acquise && <small className="cell-detail">acquise</small>}</td>)}
+                      : (line.detail.unites ?? []).map((unit) => {
+                          // Unité sous la moyenne, acquise quand même : le semestre est validé par compensation.
+                          const compensated = !unit.validee && semesterCompensated(line);
+                          return <td key={unit.code} className={unit.validee ? "" : compensated ? "compensated-unit" : "debt-action"} title={unit.acquise ? `Unité acquise en ${unit.acquise} : conservée, non repassée` : compensated ? "Sous la moyenne, mais acquise : le semestre est validé par compensation" : undefined}>{number(unit.moyenne)}{unit.acquise && <small className="cell-detail">acquise</small>}{compensated && <small className="cell-detail">compensée</small>}</td>;
+                        })}
                     <td className="strong-cell">{number(line.moyenne)}</td>
                     <td>{line.creditsAcquis} / {line.creditsTotal}</td>
                     <td>{line.mention ?? "—"}</td>

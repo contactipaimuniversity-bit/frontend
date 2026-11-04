@@ -224,6 +224,13 @@ export type GradeReport = {
 };
 export type WithheldReport = { inscriptionId: string; etudiant: { nom: string; prenom: string }; retenu: string };
 
+// Une unité sous la moyenne reste acquise quand le semestre est validé par
+// compensation : tous ses crédits sont acquis alors que l'unité n'est pas validée.
+export const semesterCompensated = (semester: { creditsAcquis: number; creditsTotal: number }) =>
+  semester.creditsTotal > 0 && semester.creditsAcquis === semester.creditsTotal;
+export const semesterUnitOutcome = (unit: { validee: boolean }, semester: { creditsAcquis: number; creditsTotal: number }) =>
+  unit.validee ? "Validée" : semesterCompensated(semester) ? "Compensée" : "Non validée";
+
 function gradeReportPage(pdf: Pdf, report: GradeReport) {
   const annual = report.semestre === 0;
   header(pdf, annual ? "RELEVÉ ANNUEL" : `BULLETIN DE NOTES · SEMESTRE ${report.semestre}`, `Année académique ${report.classe.annee}`);
@@ -247,7 +254,7 @@ function gradeReportPage(pdf: Pdf, report: GradeReport) {
   } else {
     const rows: Array<{ cells: string[]; bold?: boolean; fill?: boolean }> = [];
     for (const unit of report.resultat.detail.unites ?? []) {
-      rows.push({ cells: [`${unit.code} · ${unit.nom}`, String(unit.credits), "", "", "", note(unit.moyenne), unit.validee ? "Validée" : "Non validée"], bold: true, fill: true });
+      rows.push({ cells: [`${unit.code} · ${unit.nom}`, String(unit.credits), "", "", "", note(unit.moyenne), semesterUnitOutcome(unit, report.resultat)], bold: true, fill: true });
       for (const subject of unit.matieres) rows.push({ cells: [`   ${subject.nom}`, String(subject.coefficient), note(subject.controle), note(subject.examen), note(subject.rattrapage), note(subject.moyenne), ""] });
     }
     y = table(
@@ -256,6 +263,13 @@ function gradeReportPage(pdf: Pdf, report: GradeReport) {
       [{ label: "Unité d'enseignement / matière", width: 68 }, { label: "Créd./Coef.", width: 20, align: "center" }, { label: "Contrôle", width: 18, align: "center" }, { label: "Examen", width: 18, align: "center" }, { label: "Rattr.", width: 16, align: "center" }, { label: "Moyenne", width: 18, align: "center" }, { label: "Résultat", width: 22 }],
       rows,
     );
+  }
+  const compensated = !annual && (report.resultat.detail.unites ?? []).some((unit) => !unit.validee) && semesterCompensated(report.resultat);
+  if (compensated) {
+    pdf.setFont("helvetica", "italic").setFontSize(8.5).setTextColor(90, 100, 120);
+    pdf.text(pdfSafe("Semestre validé par compensation : la moyenne du semestre est suffisante et aucune note n'est éliminatoire. Les unités sous la moyenne sont acquises avec leurs crédits."), 15, y + 5, { maxWidth: 180 });
+    pdf.setFont("helvetica", "normal").setTextColor(30, 40, 60);
+    y += 10;
   }
   y += 8;
   pdf.setFillColor(248, 243, 228).roundedRect(15, y, 180, 30, 2, 2, "F");
