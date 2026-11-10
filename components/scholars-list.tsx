@@ -28,9 +28,10 @@ function csvCell(value: unknown) {
 
 function downloadPendingCsv(rows: PendingScholarshipApplication[]) {
   const headers = [
-    "Nom", "Prénom", "Téléphone", "Quartier", "Date de naissance", "Lieu de naissance",
+    "Nom", "Prénom", "Date de naissance", "Lieu de naissance", "Quartier",
+    "Filière souhaitée", "Numéro de téléphone",
     "Sexe", "Matricule", "Nom du tuteur", "Prénom du tuteur", "Téléphone du tuteur",
-    "Statut", "Type de bourse", "Niveau demandé", "Filière souhaitée",
+    "Statut", "Type de bourse", "Niveau demandé",
     "Filière secondaire souhaitée", "École d'origine", "Date de dépôt",
     "Date d'entretien", "Équipe d'entretien", "Date de décision",
     "Pièces du dossier", "Paiements des pièces", "Autres paiements du dossier",
@@ -38,10 +39,11 @@ function downloadPendingCsv(rows: PendingScholarshipApplication[]) {
   const data = rows.map((item) => [
     item.personne.nom,
     item.personne.prenom,
-    item.personne.telephone,
-    item.personne.quartier,
     item.personne.dateNaissance ? formatDate(item.personne.dateNaissance) : "",
     item.personne.lieuNaissance,
+    item.personne.quartier,
+    item.filiereSouhaitee,
+    item.personne.telephone,
     item.personne.sexe,
     item.personne.matricule,
     item.personne.tuteurNom,
@@ -50,7 +52,6 @@ function downloadPendingCsv(rows: PendingScholarshipApplication[]) {
     item.statut,
     item.typeBourse?.nom,
     item.niveauDemande,
-    item.filiereSouhaitee,
     item.filiereSecondaireSouhaitee,
     item.ecoleOrigine,
     formatDate(item.dateDepot),

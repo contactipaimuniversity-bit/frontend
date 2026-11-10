@@ -260,37 +260,96 @@ export async function pendingScholarshipApplicationsPdf(
   rows: PendingScholarshipApplication[],
   typeName: string,
 ) {
-  const pdf = await createPdf();
+  const pdf = await createPdf(true);
   const width = pdf.internal.pageSize.getWidth();
   const height = pdf.internal.pageSize.getHeight();
   const subtitle = `${typeName} · ${rows.length} demande(s)`;
+  const footerText = "Généré par le Systeme de Gestion Intégré de l'IPAIM.";
+  const pageFooter = () => {
+    pdf.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(110, 120, 135);
+    pdf.text(pdfSafe(footerText), width / 2, height - 8, { align: "center" });
+    pdf.setTextColor(30, 40, 60);
+  };
+  const columns = [
+    { label: "Nom", width: 27 },
+    { label: "Prénom", width: 27 },
+    { label: "Date de naissance", width: 27 },
+    { label: "Lieu de naissance", width: 34 },
+    { label: "Quartier", width: 34 },
+    { label: "Filière souhaitée", width: 74 },
+    { label: "Téléphone", width: 38 },
+  ];
+  const tableX = 15;
+  const tableWidth = columns.reduce((total, column) => total + column.width, 0);
   let y = 36;
-  const startPage = () => {
-    header(pdf, "DEMANDES DE BOURSE EN ATTENTE", subtitle);
+  const drawPageHeader = (title = "DEMANDES DE BOURSE EN ATTENTE") => {
+    header(pdf, title, subtitle);
     y = 36;
   };
-  const writeLine = (text: string, bold = false) => {
-    pdf.setFont("helvetica", bold ? "bold" : "normal").setFontSize(bold ? 10 : 8.5);
-    const lines = pdf.splitTextToSize(pdfSafe(text), width - 30) as string[];
-    const lineHeight = 4;
-    for (const line of lines) {
-      if (y + lineHeight > height - 14) {
-        footer(pdf);
-        pdf.addPage();
-        startPage();
-      }
-      pdf.text(line, 15, y);
-      y += lineHeight;
+  const drawTableHeader = () => {
+    pdf.setFillColor(20, 40, 92).rect(tableX, y, tableWidth, 9, "F");
+    pdf.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(255, 255, 255);
+    let x = tableX;
+    for (const column of columns) {
+      const lines = pdf.splitTextToSize(pdfSafe(column.label), column.width - 4) as string[];
+      pdf.text(lines, x + 2, y + (lines.length > 1 ? 3.5 : 5.5));
+      x += column.width;
     }
+    pdf.setTextColor(30, 40, 60);
+    y += 9;
   };
-  startPage();
+
+  drawPageHeader();
+  drawTableHeader();
   rows.forEach((item, index) => {
-    if (y > height - 40) {
-      footer(pdf);
+    const cells = [
+      item.personne.nom,
+      item.personne.prenom,
+      item.personne.dateNaissance ? formatDate(item.personne.dateNaissance) : "-",
+      item.personne.lieuNaissance ?? "-",
+      item.personne.quartier ?? "-",
+      item.filiereSouhaitee,
+      item.personne.telephone ?? "-",
+    ].map((text, cellIndex) => (pdf.splitTextToSize(pdfSafe(text), columns[cellIndex].width - 4) as string[]));
+    const rowHeight = Math.max(8, ...cells.map((lines) => lines.length * 3.5 + 2));
+    if (y + rowHeight > height - 16) {
+      if (!rows.length) {
+        pdf.setFont("helvetica", "normal").setFontSize(9).text("Aucune demande en attente.", tableX, y + 8);
+      }
+      pageFooter();
       pdf.addPage();
-      startPage();
+      drawPageHeader();
+      drawTableHeader();
     }
-    writeLine(`${index + 1}. ${item.personne.nom} ${item.personne.prenom}`, true);
+    if (index % 2 === 1) pdf.setFillColor(244, 247, 252).rect(tableX, y, tableWidth, rowHeight, "F");
+    pdf.setFont("helvetica", "normal").setFontSize(7.5);
+    let x = tableX;
+    cells.forEach((lines, cellIndex) => {
+      pdf.text(lines, x + 2, y + 4);
+      x += columns[cellIndex].width;
+    });
+    pdf.setDrawColor(215, 222, 235).setLineWidth(0.1).line(tableX, y + rowHeight, tableX + tableWidth, y + rowHeight);
+    y += rowHeight;
+  });
+
+  pageFooter();
+  for (const [index, item] of rows.entries()) {
+    pdf.addPage();
+    drawPageHeader(`DOSSIER DU CANDIDAT · ${index + 1}/${rows.length}`);
+    const writeLine = (text: string, bold = false) => {
+      pdf.setFont("helvetica", bold ? "bold" : "normal").setFontSize(bold ? 10 : 8.5);
+      const lines = pdf.splitTextToSize(pdfSafe(text), width - 30) as string[];
+      for (const line of lines) {
+        if (y + 4 > height - 14) {
+          pageFooter();
+          pdf.addPage();
+          drawPageHeader(`DOSSIER DU CANDIDAT · ${index + 1}/${rows.length}`);
+        }
+        pdf.text(line, 15, y);
+        y += 4;
+      }
+    };
+    writeLine(`${item.personne.nom} ${item.personne.prenom}`, true);
     [
       ["Statut", item.statut],
       ["Type de bourse", item.typeBourse?.nom],
@@ -326,10 +385,8 @@ export async function pendingScholarshipApplicationsPdf(
         writeLine(`- ${payment.montant} · ${formatDate(payment.datePaiement)} · ${payment.typePaiement} · ${payment.modePaiement ?? "Mode non renseigné"} · reçu ${payment.numeroRecu ?? "non renseigné"}`);
       });
     }
-    pdf.setDrawColor(215, 222, 235).setLineWidth(0.2).line(15, y + 1, width - 15, y + 1);
-    y += 6;
-  });
-  footer(pdf);
+    pageFooter();
+  }
   savePdf(pdf, "demandes-bourse-en-attente.pdf");
 }
 
