@@ -2683,7 +2683,7 @@ export function OperationsPage({
           </p>
         </div>
         <div className="form-actions">
-          {view === "Demandes de bourse" && <button className="outline-button small" onClick={() => setScholarsOpen(true)}>Liste des boursiers (PDF)</button>}
+          {view === "Demandes de bourse" && <button className="outline-button small" onClick={() => setScholarsOpen(true)}>Listes des boursiers et demandes (PDF / Excel)</button>}
           {view === "Inscriptions" && <button className="outline-button small" onClick={() => setStudentsOpen(true)}>Liste des inscrits (PDF / Excel)</button>}
           {addButton}
         </div>

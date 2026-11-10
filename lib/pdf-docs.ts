@@ -208,6 +208,131 @@ export function scholarsPdf(rows: Scholar[], title: string, typeName: string) {
   });
 }
 
+export type PendingScholarshipApplication = {
+  id: string;
+  statut: string;
+  niveauDemande: string;
+  filiereSouhaitee: string;
+  filiereSecondaireSouhaitee: string | null;
+  ecoleOrigine: string | null;
+  dateDepot: string;
+  dateEntretien: string | null;
+  equipeEntretien: string | null;
+  dateDecision: string | null;
+  typeBourse: { nom: string } | null;
+  personne: {
+    nom: string;
+    prenom: string;
+    telephone: string | null;
+    quartier: string | null;
+    dateNaissance: string | null;
+    lieuNaissance: string | null;
+    tuteurNom: string | null;
+    tuteurPrenom: string | null;
+    tuteurTelephone: string | null;
+    matricule: string | null;
+    sexe: string | null;
+  };
+  elementsDossier: Array<{
+    statut: string;
+    montantAttendu: string | number | null;
+    dateFourniture: string | null;
+    elementRequis: { nom: string };
+    elementSubstitutUtilise: { nom: string } | null;
+    paiements: Array<{
+      montant: string | number;
+      datePaiement: string;
+      typePaiement: string;
+      modePaiement: string | null;
+      numeroRecu: string | null;
+    }>;
+  }>;
+  paiements: Array<{
+    montant: string | number;
+    datePaiement: string;
+    typePaiement: string;
+    modePaiement: string | null;
+    numeroRecu: string | null;
+  }>;
+};
+
+export async function pendingScholarshipApplicationsPdf(
+  rows: PendingScholarshipApplication[],
+  typeName: string,
+) {
+  const pdf = await createPdf();
+  const width = pdf.internal.pageSize.getWidth();
+  const height = pdf.internal.pageSize.getHeight();
+  const subtitle = `${typeName} · ${rows.length} demande(s)`;
+  let y = 36;
+  const startPage = () => {
+    header(pdf, "DEMANDES DE BOURSE EN ATTENTE", subtitle);
+    y = 36;
+  };
+  const writeLine = (text: string, bold = false) => {
+    pdf.setFont("helvetica", bold ? "bold" : "normal").setFontSize(bold ? 10 : 8.5);
+    const lines = pdf.splitTextToSize(pdfSafe(text), width - 30) as string[];
+    const lineHeight = 4;
+    for (const line of lines) {
+      if (y + lineHeight > height - 14) {
+        footer(pdf);
+        pdf.addPage();
+        startPage();
+      }
+      pdf.text(line, 15, y);
+      y += lineHeight;
+    }
+  };
+  startPage();
+  rows.forEach((item, index) => {
+    if (y > height - 40) {
+      footer(pdf);
+      pdf.addPage();
+      startPage();
+    }
+    writeLine(`${index + 1}. ${item.personne.nom} ${item.personne.prenom}`, true);
+    [
+      ["Statut", item.statut],
+      ["Type de bourse", item.typeBourse?.nom],
+      ["Niveau demandé", item.niveauDemande],
+      ["Filière souhaitée", item.filiereSouhaitee],
+      ["Filière secondaire souhaitée", item.filiereSecondaireSouhaitee],
+      ["École d'origine", item.ecoleOrigine],
+      ["Déposé le", formatDate(item.dateDepot)],
+      ["Entretien", item.dateEntretien ? `${formatDate(item.dateEntretien)} · ${item.equipeEntretien ?? "Équipe non renseignée"}` : "Non programmé"],
+      ["Décision le", item.dateDecision ? formatDate(item.dateDecision) : null],
+      ["Matricule", item.personne.matricule],
+      ["Sexe", item.personne.sexe],
+      ["Date et lieu de naissance", [item.personne.dateNaissance ? formatDate(item.personne.dateNaissance) : null, item.personne.lieuNaissance].filter(Boolean).join(" · ")],
+      ["Téléphone", item.personne.telephone],
+      ["Quartier", item.personne.quartier],
+      ["Tuteur", [item.personne.tuteurNom, item.personne.tuteurPrenom].filter(Boolean).join(" ")],
+      ["Téléphone du tuteur", item.personne.tuteurTelephone],
+    ].forEach(([label, value]) => {
+      if (value) writeLine(`${label} : ${value}`);
+    });
+    writeLine("Pièces du dossier :", true);
+    if (!item.elementsDossier.length) writeLine("Aucune pièce renseignée");
+    item.elementsDossier.forEach((element) => {
+      const substitute = element.elementSubstitutUtilise?.nom;
+      writeLine(`- ${element.elementRequis.nom} : ${element.statut}${substitute ? ` (remplacé par ${substitute})` : ""}${element.dateFourniture ? ` · fourni le ${formatDate(element.dateFourniture)}` : ""}${element.montantAttendu !== null ? ` · montant attendu ${element.montantAttendu}` : ""}`);
+      element.paiements.forEach((payment) => {
+        writeLine(`  Paiement ${payment.montant} · ${formatDate(payment.datePaiement)} · ${payment.typePaiement} · ${payment.modePaiement ?? "Mode non renseigné"} · reçu ${payment.numeroRecu ?? "non renseigné"}`);
+      });
+    });
+    if (item.paiements.length) {
+      writeLine("Autres paiements du dossier :", true);
+      item.paiements.forEach((payment) => {
+        writeLine(`- ${payment.montant} · ${formatDate(payment.datePaiement)} · ${payment.typePaiement} · ${payment.modePaiement ?? "Mode non renseigné"} · reçu ${payment.numeroRecu ?? "non renseigné"}`);
+      });
+    }
+    pdf.setDrawColor(215, 222, 235).setLineWidth(0.2).line(15, y + 1, width - 15, y + 1);
+    y += 6;
+  });
+  footer(pdf);
+  savePdf(pdf, "demandes-bourse-en-attente.pdf");
+}
+
 // ---------- Bulletin de notes ----------
 
 type SubjectResult = { code: string; nom: string; coefficient: number; controle: number | null; examen: number | null; rattrapage: number | null; moyenne: number | null };
