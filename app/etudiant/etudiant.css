@@ -248,6 +248,22 @@ html:has(.stu-root), body:has(.stu-root) { background: #fff; -webkit-text-size-a
 .stu-qr-placeholder { background: #f3f4f7; }
 .stu-idcard-valid { color: var(--stu-muted); font-size: 12.5px; text-align: center; }
 
+/* ---------- Proposition d'installation ---------- */
+.stu-install-slot { width: 100%; max-width: 420px; margin: 0 auto; }
+.stu-install-slot:empty { display: none; }
+.stu-root > .stu-install-slot { padding: max(16px, env(safe-area-inset-top)) 20px 0; }
+.stu-main > .stu-install-slot { padding-top: max(16px, env(safe-area-inset-top)); }
+.stu-main > .stu-install-slot:not(:empty) + .stu-screen { padding-top: 20px; }
+.stu-install { position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 14px 40px 14px 14px; border: 1px solid var(--stu-line); border-radius: 6px; background: #fff; }
+.stu-install img { flex: 0 0 auto; border-radius: 8px; }
+.stu-install > div { display: grid; gap: 3px; min-width: 0; }
+.stu-install strong { font-size: 14px; font-weight: 600; }
+.stu-install p { color: var(--stu-muted); font-size: 12.5px; line-height: 1.45; }
+.stu-install p svg { display: inline; vertical-align: -2px; color: var(--stu-blue); }
+.stu-install-actions { display: flex; align-items: center; gap: 18px; margin-top: 8px; }
+.stu-root .stu-button-small { height: 34px; padding: 0 16px; font-size: 13.5px; }
+.stu-install-close { position: absolute; top: 4px; right: 2px; width: 32px; height: 32px; color: var(--stu-faint) !important; }
+
 /* ---------- Barre d'onglets ---------- */
 .stu-tabbar { position: fixed; right: 0; bottom: 0; left: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr); padding: 4px 8px env(safe-area-inset-bottom); border-top: 1px solid var(--stu-line); background: #fff; }
 .stu-tabbar a { display: grid; justify-items: center; align-content: center; gap: 3px; height: 52px; color: var(--stu-faint); font-size: 11px; }

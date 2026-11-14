@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { BookOpenCheck, CalendarDays, House, UserRound, Wallet } from "lucide-react";
+import { InstallBanner } from "@/components/etudiant/install-banner";
 import { StudentLogin } from "@/components/etudiant/student-login";
 import { AbsencesScreen, HomeScreen, TimetableScreen } from "@/components/etudiant/student-screens";
 import { FeesScreen, GradesScreen } from "@/components/etudiant/student-money-grades";
@@ -37,7 +38,16 @@ export function StudentApp() {
   const token = useStudentToken();
   useServiceWorker();
   if (token === undefined) return <div className="stu-root stu-splash" />;
-  return <div className="stu-root">{token ? <StudentShell /> : <StudentLogin />}</div>;
+  return (
+    <div className="stu-root">
+      {token ? <StudentShell /> : (
+        <>
+          <div className="stu-install-slot"><InstallBanner /></div>
+          <StudentLogin />
+        </>
+      )}
+    </div>
+  );
 }
 
 function StudentShell() {
@@ -82,7 +92,10 @@ function StudentShell() {
 
   return (
     <>
-      <main className={`stu-main${tab === "carte" ? " stu-main-card" : ""}`}>{screen}</main>
+      <main className={`stu-main${tab === "carte" ? " stu-main-card" : ""}`}>
+        {(tab === "" || tab === "profil") && <div className="stu-install-slot"><InstallBanner /></div>}
+        {screen}
+      </main>
       {tab !== "carte" && (
         <nav className="stu-tabbar" aria-label="Navigation principale">
           {TABS.map(({ href, label, icon: Icon, match }) => {

@@ -5,46 +5,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { ChevronRight, Download, IdCard, KeyRound, UserX, X } from "lucide-react";
 import { Avatar, Loaded, ScreenHeader, Section } from "@/components/etudiant/student-ui";
+import { useInstall } from "@/lib/student-install";
 import { CardInfo, StudentProfile, StudentResource, setStudentToken, shortDate, signOutStudent, studentPost, useStudentResource } from "@/lib/student-api";
-
-// ---------- Installation de l'application ----------
-
-type InstallEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
-let deferredInstall: InstallEvent | null = null;
-if (typeof window !== "undefined") {
-  window.addEventListener("beforeinstallprompt", (event) => {
-    event.preventDefault();
-    deferredInstall = event as InstallEvent;
-    window.dispatchEvent(new Event("ipaim-etudiant-installable"));
-  });
-}
-
-function useInstall() {
-  const [state, setState] = useState<{ installed: boolean; canPrompt: boolean; ios: boolean }>({ installed: false, canPrompt: false, ios: false });
-  useEffect(() => {
-    const refresh = () =>
-      setState({
-        installed: window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true,
-        canPrompt: Boolean(deferredInstall),
-        ios: /iphone|ipad|ipod/i.test(navigator.userAgent),
-      });
-    refresh();
-    window.addEventListener("ipaim-etudiant-installable", refresh);
-    window.addEventListener("appinstalled", refresh);
-    return () => {
-      window.removeEventListener("ipaim-etudiant-installable", refresh);
-      window.removeEventListener("appinstalled", refresh);
-    };
-  }, []);
-  const prompt = async () => {
-    if (!deferredInstall) return;
-    await deferredInstall.prompt();
-    await deferredInstall.userChoice.catch(() => undefined);
-    deferredInstall = null;
-    setState((previous) => ({ ...previous, canPrompt: false }));
-  };
-  return { ...state, prompt };
-}
 
 // ---------- Profil ----------
 
