@@ -1,17 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Bell, BookOpenCheck, CalendarClock, CalendarDays, ChevronRight, Clock, GraduationCap, IdCard, MapPin, QrCode, UserRound, UserX, Wallet } from "lucide-react";
-import { Avatar, EmptyState, Loaded, Pill, ScreenHeader, Section, Skeleton } from "@/components/etudiant/student-ui";
+import { BookOpenCheck, CalendarClock, CalendarDays, Clock, IdCard, MapPin, UserRound, UserX, Wallet } from "lucide-react";
+import { EmptyState, Loaded, Pill, ScreenHeader, Section, StaleNote } from "@/components/etudiant/student-ui";
 import { Attendance, Exam, Fees, Grades, JOURS, Slot, StudentProfile, StudentResource, Timetable, hours, money, shortDate, toMinutes, useStudentResource, weekday } from "@/lib/student-api";
 
 const EXAM_TYPES: Record<string, string> = { CONTROLE: "Contrôle", EXAMEN: "Examen", RATTRAPAGE: "Rattrapage" };
-
-function greeting(date = new Date()) {
-  const hour = date.getHours();
-  return hour < 12 ? "Bonjour" : hour < 18 ? "Bon après-midi" : "Bonsoir";
-}
 
 /** Prochain créneau à venir (aujourd'hui, ou le prochain jour de cours). */
 function nextSlot(slots: Slot[], now = new Date()) {
@@ -89,7 +85,7 @@ const startOfToday = () => {
 
 // ---------- Accueil ----------
 
-export function HomeScreen({ profile, photo }: { profile: StudentResource<StudentProfile>; photo: string | null }) {
+export function HomeScreen({ profile }: { profile: StudentResource<StudentProfile>; photo: string | null }) {
   const timetable = useStudentResource<Timetable>("/etudiant/moi/emploi-du-temps");
   const exams = useStudentResource<Exam[]>("/etudiant/moi/examens");
   const fees = useStudentResource<Fees>("/etudiant/moi/scolarite");
@@ -110,66 +106,51 @@ export function HomeScreen({ profile, photo }: { profile: StudentResource<Studen
   return (
     <div className="stu-screen">
       <header className="stu-home-head">
-        <Link href="/etudiant/profil" aria-label="Mon profil"><Avatar photo={photo} name={student ? `${student.prenom} ${student.nom}` : ""} /></Link>
-        <div>
-          <p className="stu-eyebrow">Étudiant</p>
-          <strong>IPAIM University</strong>
+        <div className="stu-greeting">
+          <p>{now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</p>
+          <h1>Bonjour{student ? ` ${student.prenom.split(" ")[0]}` : ""}</h1>
         </div>
-        <Link href="/etudiant/carte" className="stu-icon-button stu-icon-button-soft" aria-label="Ma carte d'étudiant"><QrCode size={20} aria-hidden="true" /></Link>
+        <Image src="/etudiant/icon-192.png" alt="IPAIM University" width={32} height={32} />
       </header>
 
-      <div className="stu-greeting">
-        <p>{now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</p>
-        <h1>{greeting(now)}{student ? `, ${student.prenom.split(" ")[0]}` : ""}</h1>
-      </div>
+      {profile.staleSince && <StaleNote since={profile.staleSince} onRetry={profile.reload} />}
 
       {profile.data ? (
-        <section className="stu-hero">
-          <p className="stu-hero-eyebrow">Mon année</p>
-          {inscription ? (
-            <>
-              <div className="stu-hero-main">
-                <div>
-                  <h2>{inscription.classe?.nom ?? `${inscription.filiere} · ${inscription.niveau}`}</h2>
-                  <p>{inscription.filiere} · {inscription.niveau} · {inscription.anneeScolaire}</p>
-                </div>
-                {lastResult?.disponible && lastResult.resultat.moyenne !== null && (
-                  <div className="stu-hero-score">
-                    <strong>{lastResult.resultat.moyenne.toFixed(2)}</strong>
-                    <span>Moy. S{lastResult.semestre}</span>
-                  </div>
-                )}
-              </div>
-              <dl className="stu-hero-stats">
-                <div><dt>Absences</dt><dd>{attendance.data ? hours(attendance.data.totalMinutes) : "—"}</dd></div>
-                <div><dt>Reste à payer</dt><dd>{fees.data?.situation ? money(fees.data.situation.resteTotal) : "—"}</dd></div>
-                <div><dt>Matricule</dt><dd>{student?.matricule ?? "—"}</dd></div>
-              </dl>
-            </>
-          ) : (
-            <p className="stu-hero-empty">Aucune inscription n&apos;est encore enregistrée à ton nom.</p>
-          )}
-        </section>
-      ) : profile.loading ? (
-        <Skeleton lines={4} />
+        inscription ? (
+          <>
+            <dl className="stu-recap">
+              <div><dt>Classe</dt><dd>{inscription.classe?.nom ?? "Pas encore affecté(e)"}</dd></div>
+              <div><dt>Filière</dt><dd>{inscription.filiere} · {inscription.niveau}</dd></div>
+              <div><dt>Matricule</dt><dd>{student?.matricule ?? "—"}</dd></div>
+              <div><dt>Année</dt><dd>{inscription.anneeScolaire}</dd></div>
+            </dl>
+            <dl className="stu-figures">
+              <div><dt>Absences</dt><dd>{attendance.data ? hours(attendance.data.totalMinutes) : "—"}</dd></div>
+              <div><dt>Reste à payer</dt><dd>{fees.data?.situation ? money(fees.data.situation.resteTotal) : "—"}</dd></div>
+              <div><dt>Moyenne</dt><dd>{lastResult?.disponible && lastResult.resultat.moyenne !== null ? lastResult.resultat.moyenne.toFixed(2) : "—"}</dd></div>
+            </dl>
+          </>
+        ) : (
+          <div className="stu-info"><p>Aucune inscription enregistrée à ton nom.</p></div>
+        )
       ) : (
-        <Loaded resource={profile}>{() => null}</Loaded>
+        <Loaded resource={profile} lines={3}>{() => null}</Loaded>
       )}
 
       <nav className="stu-shortcuts" aria-label="Raccourcis">
-        <Link href="/etudiant/cours"><span className="stu-shortcut-icon tone-blue"><CalendarDays size={21} aria-hidden="true" /></span>Emploi du temps</Link>
-        <Link href="/etudiant/notes"><span className="stu-shortcut-icon tone-violet"><BookOpenCheck size={21} aria-hidden="true" /></span>Notes</Link>
-        <Link href="/etudiant/paiements"><span className="stu-shortcut-icon tone-green"><Wallet size={21} aria-hidden="true" /></span>Paiements</Link>
-        <Link href="/etudiant/carte"><span className="stu-shortcut-icon tone-gold"><IdCard size={21} aria-hidden="true" /></span>Ma carte</Link>
-        <Link href="/etudiant/examens"><span className="stu-shortcut-icon tone-red"><CalendarClock size={21} aria-hidden="true" /></span>Examens</Link>
-        <Link href="/etudiant/absences"><span className="stu-shortcut-icon tone-slate"><UserX size={21} aria-hidden="true" /></span>Absences</Link>
+        <Link href="/etudiant/cours"><CalendarDays aria-hidden="true" />Emploi du temps</Link>
+        <Link href="/etudiant/notes"><BookOpenCheck aria-hidden="true" />Notes</Link>
+        <Link href="/etudiant/paiements"><Wallet aria-hidden="true" />Paiements</Link>
+        <Link href="/etudiant/carte"><IdCard aria-hidden="true" />Carte</Link>
+        <Link href="/etudiant/examens"><CalendarClock aria-hidden="true" />Examens</Link>
+        <Link href="/etudiant/absences"><UserX aria-hidden="true" />Absences</Link>
       </nav>
 
-      <Section title="À suivre" action={<Link href="/etudiant/cours" className="stu-link">Emploi du temps</Link>}>
+      <Section title="Prochain cours" action={<Link href="/etudiant/cours" className="stu-link">Emploi du temps</Link>}>
         {timetable.data ? (
-          next ? <SlotCard slot={next.slot} badge={whenLabel(next)} /> : <EmptyState icon={<CalendarDays size={22} />} title="Aucun cours programmé" text="Ton emploi du temps apparaîtra ici dès qu'il sera publié." />
+          next ? <SlotCard slot={next.slot} badge={whenLabel(next)} /> : <EmptyState icon={null} title="Aucun cours programmé." />
         ) : (
-          <Loaded resource={timetable} lines={2}>{() => null}</Loaded>
+          <Loaded resource={timetable} lines={1}>{() => null}</Loaded>
         )}
       </Section>
 
@@ -180,7 +161,7 @@ export function HomeScreen({ profile, photo }: { profile: StudentResource<Studen
       )}
 
       {latestGrades.length > 0 && (
-        <Section title="Dernières notes" action={<Link href="/etudiant/notes" className="stu-link">Toutes mes notes</Link>}>
+        <Section title="Dernières notes" action={<Link href="/etudiant/notes" className="stu-link">Tout voir</Link>}>
           <div className="stu-card stu-rows">
             {latestGrades.map((grade) => (
               <div key={grade.id} className="stu-row">
@@ -193,14 +174,6 @@ export function HomeScreen({ profile, photo }: { profile: StudentResource<Studen
             ))}
           </div>
         </Section>
-      )}
-
-      {fees.data?.situation && fees.data.situation.resteTotal > 0 && (
-        <Link href="/etudiant/paiements" className="stu-notice">
-          <Bell size={18} aria-hidden="true" />
-          <span>Il te reste <strong>{money(fees.data.situation.resteTotal)}</strong> à régler cette année.</span>
-          <ChevronRight size={18} aria-hidden="true" />
-        </Link>
       )}
     </div>
   );
@@ -249,11 +222,11 @@ export function TimetableScreen({ initial }: { initial: "semaine" | "examens" })
                   })}
                 </div>
                 {!data.classe ? (
-                  <EmptyState icon={<GraduationCap size={22} />} title="Pas encore de classe" text="Ton emploi du temps s'affichera dès que tu seras affecté(e) à une classe." />
+                  <EmptyState icon={null} title="Pas encore de classe." text="L'emploi du temps s'affichera dès ton affectation." />
                 ) : slots.length ? (
                   <div className="stu-timeline">{slots.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>
                 ) : (
-                  <EmptyState icon={<CalendarDays size={22} />} title={`Pas de cours le ${JOURS[day].toLowerCase()}`} />
+                  <EmptyState icon={null} title={`Pas de cours le ${JOURS[day].toLowerCase()}.`} />
                 )}
               </>
             );
@@ -267,7 +240,7 @@ export function TimetableScreen({ initial }: { initial: "semaine" | "examens" })
             const past = data.filter((exam) => new Date(exam.date).getTime() < todayStart).reverse();
             return (
               <>
-                {coming.length ? <div className="stu-list">{coming.map((exam) => <ExamCard key={exam.id} exam={exam} />)}</div> : <EmptyState icon={<CalendarClock size={22} />} title="Aucune épreuve à venir" text="Les dates d'examens apparaîtront ici dès qu'elles seront fixées." />}
+                {coming.length ? <div className="stu-list">{coming.map((exam) => <ExamCard key={exam.id} exam={exam} />)}</div> : <EmptyState icon={null} title="Aucune épreuve à venir." />}
                 {past.length > 0 && (
                   <Section title="Épreuves passées" action={<button type="button" className="stu-link" onClick={() => setShowPast((value) => !value)}>{showPast ? "Masquer" : `Afficher (${past.length})`}</button>}>
                     {showPast && <div className="stu-list stu-list-muted">{past.map((exam) => <ExamCard key={exam.id} exam={exam} />)}</div>}
@@ -292,11 +265,11 @@ export function AbsencesScreen() {
       <Loaded resource={attendance} lines={4}>
         {(data) => (
           <>
-            <div className="stu-stat-grid">
-              <div className="stu-stat"><span>Heures d&apos;absence</span><strong>{hours(data.totalMinutes)}</strong></div>
-              <div className="stu-stat"><span>Non justifiées</span><strong className={data.nonJustifieesMinutes ? "stu-text-bad" : ""}>{hours(data.nonJustifieesMinutes)}</strong></div>
-              <div className="stu-stat"><span>Retards</span><strong>{data.retards.length}</strong></div>
-            </div>
+            <dl className="stu-figures">
+              <div><dt>Absences</dt><dd>{hours(data.totalMinutes)}</dd></div>
+              <div><dt>Non justifiées</dt><dd className={data.nonJustifieesMinutes ? "stu-text-bad" : ""}>{hours(data.nonJustifieesMinutes)}</dd></div>
+              <div><dt>Retards</dt><dd>{data.retards.length}</dd></div>
+            </dl>
             <Section title="Absences">
               {data.absences.length ? (
                 <div className="stu-card stu-rows">
@@ -312,7 +285,7 @@ export function AbsencesScreen() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={<UserX size={22} />} title="Aucune absence" text="Continue comme ça !" />
+                <EmptyState icon={null} title="Aucune absence." />
               )}
             </Section>
             {data.retards.length > 0 && (
@@ -330,7 +303,7 @@ export function AbsencesScreen() {
                 </div>
               </Section>
             )}
-            <p className="stu-footnote">Une absence à justifier ? Présente ton justificatif à la scolarité.</p>
+            <p className="stu-footnote">Pour justifier une absence, présente ton justificatif à la scolarité.</p>
           </>
         )}
       </Loaded>

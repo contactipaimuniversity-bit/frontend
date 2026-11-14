@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ChevronLeft, CloudOff, RefreshCw } from "lucide-react";
+import { ChevronLeft, CloudOff } from "lucide-react";
 import type { StudentResource } from "@/lib/student-api";
 
 export function ScreenHeader({ title, subtitle, back, action }: { title: string; subtitle?: string; back?: string; action?: ReactNode }) {
@@ -10,7 +10,7 @@ export function ScreenHeader({ title, subtitle, back, action }: { title: string;
     <header className="stu-screen-head">
       {back && (
         <Link href={back} className="stu-icon-button" aria-label="Retour">
-          <ChevronLeft size={22} aria-hidden="true" />
+          <ChevronLeft size={20} aria-hidden="true" />
         </Link>
       )}
       <div className="stu-screen-title">
@@ -37,7 +37,7 @@ export function Section({ title, action, children }: { title: string; action?: R
 export function EmptyState({ icon, title, text }: { icon: ReactNode; title: string; text?: string }) {
   return (
     <div className="stu-empty">
-      <span className="stu-empty-icon">{icon}</span>
+      {icon && <span className="stu-empty-icon">{icon}</span>}
       <strong>{title}</strong>
       {text && <p>{text}</p>}
     </div>
@@ -69,7 +69,7 @@ export function Loaded<T>({ resource, lines, children }: { resource: StudentReso
     <div className="stu-error">
       <p>{resource.error || "Données indisponibles."}</p>
       <button type="button" className="stu-button stu-button-ghost" onClick={resource.reload}>
-        <RefreshCw size={16} aria-hidden="true" /> Réessayer
+        Réessayer
       </button>
     </div>
   );
@@ -80,8 +80,7 @@ export function StaleNote({ since, onRetry }: { since: number; onRetry: () => vo
   return (
     <button type="button" className="stu-stale" onClick={onRetry}>
       <CloudOff size={15} aria-hidden="true" />
-      <span>Hors ligne · données du {when}</span>
-      <RefreshCw size={14} aria-hidden="true" />
+      <span>Hors ligne · données du {when}. Toucher pour actualiser.</span>
     </button>
   );
 }

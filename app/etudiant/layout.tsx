@@ -24,10 +24,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f6fb" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1226" },
-  ],
+  themeColor: "#ffffff",
 };
 
 export default function EtudiantLayout({ children }: { children: React.ReactNode }) {

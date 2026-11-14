@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpenCheck, CheckCircle2, Lock, Receipt, Wallet } from "lucide-react";
 import { gradeTone } from "@/components/etudiant/student-screens";
 import { EmptyState, Loaded, Pill, ScreenHeader, Section } from "@/components/etudiant/student-ui";
 import { Fees, Grade, Grades, money, shortDate, useStudentResource } from "@/lib/student-api";
@@ -44,7 +43,7 @@ export function GradesScreen() {
 
   return (
     <div className="stu-screen">
-      <ScreenHeader title="Notes et résultats" subtitle="Seules les épreuves validées par l'école apparaissent." />
+      <ScreenHeader title="Notes" subtitle="Épreuves validées uniquement." />
       <div className="stu-segmented">
         {[1, 2].map((item) => (
           <button key={item} type="button" className={semester === item ? "on" : ""} onClick={() => setSemester(item)}>Semestre {item}</button>
@@ -56,25 +55,24 @@ export function GradesScreen() {
           return (
             <>
               {result?.disponible ? (
-                <section className="stu-result">
-                  <div className="stu-result-main">
+                <section className="stu-total">
+                  <div className="stu-total-head">
                     <div>
-                      <p className="stu-hero-eyebrow">Moyenne du semestre</p>
+                      <span>Moyenne du semestre</span>
                       <strong>{result.resultat.moyenne !== null ? result.resultat.moyenne.toFixed(2) : "—"}<small>/20</small></strong>
                     </div>
                     {DECISIONS[result.resultat.decision] ? <Pill tone={DECISIONS[result.resultat.decision].tone}>{DECISIONS[result.resultat.decision].label}</Pill> : <Pill tone="info">{result.resultat.decision}</Pill>}
                   </div>
-                  <dl className="stu-hero-stats">
+                  <dl className="stu-figures">
                     <div><dt>Crédits</dt><dd>{result.resultat.creditsAcquis}/{result.resultat.creditsTotal}</dd></div>
                     <div><dt>Rang</dt><dd>{result.resultat.rang ? `${result.resultat.rang}${result.resultat.rang === 1 ? "er" : "e"} / ${result.classe.effectif}` : "—"}</dd></div>
                     <div><dt>Moy. classe</dt><dd>{result.classe.moyenne !== null ? result.classe.moyenne.toFixed(2) : "—"}</dd></div>
                   </dl>
-                  {result.resultat.mention && <p className="stu-result-mention">Mention {result.resultat.mention}</p>}
+                  {result.resultat.mention && <p className="stu-muted">Mention {result.resultat.mention}</p>}
                 </section>
               ) : (
                 result && (
                   <div className="stu-info">
-                    <Lock size={17} aria-hidden="true" />
                     <p>{result.message}</p>
                   </div>
                 )
@@ -105,7 +103,7 @@ export function GradesScreen() {
                   </Section>
                 ))
               ) : (
-                <EmptyState icon={<BookOpenCheck size={22} />} title="Pas encore de notes" text={`Tes notes du semestre ${semester} s'afficheront ici dès qu'elles seront validées.`} />
+                <EmptyState icon={null} title={`Aucune note validée pour le semestre ${semester}.`} />
               )}
             </>
           );
@@ -143,23 +141,26 @@ export function FeesScreen() {
           const late = lines.filter((line) => lineStatus(line).tone === "bad");
           return (
             <>
-              <section className="stu-hero stu-hero-money">
-                <p className="stu-hero-eyebrow">Reste à payer</p>
-                <h2 className="stu-hero-amount">{situation ? money(situation.resteTotal) : "—"}</h2>
+              <section className="stu-total">
+                <div className="stu-total-head">
+                  <div>
+                    <span>Reste à payer</span>
+                    <strong>{situation ? money(situation.resteTotal) : "—"}</strong>
+                  </div>
+                </div>
                 <div className="stu-progress" role="progressbar" aria-valuenow={ratio} aria-valuemin={0} aria-valuemax={100} aria-label="Part déjà payée">
                   <span style={{ width: `${ratio}%` }} />
                 </div>
-                <dl className="stu-hero-stats">
-                  <div><dt>Déjà payé</dt><dd>{money(paid)}</dd></div>
-                  <div><dt>Total de l&apos;année</dt><dd>{money(total)}</dd></div>
+                <dl className="stu-figures">
+                  <div><dt>Payé</dt><dd>{money(paid)}</dd></div>
+                  <div><dt>Total</dt><dd>{money(total)}</dd></div>
                   <div><dt>Réglé</dt><dd>{ratio} %</dd></div>
                 </dl>
               </section>
 
               {late.length > 0 && (
                 <div className="stu-info stu-info-bad">
-                  <Wallet size={17} aria-hidden="true" />
-                  <p>{late.length === 1 ? `« ${late[0].libelle} » est en retard` : `${late.length} échéances sont en retard`} : rapproche-toi de la caisse.</p>
+                  <p>{late.length === 1 ? `Échéance en retard : ${late[0].libelle}.` : `${late.length} échéances en retard.`}</p>
                 </div>
               )}
 
@@ -180,20 +181,19 @@ export function FeesScreen() {
                             <span>{money(line.montant)}{line.dateLimite ? ` · avant le ${shortDate(line.dateLimite, { day: "numeric", month: "long" })}` : ""}</span>
                             {line.reste > 0 && line.paye > 0 && <span>Reste {money(line.reste)}</span>}
                           </div>
-                          <Pill tone={status.tone}>{status.tone === "ok" && <CheckCircle2 size={12} aria-hidden="true" />} {status.label}</Pill>
+                          <Pill tone={status.tone}>{status.label}</Pill>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <EmptyState icon={<Wallet size={22} />} title="Aucune échéance" text="Ton échéancier n'est pas encore établi." />
+                  <EmptyState icon={null} title="Échéancier pas encore établi." />
                 )
               ) : data.paiements.length ? (
                 <div className="stu-card stu-rows">
                   {data.paiements.map((payment) => (
                     <div key={payment.id} className="stu-row">
-                      <span className="stu-row-icon"><Receipt size={17} aria-hidden="true" /></span>
-                      <div>
+                                            <div>
                         <strong>{payment.libelle}</strong>
                         <span>{shortDate(payment.date, { day: "numeric", month: "long", year: "numeric" })}{payment.mode ? ` · ${MODES[payment.mode] ?? payment.mode}` : ""}</span>
                         {payment.numeroRecu && <small>Reçu {payment.numeroRecu}</small>}
@@ -203,9 +203,9 @@ export function FeesScreen() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={<Receipt size={22} />} title="Aucun paiement" />
+                <EmptyState icon={null} title="Aucun paiement." />
               )}
-              <p className="stu-footnote">Une différence avec tes reçus ? Présente-les à la caisse.</p>
+              <p className="stu-footnote">En cas d&apos;écart avec tes reçus, adresse-toi à la caisse.</p>
             </>
           );
         }}
