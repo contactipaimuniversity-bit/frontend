@@ -1,0 +1,23 @@
+{
+  "id": "/etudiant",
+  "name": "IPAIM Étudiant",
+  "short_name": "IPAIM",
+  "description": "Ton espace étudiant IPAIM University : emploi du temps, notes, paiements et carte d'étudiant.",
+  "lang": "fr",
+  "start_url": "/etudiant",
+  "scope": "/etudiant",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6fb",
+  "theme_color": "#14285c",
+  "categories": ["education"],
+  "icons": [
+    { "src": "/etudiant/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/etudiant/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/etudiant/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Ma carte", "url": "/etudiant/carte", "icons": [{ "src": "/etudiant/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Emploi du temps", "url": "/etudiant/cours", "icons": [{ "src": "/etudiant/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

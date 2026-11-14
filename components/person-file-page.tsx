@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, GraduationCap, Phone, UserRound } from "lucide-react";
 import { PhotoFrame } from "@/components/student-photo";
+import { StudentAccessPanel } from "@/components/student-access-panel";
 import { toast } from "@/components/feedback";
 import { printStudentCards } from "@/lib/cards";
 import { Badge, Empty, PageIntro, Panel, messageOf, LoadingBlock } from "@/components/ui-kit";
@@ -30,6 +31,8 @@ export function PersonFilePage({ personId, user, refreshSignal }: { personId: st
   const [payments, setPayments] = useState<DossierPayment[] | null>(null);
   const [error, setError] = useState("");
   const seesPayments = hasAccess(user, "payments");
+  const seesStudentAccess = hasAccess(user, "people") || hasAccess(user, "enrollments");
+  const canEditStudentAccess = hasAccess(user, "people", "edit") || hasAccess(user, "enrollments", "edit");
   const canPrintCard = hasAccess(user, "enrollments", "edit") || hasAccess(user, "academics", "edit");
   const [printing, setPrinting] = useState(false);
   // Réimprime la carte en cours de validité (ou en édite une si l'étudiant n'en a pas).
@@ -149,6 +152,8 @@ export function PersonFilePage({ personId, user, refreshSignal }: { personId: st
           </table>
         </div>
       </Panel>
+
+      {person.matricule && seesStudentAccess && <StudentAccessPanel personId={person.id} canEdit={canEditStudentAccess} />}
 
       {seesPayments && (
         <Panel eyebrow="Paiements" title={payments ? `${payments.length} opération(s)` : "Chargement…"} subtitle="Encaissements, remboursements, reports et annulations, du plus récent au plus ancien.">
