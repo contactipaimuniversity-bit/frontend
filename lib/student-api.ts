@@ -224,11 +224,14 @@ export type Exam = { id: string; type: string; libelle: string; date: string; he
 
 export type CardInfo = { carte: { jeton: string; valableJusquau: string; creeLe: string } | null; anneeScolaire: string };
 
+export type FeePayment = { id: string; montant: number; date: string; type: string; libelle: string; numeroRecu: string | null; mode: string | null; nature?: string; encaissePar?: string | null; enregistreLe?: string };
+
 type Line = { id: string; libelle: string; montant: number; paye: number; reste: number; dateLimite?: string | null };
 export type Fees = {
   anneeScolaire: string;
   situation: { regime: unknown; mensualites: Line[]; annexes: Line[]; fraisInscription: Line[]; resteMensualites: number; resteAnnexes: number; resteTotal: number; tropPercu: number } | null;
-  paiements: Array<{ id: string; montant: number; date: string; type: string; libelle: string; numeroRecu: string | null; mode: string | null }>;
+  paiements: FeePayment[];
+  dossier?: { filiere: string; niveau: string };
 };
 
 export type Attendance = {

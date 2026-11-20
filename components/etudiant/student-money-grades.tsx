@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
+import { ReceiptSheet } from "@/components/etudiant/student-receipt";
 import { gradeTone } from "@/components/etudiant/student-screens";
 import { EmptyState, Loaded, Pill, ScreenHeader, Section } from "@/components/etudiant/student-ui";
-import { Fees, Grade, Grades, money, shortDate, useStudentResource } from "@/lib/student-api";
+import { FeePayment, Fees, Grade, Grades, StudentProfile, money, shortDate, useStudentResource } from "@/lib/student-api";
 
 const DECISIONS: Record<string, { label: string; tone: "ok" | "warn" | "bad" | "info" }> = {
   VALIDE: { label: "Validé", tone: "ok" },
@@ -127,6 +129,8 @@ const MODES: Record<string, string> = { ESPECES: "Espèces", MOBILE_MONEY: "Mobi
 export function FeesScreen() {
   const fees = useStudentResource<Fees>("/etudiant/moi/scolarite");
   const [tab, setTab] = useState<"echeancier" | "historique">("echeancier");
+  const [receipt, setReceipt] = useState<FeePayment | null>(null);
+  const profile = useStudentResource<StudentProfile>("/etudiant/moi");
 
   return (
     <div className="stu-screen">
@@ -191,20 +195,22 @@ export function FeesScreen() {
               ) : data.paiements.length ? (
                 <div className="stu-card stu-rows">
                   {data.paiements.map((payment) => (
-                    <div key={payment.id} className="stu-row">
+                    <button type="button" key={payment.id} className="stu-row stu-row-button" onClick={() => setReceipt(payment)} aria-label={`Voir le reçu ${payment.numeroRecu ?? ""} de ${money(payment.montant)}`}>
                                             <div>
                         <strong>{payment.libelle}</strong>
                         <span>{shortDate(payment.date, { day: "numeric", month: "long", year: "numeric" })}{payment.mode ? ` · ${MODES[payment.mode] ?? payment.mode}` : ""}</span>
                         {payment.numeroRecu && <small>Reçu {payment.numeroRecu}</small>}
                       </div>
                       <b className={payment.montant < 0 ? "stu-text-bad" : "stu-amount"}>{money(payment.montant)}</b>
-                    </div>
+                      <ChevronRight size={18} className="stu-row-chevron" aria-hidden="true" />
+                    </button>
                   ))}
                 </div>
               ) : (
                 <EmptyState icon={null} title="Aucun paiement." />
               )}
-              <p className="stu-footnote">En cas d&apos;écart avec tes reçus, adresse-toi à la caisse.</p>
+              <p className="stu-footnote">{tab === "historique" ? "Touche un paiement pour voir son reçu. " : ""}En cas d&apos;écart avec tes reçus, adresse-toi à la caisse.</p>
+              {receipt && <ReceiptSheet payment={receipt} student={profile.data?.etudiant ?? null} dossier={data.dossier ?? null} onClose={() => setReceipt(null)} />}
             </>
           );
         }}

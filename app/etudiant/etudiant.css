@@ -5,29 +5,31 @@
    l'université en touche secondaire. Tout est préfixé « stu- » : rien ici
    ne touche à l'espace de gestion. */
 .stu-root {
-  /* Couleurs (palette tonale construite sur le bleu IPAIM) */
-  --md-primary: #0b5fd6;
+  /* Couleurs : la charte du logo (blanc, bleu de nuit, or kaki), en tons
+     doux. Le bleu de nuit porte les actions ; l'or reste une touche. */
+  --md-primary: #14285c;
   --md-on-primary: #ffffff;
-  --md-primary-container: #dbe5ff;
-  --md-on-primary-container: #00205c;
-  --md-secondary-container: #dfe3f4;
-  --md-on-secondary-container: #171c2b;
-  --md-tertiary-container: #ffe7a8;
-  --md-on-tertiary-container: #2a1f00;
-  --md-surface: #fbfbff;
-  --md-surface-low: #f3f4fa;
-  --md-surface-container: #edeef5;
-  --md-surface-high: #e6e8f0;
-  --md-on-surface: #1a1c22;
-  --md-on-surface-variant: #464a55;
-  --md-outline: #757986;
-  --md-outline-variant: #c6c9d4;
+  --md-primary-container: #e4e9f5;
+  --md-on-primary-container: #0c1b43;
+  --md-secondary-container: #e9ecf3;
+  --md-on-secondary-container: #1b2540;
+  --md-tertiary-container: #f4e8cb;
+  --md-on-tertiary-container: #3d2d05;
+  --md-gold: #c8941b;
+  --md-surface: #ffffff;
+  --md-surface-low: #f5f6f9;
+  --md-surface-container: #eef0f5;
+  --md-surface-high: #e6e9f0;
+  --md-on-surface: #161b2b;
+  --md-on-surface-variant: #4a5063;
+  --md-outline: #767c8e;
+  --md-outline-variant: #c8ccd8;
   --md-ok: #146c3f;
-  --md-ok-container: #c9f0d6;
+  --md-ok-container: #d3f0dc;
   --md-warn: #8a5300;
-  --md-warn-container: #ffe0b5;
+  --md-warn-container: #fbe9c8;
   --md-error: #ba1a1a;
-  --md-error-container: #ffdad6;
+  --md-error-container: #fde0dc;
   /* Formes */
   --md-xs: 6px;
   --md-sm: 10px;
@@ -52,7 +54,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .stu-root *, .stu-root *::before, .stu-root *::after { box-sizing: border-box; }
-html:has(.stu-root), body:has(.stu-root) { background: #fbfbff; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html:has(.stu-root), body:has(.stu-root) { background: #ffffff; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .stu-root h1, .stu-root h2, .stu-root h3 { margin: 0; color: var(--md-on-surface); font-family: var(--font-poppins), var(--font-inter), system-ui, sans-serif; letter-spacing: -.015em; }
 .stu-root p { margin: 0; }
 .stu-root a { color: inherit; text-decoration: none; }
@@ -151,7 +153,7 @@ html:has(.stu-root), body:has(.stu-root) { background: #fbfbff; -webkit-text-siz
 
 /* Carte « Mon année » : la grande surface d'accent de l'accueil. */
 .stu-hero { position: relative; display: grid; gap: 18px; overflow: hidden; padding: 22px; border-radius: var(--md-xl); color: var(--md-on-primary-container); background: var(--md-primary-container); }
-.stu-hero::after { position: absolute; top: -46px; right: -38px; width: 150px; height: 150px; border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%; background: color-mix(in srgb, var(--md-primary) 12%, transparent); content: ""; pointer-events: none; }
+.stu-hero::after { position: absolute; top: -46px; right: -38px; width: 150px; height: 150px; border-radius: 42% 58% 55% 45% / 48% 42% 58% 52%; background: color-mix(in srgb, var(--md-gold) 16%, transparent); content: ""; pointer-events: none; }
 .stu-hero-chip { position: relative; z-index: 1; justify-self: start; padding: 5px 12px; border-radius: var(--md-full); color: var(--md-on-primary); background: var(--md-primary); font-size: 12px; font-weight: 600; }
 .stu-hero h2 { position: relative; z-index: 1; color: inherit; font-size: 26px; font-weight: 700; line-height: 1.15; }
 .stu-hero-sub { position: relative; z-index: 1; margin-top: 4px !important; color: color-mix(in srgb, var(--md-on-primary-container) 75%, transparent); font-size: 14px; }
@@ -237,7 +239,7 @@ html:has(.stu-root), body:has(.stu-root) { background: #fbfbff; -webkit-text-siz
 .stu-days { display: flex; gap: 6px; }
 .stu-days button { flex: 1; display: grid; place-content: center; justify-items: center; gap: 2px; height: 64px; border: 0; border-radius: var(--md-md); color: var(--md-on-surface); background: var(--md-surface-low); font-size: 13px; font-weight: 600; }
 .stu-days button i { color: var(--md-on-surface-variant); font-size: 11.5px; font-style: normal; font-weight: 500; }
-.stu-days button.today:not(.on) { box-shadow: inset 0 0 0 2px var(--md-primary-container); }
+.stu-days button.today:not(.on) { box-shadow: inset 0 0 0 2px var(--md-gold); }
 .stu-days button.on { border-radius: var(--md-full); color: var(--md-on-primary); background: var(--md-primary); }
 .stu-days button.on i { color: rgb(255 255 255 / .82); }
 
@@ -251,7 +253,7 @@ html:has(.stu-root), body:has(.stu-root) { background: #fbfbff; -webkit-text-siz
 .stu-total .stu-figures dt { color: color-mix(in srgb, var(--md-on-primary-container) 72%, transparent); }
 .stu-total .stu-muted { color: inherit; }
 .stu-progress { height: 10px; overflow: hidden; border-radius: var(--md-full); background: rgb(255 255 255 / .7); }
-.stu-progress span { display: block; height: 100%; border-radius: var(--md-full); background: var(--md-primary); transition: width .8s var(--md-spring); }
+.stu-progress span { display: block; height: 100%; border-radius: var(--md-full); background: linear-gradient(90deg, var(--md-primary), #2b4a8f); transition: width .8s var(--md-spring); }
 
 /* Messages */
 .stu-info, .stu-notice { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border-radius: var(--md-lg); color: var(--md-on-secondary-container); background: var(--md-secondary-container); font-size: 13.5px; line-height: 1.5; }
@@ -283,7 +285,7 @@ html:has(.stu-root), body:has(.stu-root) { background: #fbfbff; -webkit-text-siz
 .stu-message { display: grid; gap: 6px; padding: 16px 18px; border-radius: var(--md-lg); background: var(--md-surface-low); }
 .stu-message header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .stu-message-meta { display: inline-flex; align-items: center; gap: 5px; color: var(--md-on-surface-variant); font-size: 12.5px; font-weight: 500; }
-.stu-message-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--md-primary); }
+.stu-message-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--md-gold); }
 .stu-message h3 { font-family: inherit; font-size: 16px; font-weight: 700; line-height: 1.3; letter-spacing: 0; }
 .stu-message p { color: var(--md-on-surface); font-size: 14px; line-height: 1.55; white-space: pre-line; }
 .stu-message-clamp { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
@@ -293,6 +295,37 @@ html:has(.stu-root), body:has(.stu-root) { background: #fbfbff; -webkit-text-siz
 .stu-message-unread .stu-message-meta, .stu-message-unread footer { color: color-mix(in srgb, var(--md-on-primary-container) 75%, transparent); }
 .stu-message-important { box-shadow: inset 4px 0 0 var(--md-error); }
 .stu-message-important .stu-message-meta { color: var(--md-error); font-weight: 600; }
+
+/* ---------- Reçu (lecture seule) ---------- */
+.stu-row-button { width: 100%; border: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.stu-row-button:hover { background: var(--md-surface-container); }
+.stu-row-chevron { margin-right: -6px; color: var(--md-outline); }
+.stu-sheet-backdrop { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; min-height: 0; background: rgb(12 27 67 / .38); animation: stu-fade .2s var(--md-ease) both; }
+.stu-sheet { width: 100%; max-width: 480px; max-height: 92dvh; overflow-y: auto; padding: 10px 16px calc(24px + env(safe-area-inset-bottom)); border-radius: var(--md-xl) var(--md-xl) 0 0; background: var(--md-surface); animation: stu-sheet-up .4s var(--md-spring) both; }
+@keyframes stu-sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.stu-sheet-bar { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 8px; }
+.stu-readonly { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: var(--md-full); color: var(--md-on-tertiary-container); background: var(--md-tertiary-container); font-size: 12.5px; font-weight: 600; }
+.stu-receipt { display: grid; gap: 10px; padding: 20px; border: 1px solid var(--md-surface-high); border-top: 4px solid var(--md-primary); border-radius: var(--md-lg); background: #fff; -webkit-user-select: none; user-select: none; }
+.stu-receipt-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--md-surface-high); }
+.stu-receipt-head div { display: grid; line-height: 1.25; }
+.stu-receipt-head strong { color: var(--md-primary); font-family: var(--font-poppins), sans-serif; font-size: 16px; letter-spacing: .02em; }
+.stu-receipt-head span { color: var(--md-gold); font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.stu-receipt-kind { margin-top: 4px !important; color: var(--md-on-surface-variant); font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.stu-receipt-ref { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin: 0; }
+.stu-receipt-ref > div { padding: 10px 12px; border-radius: var(--md-xs); background: var(--md-surface-low); }
+.stu-receipt-ref > div:first-child { border-radius: var(--md-md) var(--md-xs) var(--md-xs) var(--md-md); }
+.stu-receipt-ref > div:last-child { border-radius: var(--md-xs) var(--md-md) var(--md-md) var(--md-xs); }
+.stu-receipt-ref dt, .stu-receipt-lines dt { color: var(--md-on-surface-variant); font-size: 12px; }
+.stu-receipt-ref dd { margin: 2px 0 0; font-size: 14px; font-weight: 700; }
+.stu-receipt-from { color: var(--md-on-surface-variant); font-size: 13px; }
+.stu-receipt-name { font-size: 21px; font-weight: 700; line-height: 1.2; }
+.stu-receipt-lines { display: grid; margin: 4px 0 0; }
+.stu-receipt-lines > div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px dashed var(--md-surface-high); }
+.stu-receipt-lines dd { margin: 0; font-size: 14px; font-weight: 600; text-align: right; }
+.stu-receipt-amount { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 6px; padding: 16px; border-radius: var(--md-md); color: var(--md-on-primary); background: var(--md-primary); }
+.stu-receipt-amount span { font-size: 13px; opacity: .85; }
+.stu-receipt-amount strong { font-family: var(--font-poppins), sans-serif; font-size: 24px; font-weight: 700; }
+.stu-receipt-note { color: var(--md-on-surface-variant); font-size: 12px; text-align: center; }
 
 /* ---------- Profil ---------- */
 .stu-profile-card { display: flex; align-items: center; gap: 16px; padding: 18px; border-radius: var(--md-xl); background: var(--md-surface-low); }
@@ -305,7 +338,7 @@ html:has(.stu-root), body:has(.stu-root) { background: #fbfbff; -webkit-text-siz
 
 /* ---------- Carte d'étudiant ---------- */
 .stu-idcard { position: relative; display: grid; gap: 20px; overflow: hidden; padding: 22px; border-radius: var(--md-xl); background: var(--md-primary-container); color: var(--md-on-primary-container); }
-.stu-idcard::before { position: absolute; right: -60px; bottom: -70px; width: 220px; height: 220px; border-radius: 46% 54% 40% 60% / 55% 40% 60% 45%; background: color-mix(in srgb, var(--md-primary) 10%, transparent); content: ""; }
+.stu-idcard::before { position: absolute; right: -60px; bottom: -70px; width: 220px; height: 220px; border-radius: 46% 54% 40% 60% / 55% 40% 60% 45%; background: color-mix(in srgb, var(--md-gold) 14%, transparent); content: ""; }
 .stu-idcard > * { position: relative; }
 .stu-idcard-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .stu-idcard-top div { display: grid; line-height: 1.3; }
@@ -347,9 +380,9 @@ html:has(.stu-root), body:has(.stu-root) { background: #fbfbff; -webkit-text-siz
 .stu-splash-overlay.play { animation: stu-splash-out .45s var(--md-ease) 2.45s both; }
 .stu-splash-stage { position: relative; width: 200px; height: 190px; }
 .stu-splash-ball { position: absolute; bottom: 28px; left: 50%; width: 30px; height: 30px; margin-left: -15px; border-radius: 50%; background: var(--md-primary); transform-origin: 50% 100%; animation: stu-drop .72s cubic-bezier(.55, 0, .9, .4) both, stu-squash .5s var(--md-spring) .72s forwards; }
-.stu-splash-puddle { position: absolute; bottom: 20px; left: 50%; width: 140px; height: 22px; margin-left: -70px; border-radius: 50%; background: var(--md-primary-container); transform: scaleX(.18); opacity: 0; animation: stu-puddle .7s var(--md-spring) .7s both; }
+.stu-splash-puddle { position: absolute; bottom: 20px; left: 50%; width: 140px; height: 22px; margin-left: -70px; border-radius: 50%; background: var(--md-tertiary-container); transform: scaleX(.18); opacity: 0; animation: stu-puddle .7s var(--md-spring) .7s both; }
 .stu-splash-ring { position: absolute; bottom: 18px; left: 50%; width: 150px; height: 26px; margin-left: -75px; border: 2px solid var(--md-primary); border-radius: 50%; opacity: 0; transform: scale(.2); animation: stu-ripple 1s var(--md-ease) .74s forwards; }
-.stu-splash-ring-2 { animation-delay: .92s; border-color: color-mix(in srgb, var(--md-primary) 55%, transparent); }
+.stu-splash-ring-2 { animation-delay: .92s; border-color: color-mix(in srgb, var(--md-gold) 70%, transparent); }
 .stu-splash-title { display: flex; margin: 0; color: var(--md-on-surface); font-family: var(--font-poppins), var(--font-inter), sans-serif; font-size: 30px; font-weight: 700; letter-spacing: -.02em; }
 .stu-splash-title span { display: inline-block; opacity: 0; animation: stu-letter .55s var(--md-spring) both; }
 .stu-splash-credit { margin: 6px 0 0; color: var(--md-on-surface-variant); font-size: 12px; letter-spacing: .04em; opacity: 0; animation: stu-fade .5s var(--md-ease) 1.75s both; }
