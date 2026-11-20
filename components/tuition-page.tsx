@@ -19,14 +19,15 @@ const isoDay = (year: number, month: number, day: number) => {
   return new Date(Date.UTC(year, month, Math.min(day, last))).toISOString().slice(0, 10);
 };
 
-// Les mois d'une période, avec le même jour limite chaque mois.
+// Les mois d'une période. Un mois se paie le mois suivant : novembre au plus
+// tard le 5 décembre, décembre le 5 janvier...
 function monthsFrom(start: string, count: number, day: number): MonthRow[] {
   const [year, month] = start.split("-").map(Number);
   return Array.from({ length: count }, (_, index) => {
     const date = new Date(Date.UTC(year, month - 1 + index, 1));
     return {
       libelle: capitalized(new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" }).format(date)),
-      dateLimite: isoDay(date.getUTCFullYear(), date.getUTCMonth(), day),
+      dateLimite: isoDay(date.getUTCFullYear(), date.getUTCMonth() + 1, day),
     };
   });
 }
@@ -42,6 +43,18 @@ function CalendarPanel({ settings, canEdit, onSaved }: { settings: TuitionSettin
   const generate = () => {
     if (start && Number(count) > 0) setRows(monthsFrom(start, Number(count), Number(day) || 5));
   };
+  // Calendrier saisi avec l'échéance dans le mois lui-même : tout reporter d'un mois.
+  const shiftOneMonth = () =>
+    setRows(rows.map((row) => {
+      if (!row.dateLimite) return row;
+      const [y, m, d] = row.dateLimite.split("-").map(Number);
+      return { ...row, dateLimite: isoDay(y, m, d) };
+    }));
+  const sameMonth = rows.some((row) => {
+    if (!row.dateLimite) return false;
+    const month = new Intl.DateTimeFormat("fr-FR", { month: "long", timeZone: "UTC" }).format(new Date(`${row.dateLimite}T00:00:00Z`));
+    return row.libelle.toLowerCase().startsWith(month);
+  });
   const save = (event: FormEvent) => {
     event.preventDefault();
     void action.run(async () => {
@@ -55,9 +68,15 @@ function CalendarPanel({ settings, canEdit, onSaved }: { settings: TuitionSettin
         <div className="tuition-generator">
           <label>Premier mois<input type="month" value={start} onChange={(event) => setStart(event.target.value)} /></label>
           <label>Nombre de mois<input type="number" min="1" max="24" value={count} onChange={(event) => setCount(event.target.value)} /></label>
-          <label>Jour limite<input type="number" min="1" max="31" value={day} onChange={(event) => setDay(event.target.value)} /></label>
+          <label>Jour limite (mois suivant)<input type="number" min="1" max="31" value={day} onChange={(event) => setDay(event.target.value)} /></label>
           <button type="button" className="outline-button small" onClick={generate}>Préparer les mois</button>
         </div>
+      )}
+      {canEdit && sameMonth && (
+        <p className="form-error">
+          Certaines dates limites tombent dans le mois à payer lui-même (novembre avant le 5 novembre, par exemple) : ces mois apparaissent en retard trop tôt.{" "}
+          <button type="button" className="link-button" onClick={shiftOneMonth}>Reporter toutes les dates d&apos;un mois</button>, puis enregistrez.
+        </p>
       )}
       <form className="entity-form" onSubmit={save}>
         <div className="table-wrap"><table>

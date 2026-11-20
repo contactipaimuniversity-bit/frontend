@@ -301,6 +301,23 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { question: "D'où viennent les recettes affichées ?", answer: "Des paiements encaissés sur les dossiers pendant l'exercice." },
     ],
   },
+  Annonces: {
+    summary: "Les messages de l'administration aux étudiants, affichés dans leur espace mobile.",
+    purpose: [
+      "Publier une information à tous les étudiants, ou seulement à une filière, un niveau ou une classe.",
+      "Programmer une annonce pour plus tard et fixer jusqu'à quand elle reste affichée.",
+      "Modifier ou supprimer une annonce déjà publiée.",
+    ],
+    steps: [
+      { title: "Créer une annonce", detail: "« Nouvelle annonce », puis un titre et le message. Laissez les destinataires vides pour l'envoyer à tous." },
+      { title: "Cibler", detail: "Choisissez une filière, un niveau ou une classe : l'annonce n'apparaît que chez les étudiants concernés. Les choix se combinent." },
+      { title: "Mettre en avant", detail: "« Importante » la signale en couleur ; « Épinglée » la garde en tête de liste." },
+    ],
+    tips: ["Une annonce terminée (date de fin passée) n'est plus montrée aux étudiants mais reste dans cette liste."],
+    faq: [
+      { question: "Les étudiants reçoivent-ils une notification ?", answer: "Pas encore : ils voient l'annonce en ouvrant leur espace, avec un repère sur les messages non lus." },
+    ],
+  },
   "Frais de scolarité": {
     summary: "Ce que doit chaque étudiant : ses mois, sa bourse et ses frais annexes.",
     purpose: [

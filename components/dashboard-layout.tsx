@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { Award, BadgeCheck, Banknote, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
+import { Award, Megaphone, BadgeCheck, Banknote, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
 import { User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/student-photo";
@@ -29,6 +29,7 @@ const icons: Record<string, LucideIcon> = {
   budget: PiggyBank,
   finance: Landmark,
   tuition: GraduationCap,
+  announcements: Megaphone,
   people: Users,
   recruiting: BriefcaseBusiness,
   references: SlidersHorizontal,
@@ -95,6 +96,7 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
       { label: "Évaluations et notes", icon: "grades" },
       { label: "Délibérations", icon: "deliberations" },
       { label: "Statistiques académiques", icon: "stats" },
+      { label: "Annonces", icon: "announcements" },
     ],
   },
   {

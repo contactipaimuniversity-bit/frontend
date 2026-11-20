@@ -47,6 +47,7 @@ export function setStudentToken(token: string) {
 // Déconnexion : la session et toutes les données gardées sur l'appareil disparaissent.
 export function signOutStudent() {
   write(TOKEN_KEY, null);
+  write("ipaim-etudiant-annonces-lues", null);
   try {
     Object.keys(window.localStorage)
       .filter((key) => key.startsWith(CACHE_PREFIX))
@@ -276,4 +277,52 @@ export function weekday(date = new Date()) {
 export function toMinutes(time: string) {
   const [h, m] = time.split(":").map(Number);
   return (h || 0) * 60 + (m || 0);
+}
+
+// ---------- Annonces ----------
+
+export type Announcement = { id: string; titre: string; contenu: string; importance: "NORMALE" | "IMPORTANTE"; epinglee: boolean; publieeLe: string; modifieLe: string; auteur: string };
+
+const READ_KEY = "ipaim-etudiant-annonces-lues";
+const READ_EVENT = "ipaim-etudiant-annonces-lues";
+
+// Une annonce modifiée après lecture redevient « non lue ».
+const readMark = (item: Announcement) => `${item.id}@${item.modifieLe}`;
+
+function readMarks(): Set<string> {
+  try {
+    return new Set(JSON.parse(window.localStorage.getItem(READ_KEY) ?? "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+export function markAnnouncementsRead(items: Announcement[]) {
+  const marks = readMarks();
+  const before = marks.size;
+  items.forEach((item) => marks.add(readMark(item)));
+  if (marks.size === before) return;
+  try {
+    // Seules les annonces encore affichées comptent : la liste ne grossit pas sans fin.
+    const current = new Set(items.map(readMark));
+    const kept = [...marks].filter((mark) => current.has(mark)).slice(-200);
+    window.localStorage.setItem(READ_KEY, JSON.stringify(kept));
+  } catch {
+    /* stockage indisponible */
+  }
+  window.dispatchEvent(new Event(READ_EVENT));
+}
+
+/** Les annonces de l'étudiant, avec celles qu'il n'a pas encore lues sur cet appareil. */
+export function useAnnouncements() {
+  const resource = useStudentResource<Announcement[]>("/etudiant/moi/annonces");
+  const [marks, setMarks] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    const refresh = () => setMarks(readMarks());
+    refresh();
+    window.addEventListener(READ_EVENT, refresh);
+    return () => window.removeEventListener(READ_EVENT, refresh);
+  }, []);
+  const unread = (resource.data ?? []).filter((item) => !marks.has(readMark(item)));
+  return { ...resource, unread, isUnread: (item: Announcement) => !marks.has(readMark(item)) };
 }

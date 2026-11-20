@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BookOpenCheck, CalendarClock, CalendarDays, Clock, IdCard, MapPin, UserRound, UserX, Wallet } from "lucide-react";
+import { HomeAnnouncements, MessagesBell } from "@/components/etudiant/student-announcements";
 import { EmptyState, Loaded, Pill, ScreenHeader, Section, StaleNote } from "@/components/etudiant/student-ui";
 import { Attendance, Exam, Fees, Grades, JOURS, Slot, StudentProfile, StudentResource, Timetable, hours, money, shortDate, toMinutes, useStudentResource, weekday } from "@/lib/student-api";
 
@@ -110,7 +111,10 @@ export function HomeScreen({ profile }: { profile: StudentResource<StudentProfil
           <p>{now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</p>
           <h1>Bonjour{student ? ` ${student.prenom.split(" ")[0]}` : ""}</h1>
         </div>
-        <Image src="/etudiant/icon-192.png" alt="IPAIM University" width={44} height={44} />
+        <div className="stu-home-actions">
+          <MessagesBell />
+          <Image src="/etudiant/icon-192.png" alt="IPAIM University" width={44} height={44} />
+        </div>
       </header>
 
       {profile.staleSince && <StaleNote since={profile.staleSince} onRetry={profile.reload} />}
@@ -137,6 +141,8 @@ export function HomeScreen({ profile }: { profile: StudentResource<StudentProfil
       ) : (
         <Loaded resource={profile} lines={3}>{() => null}</Loaded>
       )}
+
+      <HomeAnnouncements />
 
       <nav className="stu-shortcuts" aria-label="Raccourcis">
         <Link href="/etudiant/cours"><CalendarDays aria-hidden="true" />Emploi du temps</Link>

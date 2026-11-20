@@ -5,14 +5,16 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { BookOpenCheck, CalendarDays, House, UserRound, Wallet } from "lucide-react";
 import { InstallBanner } from "@/components/etudiant/install-banner";
+import { AnnouncementsScreen } from "@/components/etudiant/student-announcements";
 import { StudentLogin } from "@/components/etudiant/student-login";
+import { StudentSplash } from "@/components/etudiant/student-splash";
 import { AbsencesScreen, HomeScreen, TimetableScreen } from "@/components/etudiant/student-screens";
 import { FeesScreen, GradesScreen } from "@/components/etudiant/student-money-grades";
 import { CardScreen, PasswordScreen, ProfileScreen } from "@/components/etudiant/student-profile";
 import { StudentProfile, useStudentPhoto, useStudentResource, useStudentToken } from "@/lib/student-api";
 
 const TABS = [
-  { href: "/etudiant", label: "Accueil", icon: House, match: [""] },
+  { href: "/etudiant", label: "Accueil", icon: House, match: ["", "annonces"] },
   { href: "/etudiant/cours", label: "Cours", icon: CalendarDays, match: ["cours", "examens"] },
   { href: "/etudiant/notes", label: "Notes", icon: BookOpenCheck, match: ["notes"] },
   { href: "/etudiant/paiements", label: "Paiements", icon: Wallet, match: ["paiements"] },
@@ -37,9 +39,10 @@ function useServiceWorker() {
 export function StudentApp() {
   const token = useStudentToken();
   useServiceWorker();
-  if (token === undefined) return <div className="stu-root stu-splash" />;
+  if (token === undefined) return <div className="stu-root"><StudentSplash /></div>;
   return (
     <div className="stu-root">
+      <StudentSplash />
       {token ? <StudentShell /> : (
         <>
           <div className="stu-install-slot"><InstallBanner /></div>
@@ -82,6 +85,9 @@ function StudentShell() {
       break;
     case "absences":
       screen = <AbsencesScreen />;
+      break;
+    case "annonces":
+      screen = <AnnouncementsScreen />;
       break;
     case "mot-de-passe":
       screen = <PasswordScreen />;
