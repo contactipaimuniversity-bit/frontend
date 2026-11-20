@@ -110,7 +110,7 @@ export function HomeScreen({ profile }: { profile: StudentResource<StudentProfil
           <p>{now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</p>
           <h1>Bonjour{student ? ` ${student.prenom.split(" ")[0]}` : ""}</h1>
         </div>
-        <Image src="/etudiant/icon-192.png" alt="IPAIM University" width={32} height={32} />
+        <Image src="/etudiant/icon-192.png" alt="IPAIM University" width={44} height={44} />
       </header>
 
       {profile.staleSince && <StaleNote since={profile.staleSince} onRetry={profile.reload} />}
@@ -118,17 +118,18 @@ export function HomeScreen({ profile }: { profile: StudentResource<StudentProfil
       {profile.data ? (
         inscription ? (
           <>
-            <dl className="stu-recap">
-              <div><dt>Classe</dt><dd>{inscription.classe?.nom ?? "Pas encore affecté(e)"}</dd></div>
-              <div><dt>Filière</dt><dd>{inscription.filiere} · {inscription.niveau}</dd></div>
-              <div><dt>Matricule</dt><dd>{student?.matricule ?? "—"}</dd></div>
-              <div><dt>Année</dt><dd>{inscription.anneeScolaire}</dd></div>
-            </dl>
-            <dl className="stu-figures">
-              <div><dt>Absences</dt><dd>{attendance.data ? hours(attendance.data.totalMinutes) : "—"}</dd></div>
-              <div><dt>Reste à payer</dt><dd>{fees.data?.situation ? money(fees.data.situation.resteTotal) : "—"}</dd></div>
-              <div><dt>Moyenne</dt><dd>{lastResult?.disponible && lastResult.resultat.moyenne !== null ? lastResult.resultat.moyenne.toFixed(2) : "—"}</dd></div>
-            </dl>
+            <section className="stu-hero" aria-label="Mon année">
+              <span className="stu-hero-chip">{inscription.anneeScolaire}</span>
+              <div>
+                <h2>{inscription.classe?.nom ?? `${inscription.filiere} · ${inscription.niveau}`}</h2>
+                <p className="stu-hero-sub">{inscription.filiere} · {inscription.niveau} · {student?.matricule ?? "sans matricule"}</p>
+              </div>
+              <dl className="stu-hero-stats">
+                <div><dt>Absences</dt><dd>{attendance.data ? hours(attendance.data.totalMinutes) : "—"}</dd></div>
+                <div><dt>À payer</dt><dd>{fees.data?.situation ? money(fees.data.situation.resteTotal) : "—"}</dd></div>
+                <div><dt>Moyenne</dt><dd>{lastResult?.disponible && lastResult.resultat.moyenne !== null ? lastResult.resultat.moyenne.toFixed(2) : "—"}</dd></div>
+              </dl>
+            </section>
           </>
         ) : (
           <div className="stu-info"><p>Aucune inscription enregistrée à ton nom.</p></div>

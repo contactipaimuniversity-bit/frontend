@@ -50,11 +50,11 @@ export function StudentLogin() {
   return (
     <main className="stu-login">
       <div className="stu-login-top">
-        <Image src="/etudiant/icon-192.png" alt="IPAIM University" width={32} height={32} priority />
+        <Image src="/etudiant/icon-192.png" alt="IPAIM University" width={56} height={56} priority />
       </div>
 
       <div className="stu-login-body">
-        <h1>Espace <em>étudiant</em>.</h1>
+        <h1>Espace <em>étudiant</em></h1>
         <p className="stu-lead">{mode === "connexion" ? "Connecte-toi avec ton matricule." : "Saisis le code remis par la scolarité, puis choisis ton mot de passe."}</p>
 
         <div className="stu-segmented" role="tablist" aria-label="Type de connexion">
@@ -62,7 +62,7 @@ export function StudentLogin() {
           <button type="button" role="tab" aria-selected={mode === "activation"} className={mode === "activation" ? "on" : ""} onClick={() => switchMode("activation")}>J&apos;ai un code</button>
         </div>
 
-        <form className="stu-form" onSubmit={(event) => void submit(event)} style={{ marginTop: 24 }}>
+        <form className="stu-form" onSubmit={(event) => void submit(event)} style={{ marginTop: 22 }}>
           <div className="stu-box">
             <label className="stu-field">
               <span>Matricule</span>
@@ -90,7 +90,7 @@ export function StudentLogin() {
               </label>
             )}
           </div>
-          {error && <p className="stu-form-error" role="alert" style={{ marginTop: 16 }}>{error}</p>}
+          {error && <p className="stu-form-error" role="alert">{error}</p>}
           <div className="stu-form-actions">
             <button type="submit" className="stu-button stu-button-primary" disabled={busy}>
               {busy ? "Un instant…" : mode === "connexion" ? "Se connecter" : "Activer mon accès"}

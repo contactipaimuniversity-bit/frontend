@@ -177,7 +177,7 @@ export function PasswordScreen() {
         <label className="stu-field"><span>Nouveau mot de passe</span><input type="password" value={next} onChange={(event) => setNext(event.target.value)} autoComplete="new-password" minLength={8} required /></label>
         <label className="stu-field"><span>Confirmation</span><input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" required /></label>
         </div>
-        {message && <p className={message.tone === "ok" ? "stu-form-ok" : "stu-form-error"} role="status" style={{ marginTop: 16 }}>{message.text}</p>}
+        {message && <p className={message.tone === "ok" ? "stu-form-ok" : "stu-form-error"} role="status">{message.text}</p>}
         <div className="stu-form-actions">
           <button type="submit" className="stu-button stu-button-primary" disabled={busy}>{busy ? "Un instant…" : "Enregistrer"}</button>
         </div>

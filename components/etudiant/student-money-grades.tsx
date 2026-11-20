@@ -152,9 +152,8 @@ export function FeesScreen() {
                   <span style={{ width: `${ratio}%` }} />
                 </div>
                 <dl className="stu-figures">
-                  <div><dt>Payé</dt><dd>{money(paid)}</dd></div>
-                  <div><dt>Total</dt><dd>{money(total)}</dd></div>
-                  <div><dt>Réglé</dt><dd>{ratio} %</dd></div>
+                  <div><dt>Déjà payé · {ratio} %</dt><dd>{money(paid)}</dd></div>
+                  <div><dt>Total de l&apos;année</dt><dd>{money(total)}</dd></div>
                 </dl>
               </section>
 

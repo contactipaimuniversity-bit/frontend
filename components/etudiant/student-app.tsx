@@ -102,7 +102,7 @@ function StudentShell() {
             const active = (match as readonly string[]).includes(tab);
             return (
               <Link key={href} href={href} className={active ? "on" : ""} aria-current={active ? "page" : undefined}>
-                <Icon size={22} strokeWidth={active ? 2.3 : 1.8} aria-hidden="true" />
+                <span className="stu-tab-icon"><Icon strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" /></span>
                 <span>{label}</span>
               </Link>
             );
