@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BookOpenCheck, CalendarClock, CalendarDays, Clock, IdCard, MapPin, UserRound, UserX, Wallet } from "lucide-react";
 import { HomeAnnouncements, MessagesBell } from "@/components/etudiant/student-announcements";
 import { EmptyState, Loaded, Pill, ScreenHeader, Section, StaleNote } from "@/components/etudiant/student-ui";
@@ -39,20 +39,63 @@ function whenLabel(next: NonNullable<ReturnType<typeof nextSlot>>) {
   return { text: JOURS[next.slot.jour], tone: "muted" as const };
 }
 
-function SlotCard({ slot, badge }: { slot: Slot; badge?: { text: string; tone: "ok" | "info" | "muted" } }) {
+type SlotStatus = { kind: "past" | "live" | "upcoming"; progress: number; remaining: number };
+
+/** L'heure qui avance : rafraîchie toutes les 30 secondes. */
+function useNow() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
+}
+
+/** Passé, en cours ou à venir, d'après le jour de la semaine et l'heure. */
+function slotStatus(slot: Slot, now: Date): SlotStatus {
+  const today = weekday(now);
+  const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  const start = toMinutes(slot.heureDebut);
+  const end = toMinutes(slot.heureFin);
+  // Le dimanche, la grille affichée est celle de la semaine qui vient.
+  if (today === 7) return { kind: "upcoming", progress: 0, remaining: 0 };
+  if (slot.jour < today || (slot.jour === today && minutes >= end)) return { kind: "past", progress: 1, remaining: 0 };
+  if (slot.jour === today && minutes >= start) {
+    const length = Math.max(1, end - start);
+    return { kind: "live", progress: Math.min(1, (minutes - start) / length), remaining: Math.ceil(end - minutes) };
+  }
+  return { kind: "upcoming", progress: 0, remaining: 0 };
+}
+
+function SlotStatusPill({ status }: { status: SlotStatus }) {
+  if (status.kind === "past") return <Pill tone="muted">Passé</Pill>;
+  if (status.kind === "live") return <Pill tone="ok">En cours</Pill>;
+  return <Pill tone="info">À venir</Pill>;
+}
+
+function SlotCard({ slot, badge, status }: { slot: Slot; badge?: { text: string; tone: "ok" | "info" | "muted" }; status?: SlotStatus }) {
+  const live = status?.kind === "live";
   return (
-    <article className="stu-slot">
+    <article className={`stu-slot${status ? ` stu-slot-${status.kind}` : ""}`}>
       <div className="stu-slot-time">
         <strong>{slot.heureDebut}</strong>
         <span>{slot.heureFin}</span>
       </div>
       <div className="stu-slot-body">
-        {badge && <Pill tone={badge.tone}>{badge.text}</Pill>}
+        {status ? <SlotStatusPill status={status} /> : badge && <Pill tone={badge.tone}>{badge.text}</Pill>}
         <h3>{slot.matiere}</h3>
         <p>
           {slot.salle && <span><MapPin size={13} aria-hidden="true" /> {slot.salle}</span>}
           {slot.enseignant && <span><UserRound size={13} aria-hidden="true" /> {slot.enseignant}</span>}
         </p>
+        {live && status && (
+          <div className="stu-slot-track">
+            <div className="stu-slot-progress" role="progressbar" aria-valuenow={Math.round(status.progress * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Avancement du cours">
+              <span style={{ width: `${status.progress * 100}%` }} />
+            </div>
+            <small>{status.remaining > 0 ? `Fin dans ${status.remaining} min` : "Se termine"}</small>
+          </div>
+        )}
       </div>
     </article>
   );
@@ -155,7 +198,7 @@ export function HomeScreen({ profile }: { profile: StudentResource<StudentProfil
 
       <Section title="Prochain cours" action={<Link href="/etudiant/cours" className="stu-link">Emploi du temps</Link>}>
         {timetable.data ? (
-          next ? <SlotCard slot={next.slot} badge={whenLabel(next)} /> : <EmptyState icon={null} title="Aucun cours programmé." />
+          next ? <SlotCard slot={next.slot} badge={whenLabel(next)} status={next.offset === 0 && next.startsIn !== null && next.startsIn <= 0 ? slotStatus(next.slot, now) : undefined} /> : <EmptyState icon={null} title="Aucun cours programmé." />
         ) : (
           <Loaded resource={timetable} lines={1}>{() => null}</Loaded>
         )}
@@ -201,6 +244,7 @@ export function TimetableScreen({ initial }: { initial: "semaine" | "examens" })
   const today = weekday();
   const [day, setDay] = useState(today === 7 ? 1 : today);
   const [showPast, setShowPast] = useState(false);
+  const now = useNow();
 
   return (
     <div className="stu-screen">
@@ -231,7 +275,7 @@ export function TimetableScreen({ initial }: { initial: "semaine" | "examens" })
                 {!data.classe ? (
                   <EmptyState icon={null} title="Pas encore de classe." text="L'emploi du temps s'affichera dès ton affectation." />
                 ) : slots.length ? (
-                  <div className="stu-timeline">{slots.map((slot) => <SlotCard key={slot.id} slot={slot} />)}</div>
+                  <div className="stu-timeline">{slots.map((slot) => <SlotCard key={slot.id} slot={slot} status={slotStatus(slot, now)} />)}</div>
                 ) : (
                   <EmptyState icon={null} title={`Pas de cours le ${JOURS[day].toLowerCase()}.`} />
                 )}

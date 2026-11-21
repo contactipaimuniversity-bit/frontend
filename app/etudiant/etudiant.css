@@ -234,6 +234,17 @@ html:has(.stu-root), body:has(.stu-root) { background: #ffffff; -webkit-text-siz
 .stu-exam-date span { font-size: 11.5px; font-weight: 600; text-transform: uppercase; }
 .stu-exam-date strong { font-family: var(--font-poppins), sans-serif; font-size: 22px; font-weight: 700; line-height: 1.05; }
 .stu-timeline { display: grid; gap: 8px; }
+/* État des cours : passé (estompé), en cours (mis en avant, barre qui avance), à venir. */
+.stu-slot-past { opacity: .6; }
+.stu-slot-past .stu-slot-time { color: var(--md-on-surface-variant); background: var(--md-surface-container); }
+.stu-slot-track { display: grid; gap: 4px; margin-top: 6px; }
+.stu-slot.stu-slot-live { background: var(--md-primary-container); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--md-primary) 35%, transparent); }
+.stu-slot-live .stu-slot-time { color: var(--md-on-primary); background: var(--md-primary); }
+.stu-slot-live .stu-slot-time span { color: rgb(255 255 255 / .8); }
+.stu-slot-progress { position: relative; height: 8px; overflow: hidden; border-radius: var(--md-full); background: rgb(255 255 255 / .75); }
+.stu-slot-progress span { position: absolute; inset: 0 auto 0 0; border-radius: var(--md-full); background: linear-gradient(90deg, var(--md-primary), #2b4a8f); transition: width 1s var(--md-ease); }
+.stu-slot-progress span::after { position: absolute; top: 50%; right: 0; width: 12px; height: 12px; margin-top: -6px; border: 2px solid #fff; border-radius: 50%; background: var(--md-gold); content: ""; }
+.stu-slot-track small { color: color-mix(in srgb, var(--md-on-primary-container) 80%, transparent); font-size: 12px; font-weight: 600; }
 
 /* Jours : pastilles ; le jour choisi se remplit et devient pleinement rond. */
 .stu-days { display: flex; gap: 6px; }
@@ -347,6 +358,9 @@ html:has(.stu-root), body:has(.stu-root) { background: #ffffff; -webkit-text-siz
 .stu-switch.on { border-color: var(--md-primary); background: var(--md-primary); }
 .stu-switch.on span { left: 22px; width: 24px; height: 24px; background: #fff; }
 .stu-switch:disabled { opacity: .6; }
+
+.stu-reminders { display: grid; gap: 12px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--md-surface-high); }
+.stu-reminders strong { font-size: 14px !important; font-weight: 600; }
 
 /* Fenêtre d'activation des notifications, à l'ouverture de l'application. */
 .stu-modal-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: end center; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: rgb(12 27 67 / .42); animation: stu-fade .25s var(--md-ease) both; }
