@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { ReceiptSheet } from "@/components/etudiant/student-receipt";
 import { gradeTone } from "@/components/etudiant/student-screens";
@@ -131,6 +131,23 @@ export function FeesScreen() {
   const [tab, setTab] = useState<"echeancier" | "historique">("echeancier");
   const [receipt, setReceipt] = useState<FeePayment | null>(null);
   const profile = useStudentResource<StudentProfile>("/etudiant/moi");
+
+  // Arrivée depuis la notification « Paiement reçu » : le reçu s'ouvre directement.
+  const payments = fees.data?.paiements;
+  const settled = !fees.loading;
+  useEffect(() => {
+    // Attend la réponse du serveur : la copie gardée sur l'appareil n'a pas encore ce paiement.
+    if (!payments || !settled) return;
+    const wanted = new URLSearchParams(window.location.search).get("recu");
+    if (!wanted) return;
+    const found = payments.find((payment) => payment.id === wanted);
+    window.history.replaceState(null, "", "/etudiant/paiements");
+    if (!found) return;
+    queueMicrotask(() => {
+      setTab("historique");
+      setReceipt(found);
+    });
+  }, [payments, settled]);
 
   return (
     <div className="stu-screen">
