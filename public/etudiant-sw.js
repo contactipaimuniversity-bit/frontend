@@ -1,7 +1,7 @@
 // Service worker de l'espace étudiant (périmètre /etudiant uniquement).
 // Les pages et les fichiers de l'application restent disponibles sans réseau ;
 // les données, elles, sont gardées par l'application (dernière version reçue).
-const CACHE = "ipaim-etudiant-v1";
+const CACHE = "ipaim-etudiant-v2";
 const SHELL = ["/etudiant", "/etudiant.webmanifest", "/etudiant/icon-192.png", "/etudiant/icon-512.png", "/etudiant/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
@@ -70,4 +70,42 @@ self.addEventListener("fetch", (event) => {
       }),
     );
   }
+});
+
+// Notifications push : une annonce arrive même application fermée.
+self.addEventListener("push", (event) => {
+  let message = {};
+  try {
+    message = event.data ? event.data.json() : {};
+  } catch {
+    message = { body: event.data ? event.data.text() : "" };
+  }
+  const title = message.title || "IPAIM Étudiant";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: message.body || "Nouvelle annonce de l'administration.",
+      icon: "/etudiant/icon-192.png",
+      badge: "/etudiant/badge-96.png",
+      tag: message.tag || "annonce",
+      renotify: true,
+      lang: "fr",
+      data: { url: message.url || "/etudiant/annonces" },
+    }),
+  );
+});
+
+// Un toucher sur la notification ouvre (ou ramène) l'application sur les messages.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || "/etudiant/annonces", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      const open = windows.find((client) => client.url.startsWith(`${self.location.origin}/etudiant`));
+      if (open) {
+        open.focus();
+        return open.navigate(target).catch(() => undefined);
+      }
+      return self.clients.openWindow(target);
+    }),
+  );
 });

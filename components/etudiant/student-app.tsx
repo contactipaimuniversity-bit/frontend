@@ -7,6 +7,8 @@ import { BookOpenCheck, CalendarDays, House, UserRound, Wallet } from "lucide-re
 import { InstallBanner } from "@/components/etudiant/install-banner";
 import { AnnouncementsScreen } from "@/components/etudiant/student-announcements";
 import { StudentLogin } from "@/components/etudiant/student-login";
+import { NotificationsModal } from "@/components/etudiant/student-notifications";
+import { syncPushSubscription } from "@/lib/student-push";
 import { StudentSplash } from "@/components/etudiant/student-splash";
 import { AbsencesScreen, HomeScreen, TimetableScreen } from "@/components/etudiant/student-screens";
 import { FeesScreen, GradesScreen } from "@/components/etudiant/student-money-grades";
@@ -63,6 +65,11 @@ function StudentShell() {
     window.scrollTo({ top: 0 });
   }, [tab]);
 
+  // Téléphone déjà autorisé : le rattacher au compte connecté.
+  useEffect(() => {
+    void syncPushSubscription();
+  }, []);
+
   let screen;
   switch (tab) {
     case "cours":
@@ -98,6 +105,7 @@ function StudentShell() {
 
   return (
     <>
+      <NotificationsModal />
       <main className={`stu-main${tab === "carte" ? " stu-main-card" : ""}`}>
         {(tab === "" || tab === "profil") && <div className="stu-install-slot"><InstallBanner /></div>}
         {screen}

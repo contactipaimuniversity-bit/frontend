@@ -327,6 +327,44 @@ html:has(.stu-root), body:has(.stu-root) { background: #ffffff; -webkit-text-siz
 .stu-receipt-amount strong { font-family: var(--font-poppins), sans-serif; font-size: 24px; font-weight: 700; }
 .stu-receipt-note { color: var(--md-on-surface-variant); font-size: 12px; text-align: center; }
 
+/* ---------- Notifications ---------- */
+.stu-notify { position: relative; display: flex; align-items: flex-start; gap: 14px; padding: 16px 44px 16px 16px; border-radius: var(--md-lg); color: var(--md-on-primary-container); background: var(--md-primary-container); }
+.stu-notify > div { display: grid; gap: 3px; min-width: 0; }
+.stu-notify strong, .stu-notify-row strong { font-size: 15px; font-weight: 600; }
+.stu-notify p { font-size: 13px; line-height: 1.45; opacity: .85; }
+.stu-notify .stu-install-close { color: var(--md-on-primary-container) !important; }
+.stu-notify .stu-install-actions .stu-link { color: var(--md-on-primary-container) !important; }
+.stu-notify-error { color: var(--md-error); opacity: 1 !important; }
+.stu-notify-icon { display: inline-grid; flex: 0 0 auto; place-items: center; width: 40px; height: 40px; border-radius: var(--md-md); color: var(--md-on-tertiary-container); background: var(--md-tertiary-container); }
+.stu-notify-setting { display: grid; gap: 8px; padding: 14px 16px; border-radius: var(--md-lg); background: var(--md-surface-low); }
+.stu-notify-setting .stu-link { justify-self: start; margin-left: -12px; }
+.stu-notify-row { display: flex; align-items: center; gap: 14px; }
+.stu-notify-row > div { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.stu-notify-row p { color: var(--md-on-surface-variant); font-size: 13px; }
+/* Interrupteur Material 3 : la piste se remplit, la pastille grossit et glisse. */
+.stu-switch { position: relative; flex: 0 0 auto; width: 52px; height: 32px; padding: 0; border: 2px solid var(--md-outline); border-radius: var(--md-full); background: var(--md-surface-container); }
+.stu-switch span { position: absolute; top: 50%; left: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--md-outline); transform: translateY(-50%); transition: left .35s var(--md-spring), width .35s var(--md-spring), height .35s var(--md-spring), background-color .2s var(--md-ease); }
+.stu-switch.on { border-color: var(--md-primary); background: var(--md-primary); }
+.stu-switch.on span { left: 22px; width: 24px; height: 24px; background: #fff; }
+.stu-switch:disabled { opacity: .6; }
+
+/* Fenêtre d'activation des notifications, à l'ouverture de l'application. */
+.stu-modal-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: end center; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: rgb(12 27 67 / .42); animation: stu-fade .25s var(--md-ease) both; }
+@media (min-width: 520px) { .stu-modal-backdrop { place-items: center; } }
+.stu-modal { display: grid; justify-items: center; gap: 12px; width: 100%; max-width: 400px; padding: 28px 22px 18px; border-radius: var(--md-xl); background: var(--md-surface); text-align: center; animation: stu-sheet-up .45s var(--md-spring) both; }
+.stu-modal h2 { font-size: 24px; font-weight: 700; line-height: 1.15; }
+.stu-modal > p { color: var(--md-on-surface-variant); font-size: 14.5px; line-height: 1.5; }
+.stu-modal-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 40% 60% 55% 45% / 50% 45% 55% 50%; color: var(--md-on-tertiary-container); background: var(--md-tertiary-container); animation: stu-ring 1.6s var(--md-spring) .5s 2; }
+@keyframes stu-ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(-14deg); } 30% { transform: rotate(12deg); } 45% { transform: rotate(-8deg); } 60% { transform: rotate(4deg); } }
+.stu-modal-switch { width: 100%; margin-top: 6px; padding: 14px 16px; border-radius: var(--md-lg); background: var(--md-primary-container); text-align: left; }
+.stu-modal-switch strong { color: var(--md-on-primary-container); }
+.stu-modal-switch p { color: color-mix(in srgb, var(--md-on-primary-container) 75%, transparent) !important; }
+.stu-modal-steps { width: 100%; padding: 14px 16px; border-radius: var(--md-lg); background: var(--md-surface-low); font-size: 13.5px; text-align: left; }
+.stu-modal-steps ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.6; }
+.stu-modal-steps svg { display: inline; vertical-align: -2px; color: var(--md-primary); }
+.stu-modal .stu-form-error { width: 100%; text-align: left; }
+.stu-modal-later { margin-top: 2px; color: var(--md-on-surface-variant) !important; }
+
 /* ---------- Profil ---------- */
 .stu-profile-card { display: flex; align-items: center; gap: 16px; padding: 18px; border-radius: var(--md-xl); background: var(--md-surface-low); }
 .stu-profile-card h2 { font-size: 20px; font-weight: 700; line-height: 1.2; }

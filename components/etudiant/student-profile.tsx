@@ -5,7 +5,9 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { ChevronRight, Download, IdCard, KeyRound, UserX, X } from "lucide-react";
 import { Avatar, Loaded, ScreenHeader, Section } from "@/components/etudiant/student-ui";
+import { NotificationsSetting } from "@/components/etudiant/student-notifications";
 import { useInstall } from "@/lib/student-install";
+import { forgetPushForSignOut } from "@/lib/student-push";
 import { CardInfo, StudentProfile, StudentResource, setStudentToken, shortDate, signOutStudent, studentPost, useStudentResource } from "@/lib/student-api";
 
 // ---------- Profil ----------
@@ -15,7 +17,9 @@ export function ProfileScreen({ profile, photo }: { profile: StudentResource<Stu
   const [iosHelp, setIosHelp] = useState(false);
 
   const signOut = () => {
-    if (window.confirm("Se déconnecter ? Les données enregistrées sur ce téléphone seront effacées.")) signOutStudent();
+    if (!window.confirm("Se déconnecter ? Les données enregistrées sur ce téléphone seront effacées.")) return;
+    // Ce téléphone cesse de recevoir les annonces de ce compte, puis la session s'efface.
+    void forgetPushForSignOut().finally(signOutStudent);
   };
 
   return (
@@ -43,6 +47,8 @@ export function ProfileScreen({ profile, photo }: { profile: StudentResource<Stu
                 </button>
               )}
             </div>
+
+            <NotificationsSetting />
 
             {iosHelp && (
               <div className="stu-info">
