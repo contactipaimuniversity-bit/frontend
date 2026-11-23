@@ -42,7 +42,7 @@ const payLabel = (contract: Contract) =>
     : `${formatMoney(contract.salaireBase)} / mois`;
 type Leave = { id: string; type: string; dateDebut: string; dateFin: string; jours: number; motif?: string | null; statut: string; demandeParNom: string; decideParNom?: string | null; commentaireDecision?: string | null; employe?: EmployeeRow };
 type EmployeeRow = { id: string; matricule: string; nom: string; prenom: string; categorie: string; fonction: string; service?: string | null; statut: string; telephone?: string | null; contrats?: Contract[] };
-type Rubric = { id: string; code: string; libelle: string; type: string; mode: string; valeur: string; appliqueATous: boolean; actif: boolean };
+type Rubric = { id: string; code: string; libelle: string; type: string; mode: string; valeur: string; appliqueATous: boolean; exclutVacataires?: boolean; actif: boolean };
 type Employee = EmployeeRow & {
   sexe?: string | null;
   dateNaissance?: string | null;
@@ -423,7 +423,7 @@ function EmployeeModal({ id, user, canEdit, onClose, onChanged }: { id: string; 
                       return (
                         <tr key={rubric.id}>
                           <td className="strong-cell">{rubric.libelle}<small className="cell-detail">{rubric.type === "GAIN" ? "Gain" : rubric.type === "RETENUE" ? "Retenue" : "Charge patronale"}</small></td>
-                          <td>{rubric.mode === "VARIABLE" ? "Saisie chaque mois" : rubric.mode === "FIXE" ? formatMoney(rubric.valeur) : `${Number(rubric.valeur)} %`}{rubric.appliqueATous ? " · pour tous" : " · sur attribution"}</td>
+                          <td>{rubric.mode === "VARIABLE" ? "Saisie chaque mois" : rubric.mode === "FIXE" ? formatMoney(rubric.valeur) : `${Number(rubric.valeur)} %`}{!rubric.appliqueATous ? " · sur attribution" : rubric.exclutVacataires ? " · salariés seulement" : " · pour tous"}</td>
                           <td><input className="expense-select" type="number" min="0" step="0.01" disabled={!canEdit} aria-label={`Valeur de ${rubric.libelle}`} defaultValue={own ? Number(own.valeur) : ""} key={`${rubric.id}:${own?.valeur ?? ""}`} onBlur={(event) => { if (event.target.value !== (own ? String(Number(own.valeur)) : "")) void setRubric(rubric.id, event.target.value); }} /></td>
                         </tr>
                       );

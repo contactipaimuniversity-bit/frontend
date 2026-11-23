@@ -29,7 +29,7 @@ type Period = {
   // Enseignants payés à la séance dont l'échéance ne tombe pas ce mois.
   echeances: Array<{ employe: { id: string; nom: string; prenom: string; matricule: string }; periodicitePaie: string; heures: number; montant: number; depuis: string; avancee: boolean }>;
 };
-type Rubric = { id: string; code: string; libelle: string; type: string; mode: string; valeur: string; plafond?: string | null; appliqueATous: boolean; compteNumero?: string | null; ordre: number; actif: boolean };
+type Rubric = { id: string; code: string; libelle: string; type: string; mode: string; valeur: string; plafond?: string | null; appliqueATous: boolean; exclutVacataires: boolean; compteNumero?: string | null; ordre: number; actif: boolean };
 type HrSettings = { joursCongeAnnuel: number; joursOuvresMois: number; categoriePaieId?: string | null };
 
 const PERIOD_STATUS: Record<string, { label: string; tone: "wait" | "run" | "ok" }> = {
@@ -279,7 +279,16 @@ function PeriodsTab({ canEdit, canApprove, signal }: { canEdit: boolean; canAppr
   );
 }
 
-const emptyRubric = { code: "", libelle: "", type: "GAIN", mode: "FIXE", valeur: "0", plafond: "", compteNumero: "", ordre: "100", appliqueATous: false as boolean };
+const emptyRubric = { code: "", libelle: "", type: "GAIN", mode: "FIXE", valeur: "0", plafond: "", compteNumero: "", ordre: "100", portee: "ATTRIBUTION" };
+
+// À qui s'applique une rubrique : les vacataires, payés à la séance, n'ont ni
+// cotisations ni primes fixes, sauf valeur attribuée dans leur fiche.
+const RUBRIC_SCOPES: Record<string, string> = {
+  SALARIES: "Salariés seulement (pas les vacataires)",
+  TOUS: "Tous les employés, vacataires compris",
+  ATTRIBUTION: "Sur attribution (fiche de l'employé)",
+};
+const scopeOf = (rubric: Rubric) => (!rubric.appliqueATous ? "ATTRIBUTION" : rubric.exclutVacataires ? "SALARIES" : "TOUS");
 
 function RubricsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
   const rubrics = useLoad<Rubric[]>("/paie/rubriques", signal);
@@ -289,12 +298,13 @@ function RubricsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
   const open = (rubric: Rubric | "new") => {
     action.setError("");
     setEditing(rubric);
-    form.setValues(rubric === "new" ? emptyRubric : { code: rubric.code, libelle: rubric.libelle, type: rubric.type, mode: rubric.mode, valeur: String(Number(rubric.valeur)), plafond: rubric.plafond ? String(Number(rubric.plafond)) : "", compteNumero: rubric.compteNumero ?? "", ordre: String(rubric.ordre), appliqueATous: rubric.appliqueATous });
+    form.setValues(rubric === "new" ? emptyRubric : { code: rubric.code, libelle: rubric.libelle, type: rubric.type, mode: rubric.mode, valeur: String(Number(rubric.valeur)), plafond: rubric.plafond ? String(Number(rubric.plafond)) : "", compteNumero: rubric.compteNumero ?? "", ordre: String(rubric.ordre), portee: scopeOf(rubric) });
   };
   const save = (event: FormEvent) => {
     event.preventDefault();
     void action.run(async () => {
-      const body = { ...form.values, plafond: form.values.plafond || null };
+      const { portee, ...values } = form.values;
+      const body = { ...values, plafond: values.plafond || null, appliqueATous: portee !== "ATTRIBUTION", exclutVacataires: portee === "SALARIES" };
       if (editing === "new") await send("/paie/rubriques", "POST", body);
       else if (editing) await send(`/paie/rubriques/${editing.id}`, "PATCH", body);
       setEditing(null);
@@ -316,7 +326,7 @@ function RubricsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
                 <td className="strong-cell">{rubric.libelle}<small className="cell-detail">{rubric.code}{rubric.actif ? "" : " · désactivée"}</small></td>
                 <td>{RUBRIC_TYPES[rubric.type]}</td>
                 <td>{rubric.mode === "VARIABLE" ? RUBRIC_MODES.VARIABLE : rubric.mode === "FIXE" ? formatMoney(rubric.valeur) : `${Number(rubric.valeur)} ${RUBRIC_MODES[rubric.mode]}`}{rubric.plafond && <small className="cell-detail">Assiette plafonnée à {formatMoney(rubric.plafond)}</small>}</td>
-                <td>{rubric.appliqueATous ? "Tous les employés" : "Sur attribution"}</td>
+                <td>{scopeOf(rubric) === "SALARIES" ? "Salariés seulement" : scopeOf(rubric) === "TOUS" ? "Tous, vacataires compris" : "Sur attribution"}</td>
                 <td>{rubric.compteNumero ?? "—"}</td>
                 <td className="action-group">
                   {canEdit && <button className="row-action" onClick={() => open(rubric)}>Modifier</button>}
@@ -346,7 +356,8 @@ function RubricsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
               </div>
             )}
             <label>Compte comptable (retenues et charges)<input maxLength={12} placeholder="Ex. 431" {...form.bind("compteNumero")} /></label>
-            <label className="check-row"><input type="checkbox" {...form.check("appliqueATous")} /><span>S&apos;applique à tous les employés<small>Sinon, seulement à ceux à qui une valeur est attribuée dans leur fiche.</small></span></label>
+            <label>S&apos;applique à<select {...form.bind("portee")}>{Object.entries(RUBRIC_SCOPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <p className="panel-subtitle">Un vacataire est payé à la séance : en principe, ni cotisations ni primes fixes. Une valeur attribuée dans la fiche d&apos;un employé s&apos;applique toujours, vacataire ou non.</p>
             {action.error && <p className="form-error">{action.error}</p>}
             <FormActions busy={action.busy} onCancel={() => setEditing(null)} />
           </form>
