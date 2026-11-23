@@ -8,6 +8,7 @@ import { ActionIcon } from "@/components/action-icon";
 import { FormEvent, useEffect, useState } from "react";
 import { hasAccess } from "@/lib/access";
 import { apiFetch } from "@/lib/api";
+import { matchLevel } from "@/lib/search-match";
 import { confirmNewPerson } from "@/lib/duplicates";
 import { currentUser } from "@/lib/session";
 import { logPrint } from "@/lib/print-log";
@@ -856,7 +857,8 @@ type LateInstalment = {
 };
 
 const normalizeText = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase();
-const textMatches = (term: string, ...parts: Array<string | null | undefined>) => !term || normalizeText(parts.filter(Boolean).join(" ")).includes(term);
+// Recherche souple : ordre des mots, accents et fautes de frappe tolérés.
+const textMatches = (term: string, ...parts: Array<string | null | undefined>) => !term || matchLevel(term, ...parts) > 0;
 const dossierKind = (type: string) => (type === "demande-bourse" ? "Demande de bourse" : "Inscription");
 // Une bulle montre quatre étiquettes sur deux lignes ; au-delà, la dernière devient « + N ».
 const MISSING_SLOTS = 4;

@@ -1,6 +1,7 @@
 "use client";
 
 import { LoadingBlock } from "@/components/ui-kit";
+import { softFilter } from "@/lib/search-match";
 import { useEffect, useState } from "react";
 
 type Choice = { value: string; label: string; detail?: string };
@@ -38,9 +39,7 @@ export function ModalChoice({
   const availableItems = loadChoices ? items : choices ?? [];
   const visibleItems = loadChoices
     ? availableItems
-    : availableItems.filter((item) =>
-        `${item.label} ${item.detail ?? ""}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
-      );
+    : softFilter(availableItems, query, (item) => [item.label, item.detail]);
 
   useEffect(() => {
     if (!open) return;

@@ -1,4 +1,5 @@
 import { API_URL, checkServer, isOffline, reportServerReachable } from "./connectivity";
+import { matchLevel } from "@/lib/search-match";
 import { dataKeyFingerprint, deriveDataKey, rememberDataKey, seal, Sealed, unseal } from "./local-crypto";
 
 export { API_URL };
@@ -1119,9 +1120,8 @@ export async function mergeOfflineRecords<T>(path: string, value: T): Promise<T>
   const filtered = pending.filter((item) => {
     if (!search) return true;
     const person = asRecord(item.personne);
-    const searchable = [item.nom, item.prenom, item.filiere, item.filiereSouhaitee, person?.nom, person?.prenom]
-      .filter((part): part is string => typeof part === "string").join(" ").toLocaleLowerCase();
-    return searchable.includes(search);
+    const parts = [item.nom, item.prenom, item.filiere, item.filiereSouhaitee, person?.nom, person?.prenom].filter((part): part is string => typeof part === "string");
+    return matchLevel(search, ...parts) > 0;
   });
   const knownIds = new Set(data.map((item) => asRecord(item)?.id));
   const mergedPending = filtered.filter((item) => !knownIds.has(item.id));

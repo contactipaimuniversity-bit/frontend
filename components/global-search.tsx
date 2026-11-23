@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { softFilter } from "@/lib/search-match";
 import { canAccessView, canOpenPersonFile, hasAccess } from "@/lib/access";
 import { LOCATION_EVENT, navigateTo, pathForDossier, pathForPerson, pathForStudent, pathForView } from "@/lib/routes";
 import { ApplicationPage, EnrollmentPage, ExpenseSummary, Person, ProspectPage, Supplier, User, formatDate, formatMoney, fullName, statusLabels } from "@/lib/types";
@@ -28,7 +29,6 @@ const EXPENSE_STATUS: Record<string, string> = {
 
 const PER_GROUP = 4;
 const take = <T,>(items: T[] | null | undefined) => (items ?? []).slice(0, PER_GROUP);
-const matches = (value: string | null | undefined, query: string) => Boolean(value && value.toLocaleLowerCase("fr").includes(query.toLocaleLowerCase("fr")));
 const EXPENSE_AREAS = ["expenses", "expense-approval", "expense-final-approval", "expense-payment"] as const;
 
 // Une seule case pour tout retrouver : personnes, reçus, états de besoin, employés...
@@ -90,7 +90,8 @@ async function search(query: string, user: User | null): Promise<{ results: Resu
       badge: statusLabels[item.statut] ?? item.statut,
       path: pathForDossier({ type: "inscription", id: item.id }),
     })),
-    ...take(receipts?.filter((item) => matches(item.numeroRecu, query) || matches(fullName(item.personne), query))).map((item) => ({
+    // Le serveur a déjà trié les reçus (numéro ou nom, en recherche souple).
+    ...take(receipts).map((item) => ({
       key: `recu:${item.id}`,
       group: "Reçus et paiements",
       title: item.numeroRecu ?? "Opération sans reçu",
@@ -106,7 +107,7 @@ async function search(query: string, user: User | null): Promise<{ results: Resu
       badge: EXPENSE_STATUS[item.statut] ?? item.statut,
       path: `${pathForView(expenseView ?? "États de besoin")}?depense=${encodeURIComponent(item.id)}`,
     })),
-    ...take(suppliers?.filter((item) => matches(item.nom, query) || matches(item.telephone, query))).map((item) => ({
+    ...take(softFilter(suppliers ?? [], query, (item) => [item.nom, item.telephone])).map((item) => ({
       key: `fournisseur:${item.id}`,
       group: "Fournisseurs",
       title: item.nom,

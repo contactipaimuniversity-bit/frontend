@@ -5,6 +5,7 @@ import { generatedByLine } from "@/lib/session";
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { matchLevel } from "@/lib/search-match";
 import { toast } from "@/components/feedback";
 import { checkServer, isOffline } from "@/lib/connectivity";
 import { currentOfflineSession } from "@/lib/offline";
@@ -412,7 +413,7 @@ export function CertificatesPage({ refreshSignal, dateOrder, onDateOrderChange }
   // Recherche sans accents ni majuscules sur le nom, le téléphone, la filière, la bourse, le niveau et l'année.
   const normalize = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase();
   const term = normalize(search.trim());
-  const matches = (...parts: Array<string | null | undefined>) => !term || normalize(parts.filter(Boolean).join(" ")).includes(term);
+  const matches = (...parts: Array<string | null | undefined>) => !term || matchLevel(term, ...parts) > 0;
   const visibleApplications = applications.filter((item) =>
     matches(fullName(item.personne), item.personne?.telephone, item.filiereSouhaitee, item.filiereSecondaireSouhaitee, item.typeBourse?.nom, item.niveauDemande.replaceAll("_", " "), item.ecoleOrigine),
   );
