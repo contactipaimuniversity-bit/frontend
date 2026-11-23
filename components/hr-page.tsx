@@ -5,7 +5,8 @@ import { askConfirm, askReason, toast } from "@/components/feedback";
 import { hasAccess } from "@/lib/access";
 import { apiFetch } from "@/lib/api";
 import { queryParam } from "@/lib/routes";
-import { monthLabel } from "@/lib/pdf-docs";
+import { Payslip, monthLabel, payslipsPdf } from "@/lib/pdf-docs";
+import { logPrint } from "@/lib/print-log";
 import { User, formatDate, formatMoney } from "@/lib/types";
 import { Clock, ClipboardCheck, Users } from "lucide-react";
 import { StaffAttendance, TeacherAttendance } from "@/components/attendance-pages";
@@ -59,7 +60,7 @@ type Employee = EmployeeRow & {
   conges: Leave[];
   absences: Array<{ id: string; date: string; jours: string; justifiee: boolean; motif?: string | null; saisieParNom: string }>;
   rubriques: Array<{ rubriqueId: string; valeur: string; rubrique: Rubric }>;
-  bulletins: Array<{ id: string; numero: string; net: string; brut: string; periode: { annee: number; mois: number; statut: string } }>;
+  bulletins: Array<{ id: string; numero: string; net: string; brut: string; totalRetenues: string; periode: { annee: number; mois: number; statut: string; datePaiement?: string | null } }>;
   cours: Array<{ id: string; matiere: { nom: string }; classe: { niveau: string; groupe: string; filiere: { code: string } }; creneaux?: Array<{ heureDebut: string; heureFin: string }> }>;
   soldeConges: { acquis: number; pris: number; enAttente: number; disponible: number };
 };
@@ -169,7 +170,7 @@ function EmployeeFields({ form, user }: { form: ReturnType<typeof useForm<typeof
 }
 
 function EmployeeModal({ id, user, canEdit, onClose, onChanged }: { id: string; user: User | null; canEdit: boolean; onClose: () => void; onChanged: () => void }) {
-  type Tab = "fiche" | "contrats" | "conges" | "absences" | "paie" | "documents";
+  type Tab = "fiche" | "contrats" | "conges" | "absences" | "paie" | "bulletins" | "documents";
   const [tab, setTab] = useState<Tab>("fiche");
   const detail = useLoad<Employee>(`/rh/employes/${id}`);
   const rubrics = useLoad<Rubric[]>(tab === "paie" ? "/paie/rubriques" : null);
@@ -225,6 +226,13 @@ function EmployeeModal({ id, user, canEdit, onClose, onChanged }: { id: string; 
   };
   const setRubric = (rubriqueId: string, valeur: string) => action.run(async () => apply(await send<Employee>(`/paie/employes/${id}/rubriques`, "PUT", { rubriqueId, valeur: valeur === "" ? null : valeur }, true)));
   const editable = canEdit && employee?.statut !== "SORTI";
+  // Bulletin complet (rubriques comprises) chargé au moment de l'impression.
+  const printSlip = (slipId: string) =>
+    action.run(async () => {
+      const slip = await apiFetch<Payslip & { periode: { annee: number; mois: number; datePaiement?: string | null } }>(`/paie/bulletins/${slipId}`);
+      await payslipsPdf([slip], slip.periode, `bulletin-${slip.numero}.pdf`);
+      logPrint({ typeDocument: "BULLETIN_PAIE", mode: "PDF", libelle: `${personName(slip.employe)} · ${monthLabel(slip.periode.annee, slip.periode.mois)}`, reference: slip.numero });
+    });
   return (
     <Modal wide title={employee ? `${personName(employee)} · ${employee.matricule}` : "Employé"} onClose={onClose}>
       {!employee && (detail.error ? <p className="empty-state">{detail.error}</p> : <LoadingBlock />)}
@@ -236,7 +244,7 @@ function EmployeeModal({ id, user, canEdit, onClose, onChanged }: { id: string; 
             {canEdit && employee.statut !== "SORTI" && <button className="danger-button" onClick={() => void exit()}>Sortie des effectifs</button>}
             {canEdit && employee.statut === "SORTI" && <button className="row-action" onClick={() => void post(`/rh/employes/${id}/reintegration`, {}, "Employé réintégré.")}>Réintégrer</button>}
           </div>
-          <Tabs label="Rubrique" value={tab} onChange={(next) => { setTab(next); setAdding(null); action.setError(""); }} tabs={[["fiche", "Fiche"], ["contrats", "Contrats"], ["conges", "Congés"], ["absences", "Absences"], ["paie", "Paie"], ["documents", "Documents"]]} />
+          <Tabs label="Rubrique" value={tab} onChange={(next) => { setTab(next); setAdding(null); action.setError(""); }} tabs={[["fiche", "Fiche"], ["contrats", "Contrats"], ["conges", "Congés"], ["absences", "Absences"], ["paie", "Paie"], ["bulletins", `Bulletins de paie${employee.bulletins.length ? ` (${employee.bulletins.length})` : ""}`], ["documents", "Documents"]]} />
           {action.error && <p className="form-error">{action.error}</p>}
 
           {tab === "fiche" && (
@@ -423,15 +431,28 @@ function EmployeeModal({ id, user, canEdit, onClose, onChanged }: { id: string; 
                   </tbody>
                 </table>
               </div>
-              <p className="form-section-label">Derniers bulletins</p>
+            </>
+          )}
+
+          {tab === "bulletins" && (
+            <>
+              <p className="panel-subtitle">Un bulletin est établi pour chaque mois où {personName(employee)} avait un contrat, dès que la paie du mois est préparée (Paies mensuelles). Tant que la paie n&apos;est pas validée, le bulletin reste provisoire.</p>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Mois</th><th>Bulletin</th><th>Brut</th><th>Net</th></tr></thead>
+                  <thead><tr><th>Mois</th><th>Bulletin</th><th>État</th><th>Brut</th><th>Retenues</th><th>Net à payer</th><th /></tr></thead>
                   <tbody>
                     {employee.bulletins.map((item) => (
-                      <tr key={item.id}><td className="strong-cell">{monthLabel(item.periode.annee, item.periode.mois)}</td><td>{item.numero}</td><td>{formatMoney(item.brut)}</td><td>{formatMoney(item.net)}</td></tr>
+                      <tr key={item.id}>
+                        <td className="strong-cell">{monthLabel(item.periode.annee, item.periode.mois)}</td>
+                        <td>{item.numero}</td>
+                        <td><Badge tone={item.periode.statut === "PAYEE" ? "ok" : item.periode.statut === "VALIDEE" ? "wait" : "off"}>{item.periode.statut === "PAYEE" ? `Payé${item.periode.datePaiement ? ` le ${formatDate(item.periode.datePaiement)}` : ""}` : item.periode.statut === "VALIDEE" ? "Validé, à verser" : "Provisoire"}</Badge></td>
+                        <td>{formatMoney(item.brut)}</td>
+                        <td>{formatMoney(item.totalRetenues)}</td>
+                        <td className="strong-cell">{formatMoney(item.net)}</td>
+                        <td className="action-group"><button className="row-action" disabled={action.busy} onClick={() => void printSlip(item.id)}>PDF</button></td>
+                      </tr>
                     ))}
-                    {!employee.bulletins.length && <Empty columns={4}>Aucun bulletin.</Empty>}
+                    {!employee.bulletins.length && <Empty columns={7}>{employee.contrats.length ? "Aucun bulletin pour l'instant : la paie d'un mois couvert par son contrat n'a pas encore été préparée." : "Aucun bulletin : cet employé n'a pas de contrat. Établissez-le dans l'onglet Contrats."}</Empty>}
                   </tbody>
                 </table>
               </div>
