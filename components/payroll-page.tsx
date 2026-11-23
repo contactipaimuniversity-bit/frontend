@@ -6,7 +6,7 @@ import { hasAccess } from "@/lib/access";
 import { Payslip, monthLabel, payslipsPdf } from "@/lib/pdf-docs";
 import { logPrint } from "@/lib/print-log";
 import { ExpenseCategory, User, formatDate, formatMoney } from "@/lib/types";
-import { PAYMENT_MODES, PAY_RHYTHMS } from "@/components/hr-page";
+import { EMPLOYEE_CATEGORIES, PAYMENT_MODES, PAY_RHYTHMS } from "@/components/hr-page";
 import { CalendarCheck, ListChecks, SlidersHorizontal } from "lucide-react";
 import { Badge, Empty, FormActions, HubBack, HubCard, HubCards, Modal, PageIntro, Panel, downloadPdf, number, personName, send, today, useAction, useForm, useLoad, useHubSection, LoadingBlock } from "@/components/ui-kit";
 
@@ -29,7 +29,7 @@ type Period = {
   // Enseignants payés à la séance dont l'échéance ne tombe pas ce mois.
   echeances: Array<{ employe: { id: string; nom: string; prenom: string; matricule: string }; periodicitePaie: string; heures: number; montant: number; depuis: string; avancee: boolean }>;
 };
-type Rubric = { id: string; code: string; libelle: string; type: string; mode: string; valeur: string; plafond?: string | null; appliqueATous: boolean; exclutVacataires: boolean; compteNumero?: string | null; ordre: number; actif: boolean };
+type Rubric = { id: string; code: string; libelle: string; type: string; mode: string; valeur: string; plafond?: string | null; categories: string[]; employes: Array<{ employeId: string; valeur: string; employe: { id: string; nom: string; prenom: string; matricule: string; categorie: string; statut: string } }>; compteNumero?: string | null; ordre: number; actif: boolean };
 type HrSettings = { joursCongeAnnuel: number; joursOuvresMois: number; categoriePaieId?: string | null };
 
 const PERIOD_STATUS: Record<string, { label: string; tone: "wait" | "run" | "ok" }> = {
@@ -279,39 +279,61 @@ function PeriodsTab({ canEdit, canApprove, signal }: { canEdit: boolean; canAppr
   );
 }
 
-const emptyRubric = { code: "", libelle: "", type: "GAIN", mode: "FIXE", valeur: "0", plafond: "", compteNumero: "", ordre: "100", portee: "ATTRIBUTION" };
+const emptyRubric = { code: "", libelle: "", type: "GAIN", mode: "FIXE", valeur: "0", plafond: "", compteNumero: "", ordre: "100" };
 
-// À qui s'applique une rubrique : les vacataires, payés à la séance, n'ont ni
-// cotisations ni primes fixes, sauf valeur attribuée dans leur fiche.
-const RUBRIC_SCOPES: Record<string, string> = {
-  SALARIES: "Salariés seulement (pas les vacataires)",
-  TOUS: "Tous les employés, vacataires compris",
-  ATTRIBUTION: "Sur attribution (fiche de l'employé)",
-};
-const scopeOf = (rubric: Rubric) => (!rubric.appliqueATous ? "ATTRIBUTION" : rubric.exclutVacataires ? "SALARIES" : "TOUS");
+// Catégories d'employés : une rubrique concerne d'office celles qui sont cochées.
+// Les vacataires, payés à la séance, n'ont en principe ni cotisations ni primes fixes.
+const ALL_CATEGORIES = Object.keys(EMPLOYEE_CATEGORIES);
+const SALARIED = ALL_CATEGORIES.filter((item) => item !== "ENSEIGNANT_VACATAIRE");
+const scopeLabel = (categories: string[]) =>
+  !categories.length
+    ? "Sur attribution"
+    : categories.length === ALL_CATEGORIES.length
+      ? "Tous les employés"
+      : SALARIED.every((item) => categories.includes(item)) && categories.length === SALARIED.length
+        ? "Salariés (hors vacataires)"
+        : categories.map((item) => EMPLOYEE_CATEGORIES[item] ?? item).join(", ");
+
+type StaffOption = { id: string; nom: string; prenom: string; matricule: string; categorie: string; statut: string };
 
 function RubricsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
   const rubrics = useLoad<Rubric[]>("/paie/rubriques", signal);
-  const [editing, setEditing] = useState<Rubric | "new" | null>(null);
+  const [editingId, setEditingId] = useState<string | "new" | null>(null);
+  const editing = editingId === "new" ? "new" : (rubrics.data ?? []).find((item) => item.id === editingId) ?? null;
   const form = useForm(emptyRubric);
+  const [categories, setCategories] = useState<string[]>([]);
+  const staff = useLoad<{ data: StaffOption[] }>(editingId && editingId !== "new" ? "/rh/employes?limit=200&statut=ACTIF" : null);
+  const [adding, setAdding] = useState({ employeId: "", valeur: "" });
   const action = useAction();
   const open = (rubric: Rubric | "new") => {
     action.setError("");
-    setEditing(rubric);
-    form.setValues(rubric === "new" ? emptyRubric : { code: rubric.code, libelle: rubric.libelle, type: rubric.type, mode: rubric.mode, valeur: String(Number(rubric.valeur)), plafond: rubric.plafond ? String(Number(rubric.plafond)) : "", compteNumero: rubric.compteNumero ?? "", ordre: String(rubric.ordre), portee: scopeOf(rubric) });
+    setAdding({ employeId: "", valeur: "" });
+    setEditingId(rubric === "new" ? "new" : rubric.id);
+    setCategories(rubric === "new" ? [] : rubric.categories);
+    form.setValues(rubric === "new" ? emptyRubric : { code: rubric.code, libelle: rubric.libelle, type: rubric.type, mode: rubric.mode, valeur: String(Number(rubric.valeur)), plafond: rubric.plafond ? String(Number(rubric.plafond)) : "", compteNumero: rubric.compteNumero ?? "", ordre: String(rubric.ordre) });
   };
+  const toggle = (category: string) => setCategories((current) => (current.includes(category) ? current.filter((item) => item !== category) : [...current, category]));
   const save = (event: FormEvent) => {
     event.preventDefault();
     void action.run(async () => {
-      const { portee, ...values } = form.values;
-      const body = { ...values, plafond: values.plafond || null, appliqueATous: portee !== "ATTRIBUTION", exclutVacataires: portee === "SALARIES" };
+      const body = { ...form.values, plafond: form.values.plafond || null, categories };
       if (editing === "new") await send("/paie/rubriques", "POST", body);
       else if (editing) await send(`/paie/rubriques/${editing.id}`, "PATCH", body);
-      setEditing(null);
+      setEditingId(null);
       rubrics.reload();
     });
   };
+  // Valeur propre à un employé : elle s'applique à lui quelle que soit sa catégorie.
+  const attribute = (employeId: string, valeur: string | null) =>
+    action.run(async () => {
+      if (!editing || editing === "new") return;
+      await send(`/paie/employes/${employeId}/rubriques`, "PUT", { rubriqueId: editing.id, valeur });
+      setAdding({ employeId: "", valeur: "" });
+      rubrics.reload();
+    });
   const percent = form.values.mode.startsWith("POURCENTAGE");
+  const attributed = editing && editing !== "new" ? editing.employes : [];
+  const candidates = (staff.data?.data ?? []).filter((item) => !attributed.some((own) => own.employeId === item.id));
   return (
     <>
       <p className="expense-alert"><span>Taux à confirmer</span>Les cotisations CNSS proposées suivent le barème publié pour 2023 : pensions 4 % (salarié) et 8 % (employeur) jusqu&apos;à 1 200 000 F, prestations familiales 10,03 % et accidents du travail 2,25 % jusqu&apos;à 600 000 F. L&apos;assurance maladie et les autres prélèvements patronaux ne sont pas inclus. Faites confirmer le barème en vigueur par votre comptable ou la CNSS avant la première paie réelle.</p>
@@ -319,14 +341,14 @@ function RubricsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
       {rubrics.error && <p className="form-error">{rubrics.error}</p>}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Rubrique</th><th>Nature</th><th>Calcul</th><th>Application</th><th>Compte</th><th /></tr></thead>
+          <thead><tr><th>Rubrique</th><th>Nature</th><th>Calcul</th><th>S&apos;applique à</th><th>Compte</th><th /></tr></thead>
           <tbody>
             {(rubrics.data ?? []).map((rubric) => (
               <tr key={rubric.id}>
                 <td className="strong-cell">{rubric.libelle}<small className="cell-detail">{rubric.code}{rubric.actif ? "" : " · désactivée"}</small></td>
                 <td>{RUBRIC_TYPES[rubric.type]}</td>
                 <td>{rubric.mode === "VARIABLE" ? RUBRIC_MODES.VARIABLE : rubric.mode === "FIXE" ? formatMoney(rubric.valeur) : `${Number(rubric.valeur)} ${RUBRIC_MODES[rubric.mode]}`}{rubric.plafond && <small className="cell-detail">Assiette plafonnée à {formatMoney(rubric.plafond)}</small>}</td>
-                <td>{scopeOf(rubric) === "SALARIES" ? "Salariés seulement" : scopeOf(rubric) === "TOUS" ? "Tous, vacataires compris" : "Sur attribution"}</td>
+                <td>{scopeLabel(rubric.categories)}{rubric.employes.length > 0 && <small className="cell-detail">+ {rubric.employes.length} employé(s) avec une valeur propre</small>}</td>
                 <td>{rubric.compteNumero ?? "—"}</td>
                 <td className="action-group">
                   {canEdit && <button className="row-action" onClick={() => open(rubric)}>Modifier</button>}
@@ -338,7 +360,7 @@ function RubricsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
         </table>
       </div>
       {editing && (
-        <Modal title={editing === "new" ? "Nouvelle rubrique de paie" : `Modifier · ${editing.libelle}`} onClose={() => setEditing(null)}>
+        <Modal wide title={editing === "new" ? "Nouvelle rubrique de paie" : `Modifier · ${editing.libelle}`} onClose={() => setEditingId(null)}>
           <form className="entity-form" onSubmit={save}>
             <div className="form-grid">
               <label>Code<input required disabled={editing !== "new"} minLength={2} maxLength={24} {...form.bind("code")} /></label>
@@ -356,11 +378,59 @@ function RubricsTab({ canEdit, signal }: { canEdit: boolean; signal: number }) {
               </div>
             )}
             <label>Compte comptable (retenues et charges)<input maxLength={12} placeholder="Ex. 431" {...form.bind("compteNumero")} /></label>
-            <label>S&apos;applique à<select {...form.bind("portee")}>{Object.entries(RUBRIC_SCOPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <p className="panel-subtitle">Un vacataire est payé à la séance : en principe, ni cotisations ni primes fixes. Une valeur attribuée dans la fiche d&apos;un employé s&apos;applique toujours, vacataire ou non.</p>
+
+            <p className="form-section-label">S&apos;applique d&apos;office à</p>
+            <div className="form-grid">
+              {ALL_CATEGORIES.map((category) => (
+                <label key={category} className="check-row"><input type="checkbox" checked={categories.includes(category)} onChange={() => toggle(category)} /><span>{EMPLOYEE_CATEGORIES[category]}{category === "ENSEIGNANT_VACATAIRE" && <small>Payés à la séance : en principe ni cotisations ni primes fixes.</small>}</span></label>
+              ))}
+            </div>
+            <p className="panel-subtitle">{categories.length ? `Tous les employés de ces catégories reçoivent la rubrique${form.values.mode === "VARIABLE" ? " (montant saisi chaque mois dans la paie)" : ""}.` : "Aucune catégorie cochée : seuls les employés ci-dessous reçoivent la rubrique."}</p>
             {action.error && <p className="form-error">{action.error}</p>}
-            <FormActions busy={action.busy} onCancel={() => setEditing(null)} />
+            <FormActions busy={action.busy} onCancel={() => setEditingId(null)} />
           </form>
+
+          {editing !== "new" && (
+            <div className="entity-form">
+              <p className="form-section-label">Employés avec une valeur propre</p>
+              <p className="panel-subtitle">Une valeur propre s&apos;applique à l&apos;employé quelle que soit sa catégorie, cochée ou non, et remplace la valeur générale. Elle est enregistrée tout de suite.</p>
+              <div className="table-wrap">
+                <table>
+                  <thead><tr><th>Employé</th><th>Catégorie</th><th>{percent ? "Taux (%)" : "Montant (F)"}</th><th /></tr></thead>
+                  <tbody>
+                    {attributed.map((own) => (
+                      <tr key={own.employeId}>
+                        <td className="strong-cell">{personName(own.employe)}<small className="cell-detail">{own.employe.matricule}{own.employe.statut === "SORTI" ? " · sorti" : ""}</small></td>
+                        <td>{EMPLOYEE_CATEGORIES[own.employe.categorie] ?? own.employe.categorie}</td>
+                        <td><input className="expense-select" type="number" min="0" step="0.01" disabled={!canEdit} aria-label={`Valeur pour ${personName(own.employe)}`} defaultValue={Number(own.valeur)} key={`${own.employeId}:${own.valeur}`} onBlur={(event) => { if (event.target.value && Number(event.target.value) !== Number(own.valeur)) void attribute(own.employeId, event.target.value); }} /></td>
+                        <td>{canEdit && <button className="row-action danger-row-action" disabled={action.busy} onClick={() => void attribute(own.employeId, null)}>Retirer</button>}</td>
+                      </tr>
+                    ))}
+                    {!attributed.length && <Empty columns={4}>Aucun employé n&apos;a de valeur propre pour cette rubrique.</Empty>}
+                  </tbody>
+                </table>
+              </div>
+              {canEdit && (
+                <div className="form-grid">
+                  <label>Ajouter un employé
+                    <select value={adding.employeId} onChange={(event) => setAdding({ ...adding, employeId: event.target.value })}>
+                      <option value="">{staff.data ? "Choisir un employé" : "Chargement…"}</option>
+                      {ALL_CATEGORIES.map((category) => {
+                        const group = candidates.filter((item) => item.categorie === category);
+                        return group.length ? <optgroup key={category} label={EMPLOYEE_CATEGORIES[category]}>{group.map((item) => <option key={item.id} value={item.id}>{personName(item)} · {item.matricule}</option>)}</optgroup> : null;
+                      })}
+                    </select>
+                  </label>
+                  <label>{percent ? "Taux (%)" : "Montant (F)"}
+                    <span className="action-group">
+                      <input type="number" min="0" step="0.01" value={adding.valeur} onChange={(event) => setAdding({ ...adding, valeur: event.target.value })} />
+                      <button type="button" className="outline-button small" disabled={action.busy || !adding.employeId || adding.valeur === ""} onClick={() => void attribute(adding.employeId, adding.valeur)}>Ajouter</button>
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
         </Modal>
       )}
     </>
