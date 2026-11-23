@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, KeyRound, Smartphone } from "lucide-react";
+import { Copy, KeyRound, Printer, Smartphone } from "lucide-react";
 import { askConfirm, toast } from "@/components/feedback";
 import { Badge, Panel, messageOf } from "@/components/ui-kit";
 import { API_URL } from "@/lib/connectivity";
+import { studentAccessPdf } from "@/lib/pdf-docs";
+import { logPrint } from "@/lib/print-log";
 import { formatDate } from "@/lib/types";
 
 type AccountState = {
@@ -97,6 +99,22 @@ export function StudentAccessPanel({ personId, canEdit }: { personId: string; ca
     }
   };
 
+  // Fiche papier à remettre : identifiant, code, marche à suivre et QR code.
+  // Seul ce moment permet de l'imprimer : le code n'est plus jamais réaffiché.
+  const print = async () => {
+    if (!issued) return;
+    const lien = `${window.location.origin}/etudiant?activation=1&matricule=${encodeURIComponent(issued.matricule ?? "")}`;
+    try {
+      await studentAccessPdf(
+        { etudiant: issued.etudiant, matricule: issued.matricule ?? "", code: issued.codeActivation, adresse: `${window.location.host}/etudiant`, lien, expireLe: issued.codeExpireLe, remisPar: issued.codeCreeParNom },
+        `acces-espace-etudiant-${issued.matricule ?? "etudiant"}.pdf`,
+      );
+      logPrint({ typeDocument: "ACCES_ETUDIANT", mode: "PDF", libelle: `${issued.etudiant} · ${issued.matricule ?? ""}`, reference: issued.matricule ?? undefined });
+    } catch (failure) {
+      toast(messageOf(failure, "La fiche n'a pas pu être préparée."), "error");
+    }
+  };
+
   const status = state ? STATES[state.etat] : null;
   return (
     <Panel
@@ -113,14 +131,17 @@ export function StudentAccessPanel({ personId, canEdit }: { personId: string; ca
       {error && <p className="form-error">{error}</p>}
       {issued && (
         <div className="student-access-code" role="status">
-          <p>Code à remettre à <strong>{issued.etudiant}</strong> — il ne sera plus affiché après cette page.</p>
+          <p>Code à remettre à <strong>{issued.etudiant}</strong> — il ne sera plus affiché après cette page : imprimez la fiche maintenant.</p>
           <dl>
             <div><dt>Adresse</dt><dd>{typeof window !== "undefined" ? `${window.location.host}/etudiant` : "/etudiant"}</dd></div>
             <div><dt>Matricule</dt><dd>{issued.matricule}</dd></div>
             <div><dt>Code</dt><dd className="student-access-code-value">{issued.codeActivation}</dd></div>
           </dl>
           <p className="panel-subtitle">Valable jusqu&apos;au {issued.codeExpireLe ? formatDate(issued.codeExpireLe) : "—"}, pour une seule activation.</p>
-          <button className="outline-button small" onClick={() => void copy()}><Copy size={14} aria-hidden="true" /> Copier les instructions</button>
+          <div className="action-group">
+            <button className="primary-button small" onClick={() => void print()}><Printer size={14} aria-hidden="true" /> Imprimer la fiche d&apos;accès</button>
+            <button className="outline-button small" onClick={() => void copy()}><Copy size={14} aria-hidden="true" /> Copier les instructions</button>
+          </div>
         </div>
       )}
       {state && !issued && (

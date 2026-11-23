@@ -1423,3 +1423,82 @@ export async function studentCardsPdf(cards: StudentCard[], fileName: string) {
   }
   savePdf(pdf, fileName);
 }
+
+// ---------- Fiche d'accès à l'espace étudiant ----------
+
+export type StudentAccessSlip = { etudiant: string; matricule: string; code: string; adresse: string; lien: string; expireLe: string | null; remisPar?: string | null };
+
+// Fiche remise à l'étudiant avec son code d'activation : à découper, une seule
+// moitié de page. Le code n'est imprimé qu'ici ; il n'est conservé nulle part.
+export async function studentAccessPdf(slip: StudentAccessSlip, fileName: string) {
+  const pdf = await createPdf();
+  const [logo, QRCode] = await Promise.all([logoData(), import("qrcode").then((module) => module.default)]);
+  const left = 18;
+  const right = 192;
+  const width = right - left;
+
+  // En-tête.
+  if (logo) pdf.addImage(logo, "JPEG", left, 14, 16, 16);
+  const textLeft = logo ? left + 20 : left;
+  pdf.setFont("helvetica", "bold").setFontSize(15).setTextColor(20, 40, 92).text("IPAIM UNIVERSITY", textLeft, 21);
+  pdf.setFont("helvetica", "normal").setFontSize(9).setTextColor(110, 120, 135).text("Espace étudiant · application mobile", textLeft, 27);
+  pdf.setFont("helvetica", "bold").setFontSize(11).setTextColor(20, 40, 92).text("FICHE D'ACCÈS PERSONNELLE", right, 21, { align: "right" });
+  pdf.setDrawColor(200, 148, 27).setLineWidth(0.7).line(left, 33, right, 33);
+
+  pdf.setFont("helvetica", "normal").setFontSize(10).setTextColor(60, 70, 90).text("Remise à", left, 42);
+  pdf.setFont("helvetica", "bold").setFontSize(14).setTextColor(20, 40, 92).text(pdfSafe(slip.etudiant), left, 49);
+
+  // Identifiant et code, en grand.
+  const boxTop = 55;
+  const boxHeight = 34;
+  const half = (width - 6) / 2;
+  const field = (x: number, label: string, value: string, spacing: number) => {
+    pdf.setFillColor(238, 242, 250).roundedRect(x, boxTop, half, boxHeight, 3, 3, "F");
+    pdf.setFont("helvetica", "bold").setFontSize(8.5).setTextColor(90, 100, 120).text(label.toUpperCase(), x + 6, boxTop + 9);
+    pdf.setFont("courier", "bold").setFontSize(22).setTextColor(20, 40, 92).text(pdfSafe(value), x + 6, boxTop + 24, { charSpace: spacing });
+  };
+  field(left, "Matricule (identifiant)", slip.matricule, 0.6);
+  field(left + half + 6, "Code d'activation", slip.code, 1.6);
+  pdf.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(150, 110, 60);
+  pdf.text(pdfSafe(`Code valable une seule fois${slip.expireLe ? `, jusqu'au ${formatDate(slip.expireLe)}` : ""}.`), left + half + 6, boxTop + boxHeight + 5);
+
+  // Marche à suivre, et QR code qui ouvre l'espace étudiant.
+  const stepsTop = boxTop + boxHeight + 14;
+  const qrSize = 34;
+  pdf.setFont("helvetica", "bold").setFontSize(11).setTextColor(20, 40, 92).text("Activer ton accès en 3 étapes", left, stepsTop);
+  const steps = [
+    `Sur ton téléphone, ouvre ${slip.adresse} (ou scanne le code ci-contre).`,
+    "Touche « J'ai un code », puis saisis ton matricule et ton code d'activation.",
+    "Choisis ton mot de passe (8 caractères au moins). Ensuite, tu te connectes avec ton matricule et ce mot de passe.",
+  ];
+  let y = stepsTop + 8;
+  steps.forEach((step, index) => {
+    pdf.setFillColor(200, 148, 27).circle(left + 3, y - 1.4, 3, "F");
+    pdf.setFont("helvetica", "bold").setFontSize(9).setTextColor(255, 255, 255).text(String(index + 1), left + 3, y - 0.2, { align: "center" });
+    const lines = pdf.setFont("helvetica", "normal").setFontSize(10).setTextColor(40, 48, 66).splitTextToSize(pdfSafe(step), width - qrSize - 16) as string[];
+    pdf.text(lines, left + 9, y);
+    y += lines.length * 4.8 + 3;
+  });
+  const qr = QRCode.create(slip.lien, { errorCorrectionLevel: "M" }).modules;
+  const cell = qrSize / qr.size;
+  const qrX = right - qrSize;
+  const qrY = stepsTop - 4;
+  pdf.setFillColor(20, 40, 92);
+  for (let row = 0; row < qr.size; row += 1)
+    for (let column = 0; column < qr.size; column += 1)
+      if (qr.data[row * qr.size + column]) pdf.rect(qrX + column * cell, qrY + row * cell, cell + 0.02, cell + 0.02, "F");
+  pdf.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(102, 114, 140).text("Scanner pour ouvrir", qrX + qrSize / 2, qrY + qrSize + 4, { align: "center" });
+
+  // Mise en garde, puis trait de coupe.
+  const warnTop = Math.max(y + 3, qrY + qrSize + 9);
+  pdf.setFillColor(252, 245, 230).roundedRect(left, warnTop, width, 13, 2, 2, "F");
+  pdf.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(120, 90, 30);
+  pdf.text(pdfSafe("Code personnel : ne le communique à personne. Code perdu ou expiré, mot de passe oublié : demande un nouveau code à la scolarité."), left + 4, warnTop + 5.2, { maxWidth: width - 8 });
+  pdf.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(130, 138, 152);
+  pdf.text(pdfSafe(`Remise le ${formatDate(new Date().toISOString())}${slip.remisPar ? ` par ${slip.remisPar}` : ""}`), left, warnTop + 19);
+  const cut = warnTop + 25;
+  pdf.setDrawColor(170, 178, 192).setLineWidth(0.2).setLineDashPattern([2, 1.5], 0).line(8, cut, 202, cut).setLineDashPattern([], 0);
+  pdf.setFontSize(7).text("À découper et à remettre à l'étudiant", 105, cut + 4, { align: "center" });
+  footer(pdf);
+  savePdf(pdf, fileName);
+}

@@ -7,11 +7,14 @@ import { setStudentToken, studentPost } from "@/lib/student-api";
 
 type Mode = "connexion" | "activation";
 
+const lienFiche = () => new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
+
 // Connexion à l'espace étudiant, ou première connexion avec le code remis
 // par la scolarité (le même écran sert quand on a oublié son mot de passe).
 export function StudentLogin() {
-  const [mode, setMode] = useState<Mode>("connexion");
-  const [matricule, setMatricule] = useState("");
+  // Arrivé par le QR code de la fiche d'accès : « J'ai un code », matricule déjà saisi.
+  const [mode, setMode] = useState<Mode>(() => (lienFiche().get("activation") === "1" ? "activation" : "connexion"));
+  const [matricule, setMatricule] = useState(() => (lienFiche().get("matricule") ?? "").slice(0, 40));
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [code, setCode] = useState("");
