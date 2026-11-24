@@ -653,3 +653,21 @@ html:has(.site) { scroll-behavior: smooth; scroll-padding-top: 120px; }
   .social-dock a { width: 42px; height: 42px; }
 }
 @media (prefers-reduced-motion: reduce) { .social-dock a { animation: none; } }
+
+/* ---------- Cartes des filières : bleu nuit d'office ---------- */
+.program-card { color: #fff; background: linear-gradient(160deg, var(--navy-2), var(--navy)); box-shadow: 0 10px 26px rgb(12 27 67 / .16); }
+.program-card .site-round-icon { color: var(--navy); background: var(--gold-bright); }
+.program-head small { color: var(--gold-bright); }
+.program-head h3 { color: #fff; }
+.program-card > p { color: rgb(255 255 255 / .8); }
+.program-lists { border-top-color: rgb(255 255 255 / .14); }
+.program-lists strong { color: #fff; }
+.program-lists li { color: rgb(255 255 255 / .76); }
+.program-lists li::before { background: var(--gold-bright); }
+.program-levels { color: var(--gold-bright); }
+.program-card .site-link-arrow { color: var(--gold-bright); }
+@media (hover: hover) and (pointer: fine) {
+  .program-card:hover { box-shadow: 0 24px 48px rgb(12 27 67 / .3); }
+  .program-card:hover .program-head h3 { color: #fff; }
+  .program-card:hover .site-round-icon { color: var(--navy); background: #fff; }
+}
