@@ -5,8 +5,8 @@
 export const CONTACT = {
   phone: "+242 06 400 04 71",
   phoneHref: "tel:+242064000471",
-  phone2: "+242 06 782 09 44",
-  phone2Href: "tel:+242067820944",
+  phone2: "+242 06 782 08 44",
+  phone2Href: "tel:+242067820844",
   whatsapp: "https://wa.me/242064000471",
   facebook: "https://www.facebook.com/profile.php?id=61590977258855",
   instagram: "https://www.instagram.com/IPAIM_University",
