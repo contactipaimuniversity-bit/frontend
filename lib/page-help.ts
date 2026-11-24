@@ -301,6 +301,24 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { question: "D'où viennent les recettes affichées ?", answer: "Des paiements encaissés sur les dossiers pendant l'exercice." },
     ],
   },
+  "Site vitrine": {
+    summary: "Le grand carrousel en haut du site public de l'université : photos, titres, textes et boutons.",
+    purpose: [
+      "Choisir les photos qui défilent en haut du site, avec le titre et le texte affichés par-dessus.",
+      "Ajouter un bouton qui mène à la pré-inscription, aux formations ou à toute autre page.",
+      "Changer l'ordre, masquer une diapositive sans la perdre, ou la supprimer.",
+    ],
+    steps: [
+      { title: "Ajouter une diapositive", detail: "« Nouvelle diapositive », choisissez une photo large (paysage), puis un titre et, si besoin, un surtitre, un texte et un bouton. L'aperçu montre le rendu exact." },
+      { title: "Ordonner", detail: "Les flèches avancent ou reculent une diapositive : elles défilent dans cet ordre, toutes les sept secondes." },
+      { title: "Masquer ou supprimer", detail: "« Masquer » la retire du site en la gardant en réserve ; la corbeille la supprime avec son image." },
+    ],
+    tips: ["Sans diapositive affichée, le site montre une présentation par défaut aux couleurs de l'université.", "« Voir le site » ouvre la vitrine dans un nouvel onglet."],
+    faq: [
+      { question: "Quelle photo choisir ?", answer: "Une photo large, en paysage (idéalement 1920 × 1080 px), nette et lumineuse : le campus, des étudiants en cours, un événement. Le centre de l'image reste visible, les bords peuvent être recadrés sur téléphone." },
+      { question: "Qui peut modifier le carrousel ?", answer: "Les postes qui ont le droit « Site vitrine · carrousel » en modification, et l'administrateur." },
+    ],
+  },
   Annonces: {
     summary: "Les messages de l'administration aux étudiants, affichés dans leur espace mobile.",
     purpose: [

@@ -705,6 +705,7 @@ export const MANUALS: Record<ManualSection, Manual> = {
     title: "Administration",
     summary: "Les outils de l'administrateur : référentiels, synchronisation hors ligne, corbeille, audit, impressions et sauvegardes.",
     screens: [
+      { view: "Site vitrine", role: "Le grand carrousel du site public : photos, titres, textes et boutons, dans l'ordre où ils défilent." },
       { view: "Référentiels", role: "Pièces, fournitures et frais exigés, types de bourse et échéances." },
       { view: "Synchronisation", role: "Les saisies faites hors ligne et leur envoi au serveur." },
       { view: "Corbeille", role: "Les éléments supprimés, à restaurer ou purger." },

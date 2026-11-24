@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { Award, Megaphone, BadgeCheck, Banknote, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, FileBadge, GraduationCap, Info, LayoutDashboard, LayoutGrid, LogOut, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, UserRound, Users, Wallet, ArrowLeft, House } from "lucide-react";
+import { Award, Megaphone, BadgeCheck, Banknote, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, FileBadge, GraduationCap, Globe, Info, LayoutDashboard, LayoutGrid, LogOut, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, UserRound, Users, Wallet, ArrowLeft, House } from "lucide-react";
 import { User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/student-photo";
@@ -54,6 +54,7 @@ const icons: Record<string, LucideIcon> = {
   cardScan: ScanLine,
   handover: Banknote,
   settings: Settings,
+  website: Globe,
 };
 
 type NavItem = { label: ViewName; icon: string; title?: string; views?: ViewName[] };
@@ -118,6 +119,7 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: "Administration",
     items: [
+      { label: "Site vitrine", icon: "website" },
       { label: "Référentiels", icon: "references" },
       { label: "Synchronisation", icon: "sync" },
       { label: "Corbeille", icon: "trash" },

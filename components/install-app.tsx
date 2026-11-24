@@ -8,13 +8,14 @@ import { useInstall } from "@/lib/student-install";
 // Installer l'espace de gestion comme une application (PWA).
 // Chrome et Edge (ordinateur, Android) savent l'installer d'un clic ; sur iPhone
 // et iPad, Safari demande un geste qu'on explique. « Plus tard » ne repropose
-// rien pendant une semaine ; le menu garde toujours le bouton « Installer ».
+// rien pendant la visite en cours : la proposition revient à la prochaine
+// ouverture du site. Le menu garde toujours le bouton « Installer ».
 const DISMISS_KEY = "ipaim-gestion-install-plus-tard";
 const OPEN_EVENT = "ipaim-install-open";
 const DELAY_MS = 4000;
 
 export function InstallAppModal() {
-  const install = useInstall(DISMISS_KEY);
+  const install = useInstall(DISMISS_KEY, true);
   const [forced, setForced] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -80,7 +81,7 @@ export function InstallAppModal() {
 
 // Entrée du menu, tant que l'application n'est pas installée sur cet appareil.
 export function InstallAppButton({ onDone }: { onDone?: () => void }) {
-  const install = useInstall(DISMISS_KEY);
+  const install = useInstall(DISMISS_KEY, true);
   if (!install.available) return null;
   return (
     <button

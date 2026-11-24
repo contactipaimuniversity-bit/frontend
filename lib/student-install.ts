@@ -29,14 +29,14 @@ if (typeof window !== "undefined") {
 
 type InstallState = { installed: boolean; canPrompt: boolean; ios: boolean; dismissed: boolean };
 
-function readState(dismissKey: string): InstallState {
+function readState(dismissKey: string, perVisit: boolean): InstallState {
   const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
   const ua = navigator.userAgent;
   // iPhone/iPad, y compris l'iPad qui se présente comme un Mac.
   const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
   let dismissed = false;
   try {
-    const until = Number(window.localStorage.getItem(dismissKey));
+    const until = Number((perVisit ? window.sessionStorage : window.localStorage).getItem(dismissKey));
     dismissed = Number.isFinite(until) && until > Date.now();
   } catch {
     /* stockage indisponible : on propose à chaque visite */
@@ -44,16 +44,20 @@ function readState(dismissKey: string): InstallState {
   return { installed: standalone, canPrompt: Boolean(deferred), ios, dismissed };
 }
 
-/** dismissKey : où retenir « Plus tard » (un par espace). */
-export function useInstall(dismissKey = DISMISS_KEY) {
+/**
+ * dismissKey : où retenir « Plus tard » (un par espace).
+ * perVisit : « Plus tard » ne vaut que pour la visite en cours ; la proposition
+ * revient à la prochaine ouverture du site.
+ */
+export function useInstall(dismissKey = DISMISS_KEY, perVisit = false) {
   const [state, setState] = useState<InstallState>({ installed: true, canPrompt: false, ios: false, dismissed: true });
 
   useEffect(() => {
-    const refresh = () => setState(readState(dismissKey));
+    const refresh = () => setState(readState(dismissKey, perVisit));
     refresh();
     window.addEventListener(READY_EVENT, refresh);
     return () => window.removeEventListener(READY_EVENT, refresh);
-  }, [dismissKey]);
+  }, [dismissKey, perVisit]);
 
   const prompt = async () => {
     if (!deferred) return;
@@ -61,14 +65,14 @@ export function useInstall(dismissKey = DISMISS_KEY) {
     await event.prompt();
     await event.userChoice.catch(() => undefined);
     deferred = null;
-    setState(readState(dismissKey));
+    setState(readState(dismissKey, perVisit));
     // Les autres endroits qui proposent l'installation se mettent à jour.
     window.dispatchEvent(new Event(READY_EVENT));
   };
 
   const dismiss = () => {
     try {
-      window.localStorage.setItem(dismissKey, String(Date.now() + DISMISS_DAYS * 24 * 60 * 60 * 1000));
+      (perVisit ? window.sessionStorage : window.localStorage).setItem(dismissKey, String(Date.now() + DISMISS_DAYS * 24 * 60 * 60 * 1000));
     } catch {
       /* rien à retenir */
     }

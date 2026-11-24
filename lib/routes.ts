@@ -24,6 +24,7 @@ const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page" |
   "Paramètres finances": "/finances/parametres",
   "Frais de scolarité": "/finances/scolarite",
   Annonces: "/annonces",
+  "Site vitrine": "/site-vitrine",
   Prospects: "/prospects",
   "Futurs étudiants": "/futurs-etudiants",
   Personnes: "/personnes",

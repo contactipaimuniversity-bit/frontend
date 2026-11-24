@@ -51,6 +51,7 @@ export const ACCESS_FEATURES = [
   { key: "tuition-settings", label: "Frais de scolarité · paramétrage" },
   { key: "tuition-adjustments", label: "Frais de scolarité · réductions et échéanciers individuels" },
   { key: "announcements", label: "Annonces aux étudiants" },
+  { key: "website", label: "Site vitrine · carrousel" },
 ] as const;
 
 export type AccessArea = (typeof ACCESS_FEATURES)[number]["key"];
@@ -80,6 +81,7 @@ export const VIEW_ACCESS: Partial<Record<ViewName, AccessArea | AccessArea[]>> =
   "Paramètres finances": "finance-settings",
   "Frais de scolarité": "tuition-settings",
   Annonces: "announcements",
+  "Site vitrine": "website",
   Comptabilité: "accounting",
   "Tableau de bord académique": ["academics", "teaching", "grades", "deliberations", "academic-stats"],
   "Structure académique": "academics",
