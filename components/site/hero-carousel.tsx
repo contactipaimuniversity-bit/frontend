@@ -22,7 +22,6 @@ function SlideButton({ href, className, active, children }: { href: string; clas
 export function HeroCarousel() {
   const [slides, setSlides] = useState<Slide[]>(DEFAULT_SLIDES);
   const [index, setIndex] = useState(0);
-  const [hover, setHover] = useState(false);
   const [userPaused, setUserPaused] = useState(false);
   const touch = useRef<number | null>(null);
 
@@ -44,7 +43,8 @@ export function HeroCarousel() {
 
   const count = slides.length;
   const go = useCallback((next: number) => setIndex(((next % count) + count) % count), [count]);
-  const stopped = hover || userPaused || count < 2;
+  // Le défilement continue même sous le pointeur ; seul le bouton pause l'arrête.
+  const stopped = userPaused || count < 2;
 
   useEffect(() => {
     if (stopped) return;
@@ -57,8 +57,6 @@ export function HeroCarousel() {
       <div
         className="hero"
         aria-roledescription="carrousel"
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
         onKeyDown={(event) => {
           if (event.key === "ArrowRight") go(index + 1);
           if (event.key === "ArrowLeft") go(index - 1);

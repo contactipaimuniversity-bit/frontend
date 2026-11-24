@@ -2,47 +2,46 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  Award,
-  CalendarDays,
+  BadgeCheck,
   Check,
   ChevronRight,
   FileText,
   GraduationCap,
   Headphones,
-  Lightbulb,
+  HeartHandshake,
   Mail,
   MapPin,
-  MessageCircle,
   Phone,
   Smartphone,
-  TrendingUp,
+  Wallet,
 } from "lucide-react";
+import { FacebookIcon, InstagramIcon, WhatsAppIcon } from "@/components/site/brand-icons";
 import { HeroCarousel } from "@/components/site/hero-carousel";
 import { Programs } from "@/components/site/programs";
+import { SiteFaq } from "@/components/site/site-faq";
 import { SiteHeader } from "@/components/site/site-header";
+import { SiteNews } from "@/components/site/site-news";
 import {
-  ADVANTAGES,
+  ADMISSION_STEPS,
   CAMPUSES,
   COMMUNITY,
   CONTACT,
-  DEGREES,
-  FAQ,
+  DIGITAL_SERVICES,
   FIGURES,
   FILE_PIECES,
-  GOVERNANCE,
-  NEWS,
-  SCHOLARSHIPS,
-  STEPS,
-  STUDENT_SERVICES,
+  FUNDING,
+  LEADERSHIP,
+  PATHWAY,
+  STRENGTHS,
   TEAM,
-  VALUES,
 } from "@/lib/site-content";
 
-const VALUE_ICONS = [Lightbulb, GraduationCap, TrendingUp];
+const STRENGTH_ICONS = [BadgeCheck, Wallet, GraduationCap, HeartHandshake];
 
-function Heading({ id, title, text }: { id: string; title: string; text?: string }) {
+function Heading({ id, kicker, title, text }: { id: string; kicker: string; title: string; text?: string }) {
   return (
     <div className="sec-head">
+      <p className="sec-kicker">{kicker}</p>
       <h2 id={id}>{title}</h2>
       {text && <p>{text}</p>}
     </div>
@@ -56,146 +55,130 @@ export default function SitePage() {
       <SiteHeader />
 
       <div className="site-advice">
-        <Phone size={14} aria-hidden="true" /> Besoin d&apos;un conseil pour choisir votre filière ? Appelez le <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>
+        <Phone size={14} aria-hidden="true" /> Vous hésitez entre plusieurs filières ? Nos conseillers vous orientent au <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>
       </div>
 
       <HeroCarousel />
 
       <main id="contenu">
-        {/* L'université */}
-        <section className="sec" aria-labelledby="t-universite" id="universite">
+        {/* Pourquoi l'IPAIM */}
+        <section className="sec" aria-labelledby="t-atouts" id="atouts">
           <div className="site-container">
-            <Heading id="t-universite" title="Former les talents dont le Congo a besoin." text="Un établissement privé d'enseignement supérieur implanté à Moukondo, à Brazzaville." />
-            <div className="intro-grid">
-              <div className="intro-text">
-                <p>IPAIM University, l&apos;Institut Polytechnique Africain d&apos;Innovation et de Management, prépare les bacheliers aux métiers qui recrutent : le numérique, les télécommunications, le management, la logistique, le droit et l&apos;industrie.</p>
-                <p>Notre conviction : une grande carrière peut se construire au pays, à condition d&apos;y être formé de façon concrète et exigeante. Notre mission est d&apos;offrir à la jeunesse congolaise une formation professionnalisante et accessible, grâce à des frais maîtrisés et à un programme de bourses d&apos;études.</p>
-                <a className="text-link" href="#gouvernance">Découvrir la gouvernance <ChevronRight size={16} aria-hidden="true" /></a>
-              </div>
-              <dl className="figures">
-                {FIGURES.map((figure) => (
-                  <div key={figure.label}><dd>{figure.value}</dd><dt>{figure.label}</dt></div>
-                ))}
-              </dl>
-            </div>
-            <div className="tiles tiles-3">
-              {VALUES.map((value, position) => {
-                const Glyph = VALUE_ICONS[position];
+            <Heading id="t-atouts" kicker="Pourquoi l'IPAIM" title="Un enseignement supérieur exigeant, pensé pour l'emploi." text="Implanté à Brazzaville, l'Institut Polytechnique Africain d'Innovation et de Management forme des techniciens et des cadres opérationnels, prêts à intégrer les entreprises congolaises." />
+            <div className="strengths">
+              {STRENGTHS.map((item, position) => {
+                const Glyph = STRENGTH_ICONS[position];
                 return (
-                  <article key={value.title} className="tile">
-                    <Glyph size={26} strokeWidth={1.6} aria-hidden="true" className="tile-icon" />
-                    <h3>{value.title}</h3>
-                    <p>{value.text}</p>
+                  <article key={item.title} className="strength">
+                    <span className="strength-icon"><Glyph size={22} strokeWidth={1.7} aria-hidden="true" /></span>
+                    <h3>{item.title}</h3>
+                    <p>{item.text}</p>
                   </article>
                 );
               })}
             </div>
+            <dl className="figures-band">
+              {FIGURES.map((figure) => (
+                <div key={figure.label}><dd>{figure.value}</dd><dt>{figure.label}</dt></div>
+              ))}
+            </dl>
           </div>
         </section>
 
         {/* Formations */}
         <section className="sec sec-soft" aria-labelledby="t-formations" id="formations">
           <div className="site-container">
-            <Heading id="t-formations" title="Nos formations à la une." text="Quatre pôles, huit domaines d'études. Chaque filière associe enseignements fondamentaux et mises en situation professionnelle." />
+            <Heading id="t-formations" kicker="Formations" title="Trouvez la filière qui vous ressemble." text="Huit programmes, regroupés en quatre pôles, accessibles en BTS comme en Licence." />
             <Programs />
-            <div className="degrees" id="diplomes">
-              {DEGREES.map((degree) => (
-                <article key={degree.name} className="degree">
-                  <span>{degree.name}</span>
-                  <div><strong>{degree.duration}</strong><p>{degree.text}</p></div>
-                </article>
-              ))}
-              <article className="degree degree-note">
-                <CalendarDays size={24} strokeWidth={1.6} aria-hidden="true" />
-                <div><strong>L&apos;année universitaire</strong><p>Deux semestres associant cours, travaux dirigés et évaluations. Résultats et documents sont délivrés par la scolarité.</p></div>
-              </article>
-            </div>
           </div>
         </section>
 
-        {/* Admissions */}
-        <section className="sec" aria-labelledby="t-admissions" id="admissions">
-          <div className="site-container">
-            <Heading id="t-admissions" title="Rejoindre l'IPAIM en quatre étapes." text="L'université accueille les titulaires du baccalauréat général, technique ou professionnel." />
-            <ol className="adm-steps">
-              {STEPS.map((step, position) => (
-                <li key={step.title}>
-                  <span className="step-index">{position + 1}</span>
-                  <h3>{step.title}</h3>
-                  <p>{step.text}</p>
+        {/* Parcours d'études */}
+        <section className="sec" aria-labelledby="t-parcours" id="parcours">
+          <div className="site-container pathway-block">
+            <Heading id="t-parcours" kicker="Parcours d'études" title="Du baccalauréat à la vie active." text="Une progression lisible, organisée en semestres associant cours, travaux dirigés et évaluations." />
+            <ol className="pathway">
+              {PATHWAY.map((item, position) => (
+                <li key={item.step}>
+                  <span className="pathway-dot" aria-hidden="true">{position + 1}</span>
+                  <strong>{item.step}</strong>
+                  <p>{item.detail}</p>
                 </li>
               ))}
             </ol>
+          </div>
+        </section>
 
-            <div className="split-cards" id="bourses">
-              <article className="panel-card">
-                <FileText size={26} strokeWidth={1.6} aria-hidden="true" className="tile-icon" />
-                <h3>Composition du dossier</h3>
-                <ul className="ticks">{FILE_PIECES.map((piece) => <li key={piece}><Check size={16} aria-hidden="true" />{piece}</li>)}</ul>
-              </article>
-              <article className="panel-card panel-card-brand">
-                <Award size={26} strokeWidth={1.6} aria-hidden="true" className="tile-icon" />
-                <h3>La bourse locale 2026-2027</h3>
-                <p>IPAIM University attribue des bourses aux bacheliers qui souhaitent poursuivre leurs études dans de bonnes conditions. Les places sont limitées.</p>
-                <dl className="grants">
-                  {SCHOLARSHIPS.map((item) => <div key={item.title}><dt>{item.title}</dt><dd>{item.text}</dd></div>)}
-                </dl>
-              </article>
-            </div>
-
-            <div className="tiles tiles-3 offers">
-              {ADVANTAGES.map((item) => (
-                <article key={item.title} className="tile offer">
-                  <span className="offer-value">{item.value.trim()}</span>
+        {/* Financer ses études */}
+        <section className="sec sec-brand" aria-labelledby="t-financement" id="financement">
+          <div className="site-container">
+            <Heading id="t-financement" kicker="Financer ses études" title="Des aides concrètes pour alléger le coût de la formation." />
+            <div className="funding">
+              {FUNDING.map((item) => (
+                <article key={item.title} className="funding-card">
+                  <span className="funding-value">{item.value}</span>
                   <h3>{item.title}</h3>
                   <p>{item.text}</p>
                 </article>
               ))}
             </div>
-
-            <div className="cta">
-              <div>
-                <h3>Votre place commence par une pré-inscription.</h3>
-                <p>Gratuite et rapide, elle vous met en relation avec le service d&apos;information.</p>
-              </div>
-              <div className="cta-actions">
-                <Link className="site-btn site-btn-gold" href="/enregistrements">Je me pré-inscris</Link>
-                <a className="site-btn site-btn-light" href={CONTACT.phoneHref}>Appeler le service d&apos;information</a>
-              </div>
-            </div>
-
-            <div className="faq" id="faq">
-              <h3>Questions fréquentes</h3>
-              {FAQ.map((item) => (
-                <details key={item.q}>
-                  <summary>{item.q}</summary>
-                  <p>{item.a}</p>
-                </details>
-              ))}
-            </div>
+            <p className="sec-note">Le montant de chaque formule de bourse est présenté lors de l&apos;entretien. Les places sont limitées.</p>
           </div>
         </section>
 
-        {/* Vie étudiante */}
-        <section className="sec sec-soft" aria-labelledby="t-vie" id="vie-etudiante">
+        {/* Intégrer l'IPAIM */}
+        <section className="sec" aria-labelledby="t-admission" id="admission">
+          <div className="site-container admission">
+            <div>
+              <Heading id="t-admission" kicker="Intégrer l'IPAIM" title="Quatre démarches pour rejoindre la prochaine promotion." />
+              <ol className="admission-steps">
+                {ADMISSION_STEPS.map((step, position) => (
+                  <li key={step.title}>
+                    <span>{String(position + 1).padStart(2, "0")}</span>
+                    <div><strong>{step.title}</strong><p>{step.text}</p></div>
+                  </li>
+                ))}
+              </ol>
+              <div className="cta-actions">
+                <Link className="site-btn site-btn-primary" href="/enregistrements">Commencer ma pré-inscription</Link>
+                <a className="site-btn site-btn-outline" href={CONTACT.phoneHref}>Parler à un conseiller</a>
+              </div>
+            </div>
+            <aside className="dossier">
+              <FileText size={26} strokeWidth={1.6} aria-hidden="true" />
+              <h3>Votre dossier de candidature</h3>
+              <ul className="ticks">{FILE_PIECES.map((piece) => <li key={piece}><Check size={16} aria-hidden="true" />{piece}</li>)}</ul>
+            </aside>
+          </div>
+        </section>
+
+        {/* Actualités */}
+        <section className="sec sec-soft" aria-labelledby="t-actualites" id="actualites">
+          <div className="site-container">
+            <Heading id="t-actualites" kicker="Actualités" title="La vie de l'université." />
+            <SiteNews />
+          </div>
+        </section>
+
+        {/* Vivre l'IPAIM */}
+        <section className="sec" aria-labelledby="t-vivre" id="vivre">
           <div className="site-container app-block">
             <div>
-              <Heading id="t-vie" title="Votre université, dans votre poche." text="Depuis le 14 novembre 2026, l'application étudiante réunit la carte d'étudiant, le matricule, l'emploi du temps, les notes et les démarches." />
-              <ul className="ticks ticks-2">{STUDENT_SERVICES.map((item) => <li key={item}><Check size={16} aria-hidden="true" />{item}</li>)}</ul>
-              <p className="muted">Les accès se retirent au service de la scolarité.</p>
-              <Link className="site-btn site-btn-primary" href="/etudiant"><Smartphone size={17} aria-hidden="true" /> Accéder à l&apos;espace étudiant</Link>
+              <Heading id="t-vivre" kicker="Vivre l'IPAIM" title="Votre scolarité, accessible partout." text="L'application étudiante IPAIM réunit vos informations et vos démarches. Vos codes d'accès sont remis par le service de la scolarité." />
+              <ul className="ticks ticks-2">{DIGITAL_SERVICES.map((item) => <li key={item}><Check size={16} aria-hidden="true" />{item}</li>)}</ul>
+              <Link className="site-btn site-btn-primary" href="/etudiant"><Smartphone size={17} aria-hidden="true" /> Ouvrir l&apos;espace étudiant</Link>
             </div>
             <div className="phone" aria-hidden="true">
               <div className="phone-screen">
                 <div className="phone-top"><Image src="/etudiant/icon-192.png" alt="" width={30} height={30} /><span>Mon espace IPAIM</span></div>
-                <div className="phone-card"><small>Carte d&apos;étudiant · 2026-2027</small><strong>IPAIM University</strong><span>Matricule IP-26-••••</span></div>
-                {["Emploi du temps", "Mes notes", "Mes paiements", "Annonces"].map((item) => <div key={item} className="phone-row">{item}<ChevronRight size={14} /></div>)}
+                <div className="phone-card"><small>Carte d&apos;étudiant</small><strong>IPAIM University</strong><span>Année 2026-2027</span></div>
+                {["Mes cours de la semaine", "Mes résultats", "Mes règlements", "Messages"].map((item) => <div key={item} className="phone-row">{item}<ChevronRight size={14} /></div>)}
               </div>
             </div>
           </div>
-          <div className="site-container tiles tiles-3 community">
+          <div className="site-container community">
             {COMMUNITY.map((item) => (
-              <article key={item.title} className="tile">
+              <article key={item.title}>
                 <h3>{item.title}</h3>
                 <p>{item.text}</p>
               </article>
@@ -203,35 +186,19 @@ export default function SitePage() {
           </div>
         </section>
 
-        {/* Actualités */}
-        <section className="sec" aria-labelledby="t-actualites" id="actualites">
+        {/* L'institution */}
+        <section className="sec sec-soft" aria-labelledby="t-institution" id="institution">
           <div className="site-container">
-            <Heading id="t-actualites" title="Actualités." text="Rentrée, bourses, nouveaux services et vie du campus." />
-            <div className="news">
-              {NEWS.map((item, position) => (
-                <article key={item.title} className={`news-item ${position === 0 ? "news-lead" : ""}`}>
-                  <div className="news-meta"><span>{item.tag}</span><time>{item.date}</time></div>
+            <Heading id="t-institution" kicker="L'institution" title="Une direction resserrée, au service des étudiants." text="L'IPAIM a pour mission d'offrir à la jeunesse congolaise une formation professionnalisante et accessible." />
+            <div className="org">
+              {LEADERSHIP.map((item) => (
+                <article key={item.title}>
                   <h3>{item.title}</h3>
                   <p>{item.text}</p>
                 </article>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* Gouvernance et campus */}
-        <section className="sec sec-soft" aria-labelledby="t-gouvernance" id="gouvernance">
-          <div className="site-container">
-            <Heading id="t-gouvernance" title="Gouvernance et équipe." text="La direction générale fixe les orientations ; deux responsables pilotent au quotidien la qualité de la formation et le fonctionnement de l'établissement." />
-            <div className="tiles tiles-4">
-              {GOVERNANCE.map((item) => (
-                <article key={item.title} className="tile tile-line">
-                  <h3>{item.title}</h3>
-                  <p>{item.text}</p>
-                </article>
-              ))}
-            </div>
-            <div className="people">
+            <div className="people" id="equipe">
               {TEAM.map((member) => (
                 <article key={member.name} className="person">
                   <span aria-hidden="true">{member.initials}</span>
@@ -239,35 +206,43 @@ export default function SitePage() {
                 </article>
               ))}
               <article className="person person-join">
-                <div><strong>Enseigner à l&apos;IPAIM</strong><small>Enseignants et personnel administratif : candidatures spontanées ouvertes.</small></div>
-                <a className="text-link" href={`mailto:${CONTACT.email}?subject=Candidature`}>Postuler <ChevronRight size={16} aria-hidden="true" /></a>
+                <div><strong>Enseigner ou travailler à l&apos;IPAIM</strong><small>Les candidatures spontanées sont étudiées toute l&apos;année.</small></div>
+                <a className="text-link" href={`mailto:${CONTACT.email}?subject=Candidature`}>Envoyer ma candidature <ChevronRight size={16} aria-hidden="true" /></a>
               </article>
             </div>
             <div className="campuses" id="campus">
               {CAMPUSES.map((campus) => (
                 <article key={campus.city} className="campus">
-                  <span className={`campus-state ${campus.status === "Campus ouvert" ? "is-open" : ""}`}>{campus.status}</span>
+                  <span className={`campus-state ${campus.status === "Ouvert" ? "is-open" : ""}`}>{campus.status}</span>
                   <h3>{campus.city}</h3>
                   <p>{campus.text}</p>
-                  {campus.status === "Campus ouvert" && <a className="text-link text-link-light" href={CONTACT.maps} target="_blank" rel="noreferrer">Itinéraire <ArrowRight size={16} aria-hidden="true" /></a>}
+                  {campus.status === "Ouvert" && <a className="text-link text-link-light" href={CONTACT.maps} target="_blank" rel="noreferrer">Voir sur la carte <ArrowRight size={16} aria-hidden="true" /></a>}
                 </article>
               ))}
             </div>
           </div>
         </section>
 
+        {/* Questions fréquentes */}
+        <section className="sec" aria-labelledby="t-questions" id="questions">
+          <div className="site-container faq-block">
+            <Heading id="t-questions" kicker="Questions fréquentes" title="Vous vous posez des questions ?" text="Les réponses aux interrogations les plus courantes des candidats et de leurs familles." />
+            <SiteFaq />
+          </div>
+        </section>
+
         {/* Contact */}
-        <section className="sec" aria-labelledby="t-contact" id="contact">
+        <section className="sec sec-soft" aria-labelledby="t-contact" id="contact">
           <div className="site-container contact">
             <div>
-              <Heading id="t-contact" title="Parlons de votre avenir." text="Une question sur une filière, une bourse ou une démarche ? Le service d'information vous répond." />
+              <Heading id="t-contact" kicker="Contact" title="Échangeons sur votre projet." text="Par téléphone, par écrit ou directement à l'accueil du campus : nous répondons à toutes vos questions." />
               <div className="cta-actions">
-                <a className="site-btn site-btn-primary" href={CONTACT.whatsapp} target="_blank" rel="noreferrer"><MessageCircle size={17} aria-hidden="true" /> Écrire sur WhatsApp</a>
-                <a className="site-btn site-btn-outline" href={CONTACT.maps} target="_blank" rel="noreferrer"><MapPin size={17} aria-hidden="true" /> Itinéraire vers le campus</a>
+                <a className="site-btn site-btn-primary" href={CONTACT.whatsapp} target="_blank" rel="noreferrer"><WhatsAppIcon size={17} /> Nous écrire sur WhatsApp</a>
+                <a className="site-btn site-btn-outline" href={CONTACT.maps} target="_blank" rel="noreferrer"><MapPin size={17} aria-hidden="true" /> Venir au campus</a>
               </div>
             </div>
             <ul className="contact-list">
-              <li><Phone size={20} strokeWidth={1.7} aria-hidden="true" /><div><small>Service d&apos;information</small><a href={CONTACT.phoneHref}>{CONTACT.phone}</a><a href={CONTACT.phone2Href}>{CONTACT.phone2}</a></div></li>
+              <li><Phone size={20} strokeWidth={1.7} aria-hidden="true" /><div><small>Téléphone</small><a href={CONTACT.phoneHref}>{CONTACT.phone}</a><a href={CONTACT.phone2Href}>{CONTACT.phone2}</a></div></li>
               <li><Mail size={20} strokeWidth={1.7} aria-hidden="true" /><div><small>Courriel</small><a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a></div></li>
               <li><MapPin size={20} strokeWidth={1.7} aria-hidden="true" /><div><small>Adresse</small><span>{CONTACT.address}, République du Congo</span></div></li>
             </ul>
@@ -279,21 +254,21 @@ export default function SitePage() {
           <div className="site-container assure-grid">
             <div>
               <Headphones size={30} strokeWidth={1.5} aria-hidden="true" />
-              <strong>Un conseiller à votre écoute</strong>
-              <p>Le service d&apos;information vous aide à choisir votre filière selon votre bac et votre projet.</p>
+              <strong>Un conseiller dédié</strong>
+              <p>Une orientation personnalisée selon votre série de bac et votre projet professionnel.</p>
               <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>
             </div>
             <div>
               <MapPin size={30} strokeWidth={1.5} aria-hidden="true" />
-              <strong>Visitez le campus</strong>
-              <p>Accueil sur place à Moukondo, en face de la station Total de Mazala (Western Union).</p>
-              <a href={CONTACT.maps} target="_blank" rel="noreferrer">Voir l&apos;itinéraire</a>
+              <strong>Un accueil sur place</strong>
+              <p>Le campus de Moukondo vous reçoit pour toute information sur les formations.</p>
+              <a href={CONTACT.maps} target="_blank" rel="noreferrer">Obtenir l&apos;itinéraire</a>
             </div>
             <div>
               <FileText size={30} strokeWidth={1.5} aria-hidden="true" />
-              <strong>Pré-inscription en ligne</strong>
-              <p>Gratuite, elle réserve votre place et lance votre parcours d&apos;admission.</p>
-              <Link href="/enregistrements">Se pré-inscrire</Link>
+              <strong>Une candidature en ligne</strong>
+              <p>La pré-inscription est gratuite et ne prend que quelques minutes.</p>
+              <Link href="/enregistrements">Je me pré-inscris</Link>
             </div>
           </div>
         </section>
@@ -302,33 +277,33 @@ export default function SitePage() {
       <footer className="foot">
         <div className="site-container">
           <div className="foot-cols">
-            <nav aria-label="L'université">
-              <strong>L&apos;université</strong>
-              <a href="#universite">Présentation</a>
-              <a href="#gouvernance">Gouvernance</a>
-              <a href="#campus">Nos campus</a>
+            <nav aria-label="Découvrir">
+              <strong>Découvrir</strong>
+              <a href="#atouts">Pourquoi l&apos;IPAIM</a>
+              <a href="#institution">L&apos;institution</a>
+              <a href="#campus">Nos implantations</a>
               <a href="#actualites">Actualités</a>
             </nav>
             <nav aria-label="Étudier">
               <strong>Étudier</strong>
-              <a href="#formations">Offre de formation</a>
-              <a href="#diplomes">BTS et Licence</a>
-              <a href="#admissions">Admissions</a>
-              <a href="#bourses">Bourses d&apos;études</a>
+              <a href="#formations">Nos filières</a>
+              <a href="#parcours">Parcours d&apos;études</a>
+              <a href="#admission">Admission</a>
+              <a href="#financement">Financement</a>
             </nav>
             <nav aria-label="Étudiants">
               <strong>Étudiants</strong>
               <Link href="/etudiant">Espace étudiant</Link>
-              <a href="#vie-etudiante">Application étudiante</a>
-              <a href="#vie-etudiante">Scolarité</a>
-              <a href="#faq">Questions fréquentes</a>
+              <a href="#vivre">Services numériques</a>
+              <a href="#questions">Questions fréquentes</a>
+              <Link href="/enregistrements">Pré-inscription</Link>
             </nav>
             <nav aria-label="Contact">
               <strong>Contact</strong>
               <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>
               <a href={CONTACT.phone2Href}>{CONTACT.phone2}</a>
               <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
-              <a href={`mailto:${CONTACT.email}?subject=Candidature`} className="foot-highlight">L&apos;IPAIM recrute</a>
+              <a href="#equipe" className="foot-highlight">Rejoindre l&apos;équipe</a>
             </nav>
           </div>
           <div className="foot-band">
@@ -337,21 +312,21 @@ export default function SitePage() {
               <span><strong>IPAIM University</strong><small>Innover · Former · Transformer</small></span>
             </div>
             <div className="foot-social">
-              <span>Nous joindre</span>
-              <a href={CONTACT.whatsapp} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={17} aria-hidden="true" /></a>
-              <a href={CONTACT.phoneHref} aria-label="Téléphone"><Phone size={17} aria-hidden="true" /></a>
+              <span>Suivez-nous</span>
+              <a href={CONTACT.facebook} target="_blank" rel="noreferrer" aria-label="IPAIM University sur Facebook"><FacebookIcon /></a>
+              <a href={CONTACT.instagram} target="_blank" rel="noreferrer" aria-label="IPAIM University sur Instagram"><InstagramIcon /></a>
+              <a href={CONTACT.whatsapp} target="_blank" rel="noreferrer" aria-label="IPAIM University sur WhatsApp"><WhatsAppIcon /></a>
               <a href={`mailto:${CONTACT.email}`} aria-label="Courriel"><Mail size={17} aria-hidden="true" /></a>
-              <a href={CONTACT.maps} target="_blank" rel="noreferrer" aria-label="Itinéraire"><MapPin size={17} aria-hidden="true" /></a>
             </div>
           </div>
           <div className="foot-legal">
             <nav aria-label="Informations">
               <a href="#contact">Contact</a>
-              <a href="#faq">Questions fréquentes</a>
+              <a href="#questions">Questions fréquentes</a>
               <Link href="/enregistrements">Pré-inscription</Link>
               <Link href="/">Espace de gestion</Link>
             </nav>
-            <span>© {new Date().getFullYear()} IPAIM University · Moukondo, Brazzaville, République du Congo</span>
+            <span>© {new Date().getFullYear()} IPAIM University · Brazzaville, République du Congo</span>
           </div>
         </div>
       </footer>

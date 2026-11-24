@@ -302,16 +302,20 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
     ],
   },
   "Site vitrine": {
-    summary: "Le grand carrousel en haut du site public de l'université : photos, titres, textes et boutons.",
+    summary: "Le site public de l'université : le carrousel d'ouverture, les actualités et les questions fréquentes, chacun dans son onglet.",
     purpose: [
       "Choisir les photos qui défilent en haut du site, avec le titre et le texte affichés par-dessus.",
       "Ajouter un bouton qui mène à la pré-inscription, aux formations ou à toute autre page.",
       "Changer l'ordre, masquer une diapositive sans la perdre, ou la supprimer.",
+      "Publier les actualités (image, catégorie, date, résumé, texte complet) et choisir celle qui est à la une.",
+      "Rédiger et ordonner les questions fréquentes affichées sur le site.",
     ],
     steps: [
       { title: "Ajouter une diapositive", detail: "« Nouvelle diapositive », choisissez une photo large (paysage), puis un titre et, si besoin, un surtitre, un texte et un bouton. L'aperçu montre le rendu exact." },
       { title: "Ordonner", detail: "Les flèches avancent ou reculent une diapositive : elles défilent dans cet ordre, toutes les sept secondes." },
       { title: "Masquer ou supprimer", detail: "« Masquer » la retire du site en la gardant en réserve ; la corbeille la supprime avec son image." },
+      { title: "Publier une actualité", detail: "Onglet Actualités › « Nouvelle actualité » : une catégorie, une date, un titre et un résumé suffisent ; l'image et le texte complet sont facultatifs. « À la une » la met en avant." },
+      { title: "Gérer les questions fréquentes", detail: "Onglet Questions fréquentes : ajoutez une question et sa réponse, puis réglez l'ordre avec les flèches." },
     ],
     tips: ["Sans diapositive affichée, le site montre une présentation par défaut aux couleurs de l'université.", "« Voir le site » ouvre la vitrine dans un nouvel onglet."],
     faq: [

@@ -53,7 +53,7 @@ export function SiteHeader() {
           <nav aria-label="Accès rapides">
             <Link href="/etudiant">Espace étudiant</Link>
             <a href="#actualites">Actualités</a>
-            <a href="#gouvernance">Recrutement</a>
+            <a href="#equipe">Recrutement</a>
             <a href="#contact">Contact</a>
           </nav>
         </div>

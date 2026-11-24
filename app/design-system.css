@@ -1384,3 +1384,31 @@ button.daily-summary-stat.active { border-color: var(--brand-navy, #14285c); box
 .slide-form .slide-preview-glass span { font-size: 12.5px; }
 .slide-file { display: grid; gap: 6px; }
 .slide-file small { color: var(--muted); }
+
+/* ---------- Site vitrine : actualités et questions ---------- */
+.news-admin { display: grid; gap: 10px; }
+.news-admin-row { display: grid; grid-template-columns: 120px 1fr auto; gap: 16px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.news-admin-row.is-hidden { opacity: .6; }
+.news-admin-thumb { display: grid; aspect-ratio: 4 / 3; place-items: center; border-radius: 12px; background-position: center; background-size: cover; color: rgb(255 255 255 / .7); }
+.news-admin-thumb.is-empty { background: linear-gradient(140deg, #172c63, #0c1b43); }
+.news-admin-body { display: grid; gap: 4px; min-width: 0; }
+.news-admin-body strong { color: var(--ink); }
+.news-admin-body > span:not(.action-group) { display: -webkit-box; overflow: hidden; color: var(--muted); font-size: var(--text-sm); -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.news-admin-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 320px; }
+.news-admin-actions .row-action, .faq-admin .row-action { display: inline-flex; align-items: center; gap: 6px; }
+.news-form-image { display: grid; grid-template-columns: 200px 1fr; gap: 16px; align-items: center; }
+.news-form-image > div { display: grid; gap: 6px; }
+.news-form-preview { display: grid; aspect-ratio: 16 / 10; place-items: center; border-radius: 14px; background-position: center; background-size: cover; color: rgb(255 255 255 / .7); }
+.news-form-preview.is-empty { background: linear-gradient(140deg, #172c63, #0c1b43); }
+.faq-admin { display: grid; gap: 10px; }
+.faq-admin article { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.faq-admin article.is-hidden { opacity: .6; }
+.faq-admin article > div:first-child { display: grid; gap: 6px; }
+.faq-admin p { color: var(--muted); font-size: var(--text-sm); }
+.faq-admin .action-group { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 760px) {
+  .news-admin-row { grid-template-columns: 84px 1fr; }
+  .news-admin-actions { grid-column: 1 / -1; justify-content: flex-start; max-width: none; }
+  .news-form-image { grid-template-columns: 1fr; }
+  .faq-admin article { flex-direction: column; }
+}

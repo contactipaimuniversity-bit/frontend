@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, ExternalLink, ImagePlus, Pencil, Trash2 } from "lucide-react";
 import { askConfirm, toast } from "@/components/feedback";
-import { Badge, FormActions, LoadingBlock, Modal, PageIntro, Panel, messageOf, send, useAction, useLoad } from "@/components/ui-kit";
+import { Badge, FormActions, LoadingBlock, Modal, PageIntro, Panel, Tabs, messageOf, send, useAction, useLoad } from "@/components/ui-kit";
+import { NewsPanel, QuestionsPanel } from "@/components/website-content";
 import { hasAccess } from "@/lib/access";
 import { apiFetch } from "@/lib/api";
 import { API_URL } from "@/lib/connectivity";
@@ -24,13 +25,15 @@ export type Slide = {
 };
 
 // Pages de la vitrine proposées pour le bouton d'une diapositive.
-const LINKS: Array<[string, string]> = [
+export const LINKS: Array<[string, string]> = [
   ["/enregistrements", "Pré-inscription en ligne"],
-  ["/site#formations", "Nos formations"],
-  ["/site#admissions", "Admissions et bourses"],
-  ["/site#universite", "L'université"],
-  ["/site#vie-etudiante", "Vie étudiante"],
+  ["/site#formations", "Nos filières"],
+  ["/site#financement", "Financer ses études"],
+  ["/site#admission", "Intégrer l'IPAIM"],
+  ["/site#atouts", "Pourquoi l'IPAIM"],
+  ["/site#vivre", "Vivre l'IPAIM"],
   ["/site#actualites", "Actualités"],
+  ["/site#questions", "Questions fréquentes"],
   ["/site#contact", "Contact"],
   ["/etudiant", "Espace étudiant"],
 ];
@@ -112,10 +115,9 @@ function SlideForm({ slide, onClose, onSaved }: { slide: Slide | "new"; onClose:
 
 // Le grand carrousel en haut de la vitrine publique : images, titres et textes
 // choisis ici, dans l'ordre où ils défilent.
-export function WebsitePage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
+function SlidesPanel({ canEdit, refreshSignal }: { canEdit: boolean; refreshSignal: number }) {
   const list = useLoad<Slide[]>("/vitrine/gestion/diapositives", refreshSignal);
   const [editing, setEditing] = useState<Slide | "new" | null>(null);
-  const canEdit = hasAccess(user, "website", "edit");
   const slides = list.data ?? [];
   const visible = slides.filter((item) => item.actif).length;
 
@@ -144,12 +146,8 @@ export function WebsitePage({ user, refreshSignal }: { user: User | null; refres
   };
 
   return (
-    <div className="content-scroll">
-      <PageIntro eyebrow="Communication" title="Site vitrine" text="Le grand carrousel en haut du site public : chaque diapositive associe une photo, un titre, un court texte et, si vous le souhaitez, un bouton.">
-        <a className="secondary-button compact" href="/site" target="_blank" rel="noreferrer"><ExternalLink size={15} aria-hidden="true" /> Voir le site</a>
-        {canEdit && <button className="primary-button compact" onClick={() => setEditing("new")}><ImagePlus size={15} aria-hidden="true" /> Nouvelle diapositive</button>}
-      </PageIntro>
-      <Panel eyebrow="Carrousel" title={list.data ? `${slides.length} diapositive(s) · ${visible} affichée(s)` : "Chargement…"} subtitle="Elles défilent dans cet ordre, toutes les sept secondes. Sans diapositive affichée, le site montre une présentation par défaut.">
+    <>
+      <Panel eyebrow="Carrousel" title={list.data ? `${slides.length} diapositive(s) · ${visible} affichée(s)` : "Chargement…"} subtitle="Elles défilent dans cet ordre, toutes les sept secondes. Une diapositive sans photo s'affiche sur un fond aux couleurs de l'université : modifiez-la pour y ajouter votre image." actions={canEdit ? <button className="primary-button compact" onClick={() => setEditing("new")}><ImagePlus size={15} aria-hidden="true" /> Nouvelle diapositive</button> : undefined}>
         {list.error && <p className="form-error">{list.error}</p>}
         {!list.data && !list.error ? (
           <LoadingBlock />
@@ -163,7 +161,7 @@ export function WebsitePage({ user, refreshSignal }: { user: User | null; refres
                 <div className="slide-card-body">
                   <div className="slide-card-head">
                     <strong>{index + 1}. {item.titre}</strong>
-                    <Badge tone={item.actif ? "ok" : "off"}>{item.actif ? "Affichée" : "Masquée"}</Badge>
+                    <span className="action-group">{!item.image && <Badge tone="wait">Sans photo</Badge>}<Badge tone={item.actif ? "ok" : "off"}>{item.actif ? "Affichée" : "Masquée"}</Badge></span>
                   </div>
                   <small className="cell-detail">Modifiée le {formatDate(item.modifieLe)} · {item.creeParNom}{item.boutonLien ? ` · bouton vers ${item.boutonLien}` : ""}</small>
                   {canEdit && (
@@ -182,6 +180,26 @@ export function WebsitePage({ user, refreshSignal }: { user: User | null; refres
         )}
       </Panel>
       {editing && <SlideForm slide={editing} onClose={() => setEditing(null)} onSaved={(next) => { list.setData(next); setEditing(null); }} />}
+    </>
+  );
+}
+
+type Tab = "carrousel" | "actualites" | "questions";
+
+// Le site public, géré depuis l'administration : le carrousel d'ouverture, les
+// actualités et les questions fréquentes.
+export function WebsitePage({ user, refreshSignal }: { user: User | null; refreshSignal: number }) {
+  const [tab, setTab] = useState<Tab>("carrousel");
+  const canEdit = hasAccess(user, "website", "edit");
+  return (
+    <div className="content-scroll">
+      <PageIntro eyebrow="Communication" title="Site vitrine" text="Ce que les visiteurs voient sur le site public de l'université : les images du carrousel, les actualités et les réponses aux questions fréquentes.">
+        <a className="secondary-button compact" href="/site" target="_blank" rel="noreferrer"><ExternalLink size={15} aria-hidden="true" /> Voir le site</a>
+      </PageIntro>
+      <Tabs label="Rubrique du site" value={tab} onChange={setTab} tabs={[["carrousel", "Carrousel"], ["actualites", "Actualités"], ["questions", "Questions fréquentes"]]} />
+      {tab === "carrousel" && <SlidesPanel canEdit={canEdit} refreshSignal={refreshSignal} />}
+      {tab === "actualites" && <NewsPanel canEdit={canEdit} refreshSignal={refreshSignal} />}
+      {tab === "questions" && <QuestionsPanel canEdit={canEdit} refreshSignal={refreshSignal} />}
     </div>
   );
 }
