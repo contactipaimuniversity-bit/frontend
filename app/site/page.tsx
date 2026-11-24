@@ -168,11 +168,9 @@ export default function SitePage() {
               <ul className="ticks ticks-2">{DIGITAL_SERVICES.map((item) => <li key={item}><Check size={16} aria-hidden="true" />{item}</li>)}</ul>
               <Link className="site-btn site-btn-primary" href="/etudiant"><Smartphone size={17} aria-hidden="true" /> Ouvrir l&apos;espace étudiant</Link>
             </div>
-            <div className="phone" aria-hidden="true">
-              <div className="phone-screen">
-                <div className="phone-top"><Image src="/etudiant/icon-192.png" alt="" width={30} height={30} /><span>Mon espace IPAIM</span></div>
-                <div className="phone-card"><small>Carte d&apos;étudiant</small><strong>IPAIM University</strong><span>Année 2026-2027</span></div>
-                {["Mes cours de la semaine", "Mes résultats", "Mes règlements", "Messages"].map((item) => <div key={item} className="phone-row">{item}<ChevronRight size={14} /></div>)}
+            <div className="phone">
+              <div className="phone-screen phone-screen-shot">
+                <Image src="/site/application-etudiante.jpeg" alt="Accueil de l'application étudiante IPAIM : classe, absences, montant à payer, accès à l'emploi du temps, aux notes et aux paiements, et prochain cours." width={540} height={1200} sizes="(max-width: 760px) 80vw, 280px" />
               </div>
             </div>
           </div>

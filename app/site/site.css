@@ -236,6 +236,9 @@ html:has(.site) { scroll-behavior: smooth; scroll-padding-top: 120px; }
 .phone-card small { color: var(--gold-bright); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .phone-card span { color: rgb(255 255 255 / .75); font-size: 13px; }
 .phone-row { display: flex; align-items: center; justify-content: space-between; padding: 14px; border-radius: 14px; color: var(--ink); background: #fff; font-size: 14px; font-weight: 600; }
+/* Capture réelle de l'application, affichée dans le cadre du téléphone. */
+.phone-screen-shot { display: block; min-height: 0; padding: 0; overflow: hidden; background: #fff; }
+.phone-screen-shot img { display: block; width: 100%; height: auto; }
 .community { margin-top: 56px; }
 
 /* Actualités */
