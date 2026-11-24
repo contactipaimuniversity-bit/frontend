@@ -676,3 +676,19 @@ html:has(.site) { scroll-behavior: smooth; scroll-padding-top: 120px; }
    seulement sur grand écran, à côté des démarches. */
 .dossier { top: 0; }
 @media (min-width: 1101px) { .dossier { position: sticky; top: 140px; } }
+
+/* ---------- Illustration de l'application (remplace le téléphone) ---------- */
+.app-visual { position: relative; justify-self: center; width: min(460px, 100%); isolation: isolate; }
+.app-visual::before {
+  content: ""; position: absolute; z-index: -1; inset: 8% 4% 6%; border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, rgb(232 176 64 / .22), rgb(12 27 67 / .1) 58%, transparent 72%);
+}
+.app-visual img {
+  display: block; width: 100%; height: auto;
+  filter: drop-shadow(0 18px 30px rgb(12 27 67 / .14));
+  -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent);
+  mask-image: linear-gradient(to bottom, #000 82%, transparent);
+  transition: transform .6s cubic-bezier(.2, .8, .2, 1);
+}
+@media (hover: hover) and (pointer: fine) { .app-visual:hover img { transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .app-visual img { transition: none; } }
