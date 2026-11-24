@@ -1,17 +1,16 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { Award, Megaphone, BadgeCheck, Banknote, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, ChevronDown, FileBadge, GraduationCap, Info, LayoutDashboard, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, Users, Wallet } from "lucide-react";
+import { Award, Megaphone, BadgeCheck, Banknote, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, FileBadge, GraduationCap, Info, LayoutDashboard, LayoutGrid, LogOut, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, UserRound, Users, Wallet, ArrowLeft, House } from "lucide-react";
 import { User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/student-photo";
 import { GlobalSearch } from "@/components/global-search";
 import { canAccessView } from "@/lib/access";
 import { MANUAL_BY_GROUP } from "@/lib/manuals";
-import { ManualSection, navigateTo, pathForManual } from "@/lib/routes";
+import { ManualSection, navigateTo, pathForManual, pathForSpace } from "@/lib/routes";
 
 const MENU_EVENT = "ipaim-menu-toggle";
-const CLOSED_GROUPS_KEY = "ipaim-menu-sections-fermees";
 
 // Icônes du menu : bibliothèque Lucide, même tracé que les actions de ligne.
 const icons: Record<string, LucideIcon> = {
@@ -56,10 +55,6 @@ const icons: Record<string, LucideIcon> = {
   settings: Settings,
 };
 
-function Icon({ name }: { name: string }) {
-  const Glyph = icons[name] ?? Info;
-  return <span className="nav-icon"><Glyph size={19} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span>;
-}
 type NavItem = { label: ViewName; icon: string; title?: string; views?: ViewName[] };
 
 // Le menu suit le travail de chacun : une entrée par métier, les écrans voisins
@@ -133,25 +128,58 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
   },
 ];
 
-// Section du menu d'un écran : sert à ouvrir le manuel qui le concerne.
+// Section du menu d'un écran : sert à ouvrir le manuel et l'espace qui le concernent.
 export function groupOfView(view: ViewName): string | null {
   return navGroups.find((group) => group.items.some((item) => (item.views ?? [item.label]).includes(view)))?.label ?? null;
 }
 
-export function DashboardLayout({ activeView, activeManual, setActiveView, user, badges, onLogout, onProfile, onSettings, children }: { activeView: ViewName; activeManual: ManualSection | null; setActiveView: (view: ViewName) => void; user: User | null; badges: Partial<Record<ViewName, number>>; onLogout: () => void; onProfile: () => void; onSettings: () => void; children: ReactNode }) {
+// Icône de chaque section du menu.
+export const GROUP_ICONS: Record<string, LucideIcon> = {
+  Pilotage: ChartColumn,
+  Admissions: UserPlus,
+  Académique: School,
+  Finances: Landmark,
+  "Ressources humaines": IdCard,
+  Administration: ShieldCheck,
+};
+
+export type VisibleNavItem = NavItem & { views: ViewName[] };
+
+// Les écrans auxquels l'utilisateur a accès, section par section. Une entrée qui
+// réunit plusieurs écrans ouvre le premier qui lui est permis.
+export function visibleNavGroups(user: User | null) {
+  const canSee = (label: ViewName) =>
+    label === "À propos du SGI" ||
+    (label === "Corbeille" || label === "Audit" || label === "Impressions" || label === "Sauvegardes" ? user?.role === "admin" : canAccessView(user, label));
+  return navGroups
+    .map((group) => ({
+      ...group,
+      section: MANUAL_BY_GROUP[group.label] ?? "pilotage",
+      items: group.items
+        .map((item) => {
+          const views = (item.views ?? [item.label]).filter(canSee);
+          return views.length ? { ...item, label: views[0], views } : null;
+        })
+        .filter((item): item is VisibleNavItem => item !== null),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+export function GroupIcon({ label, size = 20 }: { label: string; size?: number }) {
+  const Glyph = GROUP_ICONS[label] ?? LayoutGrid;
+  return <Glyph size={size} strokeWidth={1.7} aria-hidden="true" focusable="false" />;
+}
+
+export function NavIcon({ name, size = 19 }: { name: string; size?: number }) {
+  const Glyph = icons[name] ?? Info;
+  return <Glyph size={size} strokeWidth={1.7} aria-hidden="true" focusable="false" />;
+}
+
+export function DashboardLayout({ activeView, activeManual, activeSpace, setActiveView, user, badges, onLogout, onProfile, onSettings, children }: { activeView: ViewName; activeManual: ManualSection | null; activeSpace: ManualSection | null; setActiveView: (view: ViewName) => void; user: User | null; badges: Partial<Record<ViewName, number>>; onLogout: () => void; onProfile: () => void; onSettings: () => void; children: ReactNode }) {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarPeek, setSidebarPeek] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  // Sections du menu repliées par l'utilisateur, mémorisées sur l'appareil.
-  const [closedGroups, setClosedGroups] = useState<string[]>(() => {
-    try { return JSON.parse(window.localStorage.getItem(CLOSED_GROUPS_KEY) ?? "[]") as string[]; } catch { return []; }
-  });
-  const toggleGroup = (label: string) => setClosedGroups((current) => {
-    const next = current.includes(label) ? current.filter((item) => item !== label) : [...current, label];
-    try { window.localStorage.setItem(CLOSED_GROUPS_KEY, JSON.stringify(next)); } catch { /* Stockage indisponible. */ }
-    return next;
-  });
   const confirmLogout = () => { setLogoutOpen(false); onLogout(); };
   const toggleSidebarCollapsed = () => {
     setSidebarPeek(false);
@@ -169,28 +197,19 @@ export function DashboardLayout({ activeView, activeManual, setActiveView, user,
     };
   }, []);
   const go = (action: () => void) => { setMenuOpen(false); action(); };
-  const canSee = (label: ViewName) =>
-    label === "À propos du SGI" ||
-    (label === "Corbeille" || label === "Audit" || label === "Impressions" || label === "Sauvegardes" ? user?.role === "admin" : canAccessView(user, label));
-  // Une entrée qui réunit plusieurs écrans ouvre le premier auquel l'utilisateur a accès.
-  const groups = navGroups
-    .map((group) => ({
-      ...group,
-      items: group.items
-        .map((item) => {
-          const views = (item.views ?? [item.label]).filter(canSee);
-          return views.length ? { ...item, label: views[0], views } : null;
-        })
-        .filter((item): item is NavItem & { views: ViewName[] } => item !== null),
-    }))
-    .filter((group) => group.items.length > 0);
+  const groups = visibleNavGroups(user);
+  // La section de l'écran affiché (ou de l'espace ouvert) reste en surbrillance.
+  const currentGroup = activeView === "Espace" ? groups.find((group) => group.section === activeSpace)?.label ?? null : groupOfView(activeView);
   // Le manuel proposé est celui de la section de l'écran affiché.
-  const manualSection = activeManual ?? MANUAL_BY_GROUP[groupOfView(activeView) ?? ""] ?? "pilotage";
+  const manualSection = activeManual ?? activeSpace ?? MANUAL_BY_GROUP[currentGroup ?? ""] ?? "pilotage";
+  const home = activeView === "Vue d'ensemble";
+  const homeCount = badges["Vue d'ensemble"] ?? 0;
+  const name = [user?.prenom, user?.nom].filter(Boolean).join(" ") || "Administrateur";
   return (
     <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarCollapsed && sidebarPeek ? "sidebar-peek" : ""} ${menuOpen ? "menu-open" : ""}`}>
       {menuOpen && <button type="button" className="sidebar-scrim" aria-label="Fermer le menu" onClick={() => setMenuOpen(false)} />}
       <aside
-        className="sidebar"
+        className="sidebar sidebar-panel"
         onMouseEnter={() => {
           if (sidebarCollapsed) setSidebarPeek(true);
         }}
@@ -205,8 +224,8 @@ export function DashboardLayout({ activeView, activeManual, setActiveView, user,
         }}
       >
         <div className="sidebar-top">
-          <BrandLogo compact />
-          <span className="brand-name">IPAIM</span>
+          <span className="sidebar-logo"><BrandLogo compact /></span>
+          <span className="brand-name"><small>Institut polytechnique</small>IPAIM<em>Gestion scolaire</em></span>
           <button
             type="button"
             className="collapse-button"
@@ -221,40 +240,37 @@ export function DashboardLayout({ activeView, activeManual, setActiveView, user,
             {sidebarCollapsed ? "›" : "‹"}
           </button>
         </div>
+        {/* Le menu ne montre que les sections : chacune ouvre son espace, en cartes. */}
         <nav className="main-nav" aria-label="Navigation principale">
+          <button type="button" title="Accueil" aria-current={home ? "page" : undefined} className={`nav-item ${home ? "active" : ""}`} onClick={() => go(() => setActiveView("Vue d'ensemble"))}>
+            <span className="nav-icon"><House size={20} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span>
+            <span className="nav-text">Accueil</span>
+            {homeCount > 0 && <span className="nav-count" aria-label={`${homeCount} à traiter`}>{homeCount > 99 ? "99+" : homeCount}</span>}
+          </button>
+          <span className="nav-separator" aria-hidden="true" />
           {groups.map((group) => {
-            // La section de la page affichée reste toujours dépliée.
-            const open = !closedGroups.includes(group.label) || group.items.some((item) => item.views.includes(activeView));
+            const active = currentGroup === group.label && !home;
+            const count = group.items.reduce((total, item) => total + item.views.reduce((sum, view) => sum + (badges[view] ?? 0), 0), 0);
             return (
-            <div className={`nav-group ${open ? "open" : ""}`} key={group.label}>
-              <button type="button" className="nav-label nav-group-toggle" aria-expanded={open} onClick={() => toggleGroup(group.label)}>
-                <span>{group.label}</span>
-                <ChevronDown aria-hidden="true" focusable="false" />
+              <button key={group.label} type="button" title={count ? `${group.label} · ${count} à traiter` : group.label} aria-current={active ? "page" : undefined} className={`nav-item ${active ? "active" : ""}`} onClick={() => go(() => navigateTo(pathForSpace(group.section)))}>
+                <span className="nav-icon"><GroupIcon label={group.label} /></span>
+                <span className="nav-text">{group.label}</span>
+                {count > 0 && <span className="nav-count" aria-label={`${count} à traiter`}>{count > 99 ? "99+" : count}</span>}
               </button>
-              <div className="nav-group-items"><div inert={!open && !(sidebarCollapsed && !sidebarPeek)}>
-              {group.items.map((item) => {
-                const active = item.views.includes(activeView);
-                // Pastille : nombre d'éléments qui attendent une action sur ces écrans.
-                const count = item.views.reduce((total, view) => total + (badges[view] ?? 0), 0);
-                const title = item.views.length > 1 ? item.title ?? item.label : item.label;
-                return (
-                  <button key={item.icon} type="button" title={count ? `${title} · ${count} à traiter` : title} aria-current={active ? "page" : undefined} className={`nav-item ${active ? "active" : ""}`} onClick={() => go(() => setActiveView(item.label))}>
-                    <Icon name={item.icon} />
-                    <span className="nav-text">{title}</span>
-                    {count > 0 && <span className="nav-count" aria-label={`${count} à traiter`}>{count > 99 ? "99+" : count}</span>}
-                  </button>
-                );
-              })}
-              </div></div>
-            </div>
             );
           })}
         </nav>
         <div className="sidebar-bottom">
           <button type="button" title="Manuel d'utilisation de cette section" className={`nav-item ${activeView === "Manuel d'utilisation" ? "active" : ""}`} onClick={() => go(() => navigateTo(pathForManual(manualSection)))}><span className="nav-icon"><BookMarked size={19} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span><span className="nav-text">Manuel d&apos;utilisation</span></button>
-          {user && <button type="button" title="Paramètres" className={`nav-item ${activeView === "Paramètres" ? "active" : ""}`} onClick={() => go(onSettings)}><Icon name="settings" /><span className="nav-text">Paramètres</span></button>}
-          <button type="button" title="Profil" className={`profile-card ${activeView === "Profil" ? "active" : ""}`} onClick={() => go(onProfile)}><UserAvatar user={user} /><span className="profile-text"><strong>{[user?.prenom, user?.nom].filter(Boolean).join(" ") || "Administrateur"}</strong><small>{user?.poste?.nom ?? (user?.role === "admin" ? "Administrateur" : "Équipe")}</small></span><span className="logout-icon">→</span></button>
-          <button type="button" title="Se déconnecter" className="logout-button" onClick={() => setLogoutOpen(true)}>Se déconnecter <span>↪</span></button>
+          {user && <button type="button" title="Paramètres" className={`nav-item ${activeView === "Paramètres" ? "active" : ""}`} onClick={() => go(onSettings)}><span className="nav-icon"><Settings size={19} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span><span className="nav-text">Paramètres</span></button>}
+          <div className={`sidebar-user ${activeView === "Profil" ? "active" : ""}`}>
+            <button type="button" title="Mon compte" className="profile-card" onClick={() => go(onProfile)}><UserAvatar user={user} /><span className="profile-text"><strong>{name}</strong><small>{user?.poste?.nom ?? (user?.role === "admin" ? "Administrateur" : "Équipe")}</small></span></button>
+            <div className="sidebar-user-links">
+              <button type="button" onClick={() => go(onProfile)}><UserRound size={15} aria-hidden="true" focusable="false" /> <span>Mon compte</span></button>
+              <button type="button" title="Se déconnecter" onClick={() => setLogoutOpen(true)}><LogOut size={15} aria-hidden="true" focusable="false" /> <span>Se déconnecter</span></button>
+            </div>
+            <span className="sidebar-brand-stripe" aria-hidden="true" />
+          </div>
         </div>
       </aside>
       <main className="content-area">{children}</main>
@@ -263,13 +279,30 @@ export function DashboardLayout({ activeView, activeManual, setActiveView, user,
   );
 }
 
-export function AppHeader({ title, user, onRefresh, onHelp }: { title: string; user: User | null; onRefresh: () => void; onHelp?: () => void }) {
+// En-tête d'un écran. Un écran rangé dans une section affiche « Retour » vers
+// l'espace de cette section, et le fil Section — Écran.
+export function AppHeader({ title, user, onRefresh, onHelp, space }: { title: string; user: User | null; onRefresh: () => void; onHelp?: () => void; space?: { label: string; section: ManualSection; current: boolean } | null }) {
   return (
-    <header className="topbar">
+    <header className={`topbar ${space?.current ? "topbar-space" : ""}`}>
       <button type="button" className="menu-button" aria-label="Ouvrir le menu" onClick={() => window.dispatchEvent(new Event(MENU_EVENT))}>
         <Menu aria-hidden="true" focusable="false" />
       </button>
-      <div><p className="breadcrumb">Tableau de bord <span>/</span> {title}</p><h1>{title}</h1></div>
+      <div>
+        {space ? (
+          <nav className="page-trail" aria-label="Fil d'Ariane">
+            <button type="button" className="trail-back" onClick={() => navigateTo(space.current ? "/" : pathForSpace(space.section))}><ArrowLeft size={17} aria-hidden="true" focusable="false" /> Retour</button>
+            <span className="trail-pill">
+              <button type="button" className="trail-home" title={space.current ? "Accueil" : `Espace ${space.label}`} aria-label={space.current ? "Accueil" : `Espace ${space.label}`} onClick={() => navigateTo(space.current ? "/" : pathForSpace(space.section))}><LayoutGrid size={16} aria-hidden="true" focusable="false" /></button>
+              {!space.current && <><span className="trail-line" aria-hidden="true" /><button type="button" className="trail-step" onClick={() => navigateTo(pathForSpace(space.section))}>{space.label}</button></>}
+              <span className="trail-line" aria-hidden="true" />
+              <span className="trail-current" aria-current="page"><span className="trail-dot" aria-hidden="true" />{title}</span>
+            </span>
+          </nav>
+        ) : (
+          <p className="breadcrumb">Tableau de bord <span>/</span> {title}</p>
+        )}
+        <h1>{title}</h1>
+      </div>
       <div className="topbar-actions">
         <GlobalSearch user={user} />
         {onHelp && <button type="button" className="page-help-button" onClick={onHelp}><Info size={16} aria-hidden="true" focusable="false" /> Info sur la page</button>}

@@ -2,15 +2,15 @@ import { ViewName } from "@/lib/types";
 
 export type DossierRoute = { type: "demande-bourse" | "inscription"; id: string };
 export type SettingsSection = "mise-en-route" | "apparence" | "postes" | "utilisateurs";
-export type HelpedView = Exclude<ViewName, "Aide de la page" | "Manuel d'utilisation">;
+export type HelpedView = Exclude<ViewName, "Aide de la page" | "Manuel d'utilisation" | "Espace">;
 export const MANUAL_SECTIONS = ["pilotage", "admissions", "academique", "finances", "ressources-humaines", "administration"] as const;
 export type ManualSection = (typeof MANUAL_SECTIONS)[number];
 export type ClassSection = "etudiants" | "cours" | "assiduite";
-export type AppRoute = { view: ViewName; dossier: DossierRoute | null; auditUserId: string | null; settingsSection?: SettingsSection | null; helpFor?: HelpedView | null; classId?: string | null; classSection?: ClassSection | null; manualSection?: ManualSection | null; personId?: string | null; studentId?: string | null; gradeCourseId?: string | null; gradeEvaluationId?: string | null };
+export type AppRoute = { view: ViewName; dossier: DossierRoute | null; auditUserId: string | null; settingsSection?: SettingsSection | null; helpFor?: HelpedView | null; classId?: string | null; classSection?: ClassSection | null; manualSection?: ManualSection | null; spaceSection?: ManualSection | null; personId?: string | null; studentId?: string | null; gradeCourseId?: string | null; gradeEvaluationId?: string | null };
 
 // Chaque écran a son adresse : actualiser, revenir en arrière et partager un
 // lien vers un dossier fonctionnent comme dans n'importe quel site.
-const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page" | "Manuel d'utilisation">, string> = {
+const VIEW_PATHS: Record<Exclude<ViewName, "Fiche dossier" | "Aide de la page" | "Manuel d'utilisation" | "Espace">, string> = {
   "Vue d'ensemble": "/",
   "Demandes de bourse": "/demandes",
   Inscriptions: "/inscriptions",
@@ -60,7 +60,12 @@ const PATH_VIEWS = new Map([
 ]);
 
 export function pathForView(view: ViewName): string {
-  return view === "Fiche dossier" ? "/demandes" : view === "Aide de la page" ? "/" : view === "Manuel d'utilisation" ? pathForManual("finances") : VIEW_PATHS[view];
+  return view === "Fiche dossier" ? "/demandes" : view === "Aide de la page" ? "/" : view === "Manuel d'utilisation" ? pathForManual("finances") : view === "Espace" ? pathForSpace("pilotage") : VIEW_PATHS[view];
+}
+
+// L'espace d'une section du menu : ses écrans présentés en cartes (/espace/finances...).
+export function pathForSpace(section: ManualSection): string {
+  return `/espace/${section}`;
 }
 
 // Le manuel d'utilisation d'une section du menu : /manuel/finances, /manuel/admissions...
@@ -107,6 +112,8 @@ export function parsePath(pathname: string | null): AppRoute {
   }
   const manual = path.match(/^\/manuel\/([^/]+)$/);
   if (manual && (MANUAL_SECTIONS as readonly string[]).includes(manual[1])) return { view: "Manuel d'utilisation", dossier: null, auditUserId: null, manualSection: manual[1] as ManualSection };
+  const space = path.match(/^\/espace\/([^/]+)$/);
+  if (space && (MANUAL_SECTIONS as readonly string[]).includes(space[1])) return { view: "Espace", dossier: null, auditUserId: null, spaceSection: space[1] as ManualSection };
   // Chaque rubrique des paramètres a sa propre page.
   const settings = path.match(/^\/parametres\/(mise-en-route|apparence|postes|utilisateurs)$/);
   if (settings) return { view: "Paramètres", dossier: null, auditUserId: null, settingsSection: settings[1] as SettingsSection };

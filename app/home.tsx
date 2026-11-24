@@ -7,7 +7,8 @@ import { DashboardHome } from "@/components/dashboard-home";
 import { DailySummaryPage } from "@/components/daily-summary-page";
 import { OfflineSync, OfflineSyncPage } from "@/components/offline-sync";
 import { CertificatesPage } from "@/components/certificates-page";
-import { DashboardLayout, AppHeader } from "@/components/dashboard-layout";
+import { DashboardLayout, AppHeader, groupOfView } from "@/components/dashboard-layout";
+import { SpacePage } from "@/components/space-page";
 import { ProfilePage, SettingsPage } from "@/components/account-pages";
 import { LoginScreen } from "@/components/login-screen";
 import { DossierDetailsPage, OperationsPage } from "@/components/operations-page";
@@ -48,7 +49,7 @@ import { CardCheckPage } from "@/components/card-check-page";
 import { PaymentHandoverPage } from "@/components/payment-handover-page";
 import { TuitionPage } from "@/components/tuition-page";
 import { AnnouncementsPage } from "@/components/announcements-page";
-import { MANUALS } from "@/lib/manuals";
+import { MANUAL_BY_GROUP, MANUALS } from "@/lib/manuals";
 import { useWork, workBadges } from "@/lib/work";
 import { FeedbackHost } from "@/components/feedback";
 import { PrintProgressHost } from "@/components/print-progress";
@@ -113,6 +114,7 @@ export default function Home() {
   const dossierReference = route.dossier;
   const helpFor = route.helpFor ?? "Vue d'ensemble";
   const manualSection = route.manualSection ?? "finances";
+  const spaceSection = route.spaceSection ?? "pilotage";
   const dossierReturnView = route.dossier?.type === "inscription" ? "Inscriptions" as const : "Demandes de bourse" as const;
   const [deletionInfoReturnView, setDeletionInfoReturnView] = useState<"Demandes de bourse" | "Inscriptions">("Demandes de bourse");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -489,22 +491,32 @@ export default function Home() {
       </main>
     );
 
+  const badges = workBadges(work);
+  // Section de l'écran affiché : « Retour » ramène à son espace, et le fil la nomme.
+  const pageGroup = activeView === "Vue d'ensemble" ? null : groupOfView(activeView);
+  const pageSpace = activeView === "Espace"
+    ? { label: MANUALS[spaceSection].title, section: spaceSection, current: true }
+    : pageGroup && MANUAL_BY_GROUP[pageGroup]
+      ? { label: pageGroup, section: MANUAL_BY_GROUP[pageGroup], current: false }
+      : null;
   return (
     <DashboardLayout
       activeView={activeView}
       activeManual={activeView === "Manuel d'utilisation" ? manualSection : null}
+      activeSpace={activeView === "Espace" ? spaceSection : null}
       setActiveView={setView}
       user={user}
-      badges={workBadges(work)}
+      badges={badges}
       onLogout={logout}
       onProfile={() => setView("Profil")}
       onSettings={() => setView("Paramètres")}
     >
       <AppHeader
-        title={activeView === "Manuel d'utilisation" ? `Manuel · ${MANUALS[manualSection].title}` : activeView}
+        title={activeView === "Manuel d'utilisation" ? `Manuel · ${MANUALS[manualSection].title}` : activeView === "Espace" ? MANUALS[spaceSection].title : activeView}
         user={user}
         onRefresh={refresh}
-        onHelp={activeView === "Aide de la page" || activeView === "Manuel d'utilisation" ? undefined : () => navigateTo(pathForHelp(activeView, pathname))}
+        space={pageSpace}
+        onHelp={activeView === "Aide de la page" || activeView === "Manuel d'utilisation" || activeView === "Espace" ? undefined : () => navigateTo(pathForHelp(activeView, pathname))}
       />
       <OfflineSync onOpenPage={() => setView("Synchronisation")} />
       {offlineAccessWarning && (
@@ -519,7 +531,9 @@ export default function Home() {
           <button onClick={refresh}>Réessayer</button>
         </div>
       )}
-      {activeView === "Vue d'ensemble" ? (
+      {activeView === "Espace" ? (
+        <SpacePage key={spaceSection} section={spaceSection} user={user} badges={badges} onOpen={setView} />
+      ) : activeView === "Vue d'ensemble" ? (
         <DashboardHome
           summary={summary}
           user={user}
