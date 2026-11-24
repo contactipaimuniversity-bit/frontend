@@ -22,6 +22,49 @@ export const NAV = [
   { href: "#contact", label: "Contact" },
 ];
 
+// Menu principal : chaque rubrique ouvre un panneau avec ses pages.
+export const MENU: Array<{ label: string; intro: string; links: Array<{ href: string; label: string; text: string }> }> = [
+  {
+    label: "L'université",
+    intro: "Un établissement privé d'enseignement supérieur implanté à Brazzaville, tourné vers les métiers qui recrutent.",
+    links: [
+      { href: "#universite", label: "Présentation", text: "Notre mission et nos valeurs" },
+      { href: "#gouvernance", label: "Gouvernance", text: "Directions et équipe" },
+      { href: "#campus", label: "Nos campus", text: "Brazzaville et Pointe-Noire" },
+      { href: "#gouvernance", label: "Enseigner à l'IPAIM", text: "Candidatures spontanées" },
+    ],
+  },
+  {
+    label: "Formations",
+    intro: "Quatre pôles, huit domaines d'études, des diplômes de niveau BTS et Licence.",
+    links: [
+      { href: "#formations", label: "Pôle technologique", text: "Informatique, web, réseaux" },
+      { href: "#formations", label: "Pôle management", text: "Gestion, logistique, droit" },
+      { href: "#formations", label: "Pôle industriel", text: "Électricité, maintenance, HSE" },
+      { href: "#diplomes", label: "BTS et Licence", text: "Organisation des études" },
+    ],
+  },
+  {
+    label: "Admissions",
+    intro: "Une pré-inscription gratuite, un dossier simple et un entretien au campus.",
+    links: [
+      { href: "#admissions", label: "Comment s'inscrire", text: "Les quatre étapes" },
+      { href: "#bourses", label: "Bourses d'études", text: "Jusqu'à 100 000 FCFA" },
+      { href: "#faq", label: "Questions fréquentes", text: "Frais, dossier, éligibilité" },
+      { href: "/enregistrements", label: "Pré-inscription en ligne", text: "Réserver sa place" },
+    ],
+  },
+  {
+    label: "Vie étudiante",
+    intro: "Des services pensés pour simplifier la vie des étudiants, et une communauté qui s'engage.",
+    links: [
+      { href: "#vie-etudiante", label: "Application étudiante", text: "Carte, notes, emploi du temps" },
+      { href: "#vie-etudiante", label: "Scolarité", text: "Inscriptions et documents" },
+      { href: "/etudiant", label: "Espace étudiant", text: "Se connecter" },
+    ],
+  },
+];
+
 // Présentation par défaut, tant qu'aucune diapositive n'est publiée.
 export const DEFAULT_SLIDES = [
   {

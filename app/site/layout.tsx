@@ -1,5 +1,10 @@
 import type { Metadata, Viewport } from "next";
+import { Figtree, Montserrat } from "next/font/google";
 import "./site.css";
+
+// Montserrat pour les titres et le texte, Figtree pour le menu et les libellés.
+const montserrat = Montserrat({ variable: "--font-montserrat", subsets: ["latin"], weight: ["300", "400", "500", "600", "700", "800"], display: "swap" });
+const figtree = Figtree({ variable: "--font-figtree", subsets: ["latin"], weight: ["400", "500", "600", "700"], display: "swap" });
 
 // Vitrine publique d'IPAIM University, indépendante de l'espace de gestion.
 export const metadata: Metadata = {
@@ -23,5 +28,5 @@ export const viewport: Viewport = {
 };
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <div className={`${montserrat.variable} ${figtree.variable}`}>{children}</div>;
 }
