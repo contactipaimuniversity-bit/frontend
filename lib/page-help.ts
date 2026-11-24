@@ -319,7 +319,7 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
     ],
     tips: ["Sans diapositive affichée, le site montre une présentation par défaut aux couleurs de l'université.", "« Voir le site » ouvre la vitrine dans un nouvel onglet."],
     faq: [
-      { question: "Quelle photo choisir ?", answer: "Une photo large, en paysage (idéalement 1920 × 1080 px), nette et lumineuse : le campus, des étudiants en cours, un événement. Le centre de l'image reste visible, les bords peuvent être recadrés sur téléphone." },
+      { question: "Quelle photo choisir ?", answer: "Une photo large, en paysage (idéalement 1920 × 1080 px), nette et lumineuse : l'université, des étudiants en cours, un événement. Le centre de l'image reste visible, les bords peuvent être recadrés sur téléphone." },
       { question: "Qui peut modifier le carrousel ?", answer: "Les postes qui ont le droit « Site vitrine · carrousel » en modification, et l'administrateur." },
     ],
   },

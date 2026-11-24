@@ -231,10 +231,10 @@ export default function SitePage() {
         <section className="sec sec-soft" aria-labelledby="t-contact" id="contact">
           <div className="site-container contact">
             <div>
-              <Heading id="t-contact" kicker="Contact" title="Échangeons sur votre projet." text="Par téléphone, par écrit ou directement à l'accueil du campus : nous répondons à toutes vos questions." />
+              <Heading id="t-contact" kicker="Contact" title="Échangeons sur votre projet." text="Par téléphone, par écrit ou directement à l'accueil de l'université : nous répondons à toutes vos questions." />
               <div className="cta-actions">
                 <a className="site-btn site-btn-primary" href={CONTACT.whatsapp} target="_blank" rel="noreferrer"><WhatsAppIcon size={17} /> Nous écrire sur WhatsApp</a>
-                <a className="site-btn site-btn-outline" href={CONTACT.maps} target="_blank" rel="noreferrer"><MapPin size={17} aria-hidden="true" /> Venir au campus</a>
+                <a className="site-btn site-btn-outline" href={CONTACT.maps} target="_blank" rel="noreferrer"><MapPin size={17} aria-hidden="true" /> Venir à l&apos;université</a>
               </div>
             </div>
             <ul className="contact-list">
@@ -257,7 +257,7 @@ export default function SitePage() {
             <div>
               <MapPin size={30} strokeWidth={1.5} aria-hidden="true" />
               <strong>Un accueil sur place</strong>
-              <p>Le campus de Moukondo vous reçoit pour toute information sur les formations.</p>
+              <p>L&apos;université, à Moukondo, vous reçoit pour toute information sur les formations.</p>
               <a href={CONTACT.maps} target="_blank" rel="noreferrer">Obtenir l&apos;itinéraire</a>
             </div>
             <div>

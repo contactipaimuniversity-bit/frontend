@@ -726,7 +726,7 @@ function CreateProspect({
             onChange={(event) =>
               setForm({ ...form, intention: event.target.value })
             }
-            placeholder="Ex. veut visiter le campus"
+            placeholder="Ex. veut visiter l'université"
           />
         </label>
         <label>
@@ -765,7 +765,7 @@ function ProgramSuggestions() {
 function ProspectSources() {
   return (
     <datalist id="prospect-sources">
-      {["Bouche-à-oreille", "Étudiant ou ancien étudiant", "Parent ou proche", "Facebook", "WhatsApp", "TikTok", "Instagram", "Site internet", "Affiche ou banderole", "Radio ou télévision", "Visite dans son établissement", "Salon ou événement", "Passage devant le campus"].map((source) => (
+      {["Bouche-à-oreille", "Étudiant ou ancien étudiant", "Parent ou proche", "Facebook", "WhatsApp", "TikTok", "Instagram", "Site internet", "Affiche ou banderole", "Radio ou télévision", "Visite dans son établissement", "Salon ou événement", "Passage devant l'université"].map((source) => (
         <option key={source} value={source} />
       ))}
     </datalist>

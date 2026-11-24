@@ -191,7 +191,7 @@ export const FUNDING = [
 
 export const ADMISSION_STEPS = [
   { title: "Se pré-inscrire en ligne", text: "Une démarche gratuite de quelques minutes, qui réserve votre place." },
-  { title: "Constituer son dossier", text: "À déposer au campus de Moukondo, à Brazzaville, auprès du service d'information." },
+  { title: "Constituer son dossier", text: "À déposer à l'université, à Moukondo (Brazzaville), auprès du service d'information." },
   { title: "Passer l'entretien", text: "Sur convocation, lors de l'une des sessions organisées à l'université." },
   { title: "Finaliser l'inscription", text: "Le règlement des frais confirme votre place et vous donne votre matricule." },
 ];

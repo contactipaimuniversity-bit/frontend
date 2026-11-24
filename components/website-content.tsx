@@ -34,7 +34,7 @@ const NEWS_LINKS: Array<[string, string]> = [
   ["/site#contact", "Contact"],
   ["/etudiant", "Espace étudiant"],
 ];
-const CATEGORIES = ["Vie académique", "Scolarité", "Financement", "Formations", "Vie du campus", "Services numériques", "Partenariats", "Institution", "Recrutement", "Événement"];
+const CATEGORIES = ["Vie académique", "Scolarité", "Financement", "Formations", "Vie de l'université", "Services numériques", "Partenariats", "Institution", "Recrutement", "Événement"];
 const today = () => new Date().toISOString().slice(0, 10);
 
 function NewsForm({ item, onClose, onSaved }: { item: News | "new"; onClose: () => void; onSaved: (list: News[]) => void }) {
@@ -75,7 +75,7 @@ function NewsForm({ item, onClose, onSaved }: { item: News | "new"; onClose: () 
           </div>
         </div>
         <div className="form-grid">
-          <label>Catégorie<input required list="categories-actualites" maxLength={40} placeholder="Ex. Vie du campus" value={values.categorie} onChange={set("categorie")} /></label>
+          <label>Catégorie<input required list="categories-actualites" maxLength={40} placeholder="Ex. Vie de l'université" value={values.categorie} onChange={set("categorie")} /></label>
           <label>Date de publication<input required type="date" value={values.datePublication} onChange={set("datePublication")} /></label>
         </div>
         <datalist id="categories-actualites">{CATEGORIES.map((item) => <option key={item} value={item} />)}</datalist>

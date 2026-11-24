@@ -541,7 +541,7 @@ export const MANUALS: Record<ManualSection, Manual> = {
       {
         title: "Contrôler les cartes à l'entrée",
         who: "Agent d'accueil",
-        situation: "Le matin, les étudiants présentent leur carte à l'entrée du campus.",
+        situation: "Le matin, les étudiants présentent leur carte à l'entrée de l'université.",
         steps: [
           "Ouvrez « Contrôle des cartes ». Le curseur est déjà dans le champ.",
           "Passez la carte devant la douchette (ou « Scanner avec la caméra »).",

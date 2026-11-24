@@ -152,7 +152,7 @@ function SlidesPanel({ canEdit, refreshSignal }: { canEdit: boolean; refreshSign
         {!list.data && !list.error ? (
           <LoadingBlock />
         ) : !slides.length ? (
-          <p className="empty-state">Aucune diapositive pour l&apos;instant. Ajoutez la première : une belle photo du campus, des étudiants ou d&apos;un événement.</p>
+          <p className="empty-state">Aucune diapositive pour l&apos;instant. Ajoutez la première : une belle photo de l&apos;université, des étudiants ou d&apos;un événement.</p>
         ) : (
           <div className="slide-grid">
             {slides.map((item, index) => (
