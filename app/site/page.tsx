@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  ArrowRight,
   BadgeCheck,
   Check,
   ChevronRight,
@@ -23,7 +22,6 @@ import { SiteHeader } from "@/components/site/site-header";
 import { SiteNews } from "@/components/site/site-news";
 import {
   ADMISSION_STEPS,
-  CAMPUSES,
   COMMUNITY,
   CONTACT,
   DIGITAL_SERVICES,
@@ -196,27 +194,27 @@ export default function SitePage() {
                 </article>
               ))}
             </div>
-            <div className="people" id="equipe">
-              {TEAM.map((member) => (
-                <article key={member.name} className="person">
-                  <span aria-hidden="true">{member.initials}</span>
-                  <div><strong>{member.name}</strong><small>{member.role}</small></div>
-                </article>
-              ))}
-              <article className="person person-join">
-                <div><strong>Enseigner ou travailler à l&apos;IPAIM</strong><small>Les candidatures spontanées sont étudiées toute l&apos;année.</small></div>
-                <a className="text-link" href={`mailto:${CONTACT.email}?subject=Candidature`}>Envoyer ma candidature <ChevronRight size={16} aria-hidden="true" /></a>
-              </article>
+            <div className="team-head" id="equipe">
+              <h3>L&apos;équipe de direction</h3>
+              <p>Les responsables qui font avancer l&apos;IPAIM au quotidien.</p>
             </div>
-            <div className="campuses" id="campus">
-              {CAMPUSES.map((campus) => (
-                <article key={campus.city} className="campus">
-                  <span className={`campus-state ${campus.status === "Ouvert" ? "is-open" : ""}`}>{campus.status}</span>
-                  <h3>{campus.city}</h3>
-                  <p>{campus.text}</p>
-                  {campus.status === "Ouvert" && <a className="text-link text-link-light" href={CONTACT.maps} target="_blank" rel="noreferrer">Voir sur la carte <ArrowRight size={16} aria-hidden="true" /></a>}
+            <div className="team">
+              {TEAM.map((member) => (
+                <article key={member.name} className="member">
+                  <span className="member-photo">
+                    {member.photo ? <Image src={member.photo} alt={member.name} width={240} height={240} /> : <span aria-hidden="true">{member.initials}</span>}
+                  </span>
+                  <div className="member-body">
+                    <strong>{member.name}</strong>
+                    <span className="member-role">{member.role}</span>
+                    <p>{member.text}</p>
+                  </div>
                 </article>
               ))}
+            </div>
+            <div className="join" id="rejoindre">
+              <div><strong>Enseigner ou travailler à l&apos;IPAIM</strong><p>Les candidatures spontanées d&apos;enseignants et de personnel administratif sont étudiées toute l&apos;année.</p></div>
+              <a className="site-btn site-btn-gold" href={`mailto:${CONTACT.email}?subject=Candidature`}>Envoyer ma candidature <ChevronRight size={16} aria-hidden="true" /></a>
             </div>
           </div>
         </section>
@@ -279,7 +277,7 @@ export default function SitePage() {
               <strong>Découvrir</strong>
               <a href="#atouts">Pourquoi l&apos;IPAIM</a>
               <a href="#institution">L&apos;institution</a>
-              <a href="#campus">Nos implantations</a>
+              <a href="#equipe">L&apos;équipe</a>
               <a href="#actualites">Actualités</a>
             </nav>
             <nav aria-label="Étudier">
@@ -301,7 +299,7 @@ export default function SitePage() {
               <a href={CONTACT.phoneHref}>{CONTACT.phone}</a>
               <a href={CONTACT.phone2Href}>{CONTACT.phone2}</a>
               <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
-              <a href="#equipe" className="foot-highlight">Rejoindre l&apos;équipe</a>
+              <a href="#rejoindre" className="foot-highlight">Rejoindre l&apos;équipe</a>
             </nav>
           </div>
           <div className="foot-band">
@@ -309,13 +307,7 @@ export default function SitePage() {
               <Image src="/etudiant/icon-192.png" alt="" width={44} height={44} />
               <span><strong>IPAIM University</strong><small>Innover · Former · Transformer</small></span>
             </div>
-            <div className="foot-social">
-              <span>Suivez-nous</span>
-              <a href={CONTACT.facebook} target="_blank" rel="noreferrer" aria-label="IPAIM University sur Facebook"><FacebookIcon /></a>
-              <a href={CONTACT.instagram} target="_blank" rel="noreferrer" aria-label="IPAIM University sur Instagram"><InstagramIcon /></a>
-              <a href={CONTACT.whatsapp} target="_blank" rel="noreferrer" aria-label="IPAIM University sur WhatsApp"><WhatsAppIcon /></a>
-              <a href={`mailto:${CONTACT.email}`} aria-label="Courriel"><Mail size={17} aria-hidden="true" /></a>
-            </div>
+            <p className="foot-motto">Établissement privé d&apos;enseignement supérieur · Brazzaville</p>
           </div>
           <div className="foot-legal">
             <nav aria-label="Informations">
@@ -328,6 +320,13 @@ export default function SitePage() {
           </div>
         </div>
       </footer>
+
+      <nav className="social-dock" aria-label="Suivre IPAIM University">
+        <a href={CONTACT.facebook} target="_blank" rel="noreferrer" aria-label="IPAIM University sur Facebook" className="dock-facebook"><FacebookIcon size={20} /></a>
+        <a href={CONTACT.instagram} target="_blank" rel="noreferrer" aria-label="IPAIM University sur Instagram" className="dock-instagram"><InstagramIcon size={20} /></a>
+        <a href={CONTACT.whatsapp} target="_blank" rel="noreferrer" aria-label="Écrire à IPAIM University sur WhatsApp" className="dock-whatsapp"><WhatsAppIcon size={20} /></a>
+        <a href={`mailto:${CONTACT.email}`} aria-label="Écrire un courriel à IPAIM University" className="dock-mail"><Mail size={19} aria-hidden="true" /></a>
+      </nav>
     </div>
   );
 }

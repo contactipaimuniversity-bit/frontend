@@ -23,8 +23,8 @@ export const MENU: Array<{ label: string; intro: string; links: Array<{ href: st
     links: [
       { href: "#atouts", label: "Pourquoi l'IPAIM", text: "Ce qui nous distingue" },
       { href: "#institution", label: "L'institution", text: "Mission, direction, équipe" },
-      { href: "#campus", label: "Nos implantations", text: "Brazzaville, bientôt Pointe-Noire" },
-      { href: "#equipe", label: "Rejoindre l'équipe", text: "Enseignants et personnel" },
+      { href: "#equipe", label: "L'équipe", text: "Celles et ceux qui dirigent l'IPAIM" },
+      { href: "#rejoindre", label: "Rejoindre l'équipe", text: "Enseignants et personnel" },
     ],
   },
   {
@@ -191,7 +191,7 @@ export const FUNDING = [
 
 export const ADMISSION_STEPS = [
   { title: "Se pré-inscrire en ligne", text: "Une démarche gratuite de quelques minutes, qui réserve votre place." },
-  { title: "Constituer son dossier", text: "À déposer au campus de Moukondo, ou à Pointe-Noire pour les candidats de cette ville." },
+  { title: "Constituer son dossier", text: "À déposer au campus de Moukondo, à Brazzaville, auprès du service d'information." },
   { title: "Passer l'entretien", text: "Sur convocation, lors de l'une des sessions organisées à l'université." },
   { title: "Finaliser l'inscription", text: "Le règlement des frais confirme votre place et vous donne votre matricule." },
 ];
@@ -223,15 +223,15 @@ export const LEADERSHIP = [
   { title: "Direction générale", text: "Définit les orientations, noue les partenariats et instruit les demandes de bourse." },
   { title: "Direction académique", text: "Conçoit l'offre de formation, organise les enseignements et veille à la réussite." },
   { title: "Direction administrative", text: "Assure le bon fonctionnement de l'établissement au quotidien." },
-  { title: "Scolarité", text: "Inscriptions, matricules, documents officiels et accès à l'application." },
+  { title: "Direction des systèmes d'information et de la communication", text: "Fait vivre les outils numériques de l'université (plateforme de gestion, application étudiante, réseau) et porte sa communication auprès du public." },
 ];
 
-export const TEAM = [
-  { initials: "YA", name: "Yindoula Axel Mauriel", role: "Responsable académique" },
-  { initials: "DM", name: "Dylanh Missiandot", role: "Responsable administratif" },
-];
-
-export const CAMPUSES = [
-  { city: "Brazzaville", status: "Ouvert", text: "Quartier Moukondo, face à la station Total de Mazala (Western Union). Accueil et informations sur place." },
-  { city: "Pointe-Noire", status: "Ouverture en préparation", text: "Les demandes de bourse y sont déjà reçues depuis le 1er novembre 2026." },
+// L'équipe de direction : photo (facultative, dans public/site/equipe), nom, fonction et rôle.
+export const TEAM: Array<{ name: string; role: string; text: string; photo?: string; initials: string }> = [
+  { name: "Pascale M'VOULA", role: "Directrice générale", initials: "PM", text: "Définit la stratégie de l'université, conduit ses partenariats et porte sa vision auprès des institutions et des familles." },
+  { name: "Axel Mauriel YINDOULA", role: "Responsable académique", initials: "AY", photo: "/site/equipe/yindoula.jpg", text: "Organise l'offre de formation, coordonne les enseignants et suit la progression pédagogique des étudiants." },
+  { name: "Dylanh MISSIANDOT", role: "Responsable administratif", initials: "DM", photo: "/site/equipe/missiandot.jpg", text: "Veille au bon fonctionnement quotidien de l'établissement : accueil, dossiers, organisation et relations avec les usagers." },
+  { name: "Rebecca LOUVOUMBOU", role: "Responsable financière", initials: "RL", text: "Pilote le budget, suit les encaissements et les dépenses, et garantit une gestion rigoureuse des ressources." },
+  { name: "Louange MICK", role: "Responsable financière adjointe", initials: "LM", text: "Seconde la responsable financière dans le suivi des paiements, de la caisse et des opérations comptables." },
+  { name: "Juvena POHO", role: "Responsable informatique", initials: "JP", photo: "/site/equipe/poho.jpg", text: "Conçoit et administre les systèmes numériques de l'université : plateforme de gestion, application étudiante et infrastructure." },
 ];
