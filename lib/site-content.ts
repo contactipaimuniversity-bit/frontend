@@ -186,7 +186,7 @@ export const PATHWAY = [
 export const FUNDING = [
   { value: "100 000 FCFA", title: "Bourse locale 2026-2027", text: "Attribuée après entretien et maintenue sur trois années d'études. Deux formules existent : Excellence et Premium." },
   { value: "−30 %", title: "Réduction des frais", text: "Appliquée à toute inscription pour l'année universitaire 2026-2027." },
-  { value: "7 filleuls", title: "Parrainage étudiant", text: "Sept inscriptions obtenues grâce à vous ouvrent droit à une exemption de vos frais de scolarité." },
+  { value: "7 amis inscrits", title: "Programme de parrainage", text: "Faites découvrir l'IPAIM autour de vous : si sept de vos amis s'inscrivent, vous êtes exonéré de vos frais de scolarité." },
 ];
 
 export const ADMISSION_STEPS = [
