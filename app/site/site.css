@@ -671,3 +671,8 @@ html:has(.site) { scroll-behavior: smooth; scroll-padding-top: 120px; }
   .program-card:hover .program-head h3 { color: #fff; }
   .program-card:hover .site-round-icon { color: var(--navy); background: #fff; }
 }
+
+/* Carte « Votre dossier » : pas de décalage ; elle reste visible au défilement
+   seulement sur grand écran, à côté des démarches. */
+.dossier { top: 0; }
+@media (min-width: 1101px) { .dossier { position: sticky; top: 140px; } }
