@@ -1412,3 +1412,16 @@ button.daily-summary-stat.active { border-color: var(--brand-navy, #14285c); box
   .news-form-image { grid-template-columns: 1fr; }
   .faq-admin article { flex-direction: column; }
 }
+
+/* ---------- Menu : une seule liste, sans défilement séparé ---------- */
+.sidebar-panel .main-nav { flex: 0 0 auto; gap: 2px; overflow: visible; }
+.app-shell .sidebar-panel .nav-item { padding: 10px 14px; }
+.sidebar-panel .sidebar-top { padding-bottom: 18px; }
+.sidebar-panel .nav-separator { margin: 6px 10px; }
+.sidebar-panel .sidebar-bottom { margin-top: auto; padding-top: 8px; }
+.sidebar-panel .sidebar-user { margin-top: 0; padding-top: 8px; }
+@media (min-width: 761px) {
+  /* Si l'écran est trop bas, c'est le panneau entier qui défile, jamais la liste seule. */
+  .app-shell .sidebar.sidebar-panel { overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
+  .app-shell .sidebar.sidebar-panel::-webkit-scrollbar { display: none; }
+}

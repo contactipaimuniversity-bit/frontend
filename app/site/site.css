@@ -369,8 +369,12 @@ html:has(.site) { scroll-behavior: smooth; scroll-padding-top: 120px; }
 
 /* Pourquoi l'IPAIM */
 .strengths { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1px solid var(--line); }
-.strength { padding: 32px 28px 32px 0; }
-.strength + .strength { padding-left: 28px; border-left: 1px solid var(--line); }
+.strength { padding: 32px 28px; border-radius: 0 0 18px 18px; }
+.strength + .strength { border-left: 1px solid var(--line); }
+.strength h3, .strength p { transition: color .3s ease; }
+/* Fond bleu nuit qui apparaît en fondu au survol. */
+.strength { isolation: isolate; }
+.strength::before { content: ""; position: absolute; z-index: -1; inset: 0; border-radius: inherit; background: linear-gradient(160deg, var(--navy-2), var(--navy)); opacity: 0; transition: opacity .35s ease; }
 .strength-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 50%; color: var(--navy); background: var(--gold-soft); }
 .strength h3 { margin: 18px 0 8px; font-size: 1.12rem; }
 .strength p { color: var(--text); font-size: 15px; }
@@ -458,7 +462,7 @@ html:has(.site) { scroll-behavior: smooth; scroll-padding-top: 120px; }
 
 @media (max-width: 1100px) {
   .strengths, .figures-band, .org { grid-template-columns: 1fr 1fr; }
-  .strength:nth-child(3) { padding-left: 0; border-left: 0; }
+  .strength:nth-child(3) { border-left: 0; }
   .figures-band div:nth-child(3) { border-left: 0; }
   .pathway { grid-template-columns: 1fr 1fr; }
   .pathway::before { display: none; }
@@ -466,7 +470,7 @@ html:has(.site) { scroll-behavior: smooth; scroll-padding-top: 120px; }
 }
 @media (max-width: 760px) {
   .strengths, .figures-band, .org, .funding, .pathway, .community, .admission { grid-template-columns: 1fr; }
-  .strength, .strength + .strength { padding: 24px 0; border-left: 0; border-bottom: 1px solid var(--line); }
+  .strength, .strength + .strength { padding: 24px 20px; border-left: 0; border-bottom: 1px solid var(--line); border-radius: 16px; }
   .figures-band div + div { border-left: 0; border-top: 1px solid var(--line); }
   .community article, .community article + article { padding: 22px 0; border-left: 0; border-bottom: 1px solid var(--line); }
   .dossier { position: static; }
@@ -522,7 +526,8 @@ html:has(.site) { scroll-behavior: smooth; scroll-padding-top: 120px; }
 }
 .site-btn-primary { background: linear-gradient(120deg, var(--navy), var(--navy-2)); }
 .text-link, .site-panel-links a strong, .foot-cols a, .contact-list a { background: linear-gradient(currentColor, currentColor) left bottom / 0 1.5px no-repeat; transition: background-size .3s ease, color .2s ease; }
-.strength-icon, .site-round-icon, .tile-icon, .dossier > svg:first-child, .assure svg, .contact-list svg { transition: transform .35s cubic-bezier(.3, 1.6, .5, 1), background-color .3s ease, color .3s ease; }
+.strength-icon { transition: transform .35s cubic-bezier(.3, 1.6, .5, 1), background-color .3s ease, color .3s ease, box-shadow .3s ease; }
+.site-round-icon, .tile-icon, .dossier > svg:first-child, .assure svg, .contact-list svg { transition: transform .35s cubic-bezier(.3, 1.6, .5, 1), background-color .3s ease, color .3s ease; }
 .pathway-dot { transition: transform .3s cubic-bezier(.3, 1.6, .5, 1), background-color .3s ease, box-shadow .3s ease; }
 .figures-band dd, .funding-value, .admission-steps li > span { transition: color .3s ease, transform .3s ease; }
 .news-visual, .news-thumb { transition: transform .6s cubic-bezier(.2, .8, .2, 1), filter .4s ease; }
@@ -539,9 +544,12 @@ html:has(.site) { scroll-behavior: smooth; scroll-padding-top: 120px; }
 
   .text-link:hover, .site-panel-links a:hover strong, .foot-cols a:hover, .contact-list a:hover { background-size: 100% 1.5px; }
 
-  .strength:hover { transform: translateY(-4px); }
-  .strength:hover .strength-icon { color: #fff; background: var(--navy); transform: rotate(-8deg) scale(1.12); }
-  .strength:hover h3 { color: var(--navy); }
+  .strength:hover { border-color: transparent; box-shadow: 0 22px 44px rgb(12 27 67 / .28); transform: translateY(-6px); }
+  .strength:hover::before { opacity: 1; }
+  .strength:hover + .strength { border-left-color: transparent; }
+  .strength:hover h3 { color: #fff; }
+  .strength:hover p { color: rgb(255 255 255 / .82); }
+  .strength:hover .strength-icon { color: var(--navy); background: var(--gold-bright); box-shadow: 0 0 0 6px rgb(224 178 63 / .22); transform: rotate(-8deg) scale(1.12); }
 
   .figures-band div:hover { background: #fff; }
   .figures-band div:hover dd { color: var(--gold); transform: translateY(-2px); }

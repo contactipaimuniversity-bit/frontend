@@ -262,11 +262,13 @@ export function DashboardLayout({ activeView, activeManual, activeSpace, setActi
               </button>
             );
           })}
-        </nav>
-        <div className="sidebar-bottom">
+          {/* Les outils suivent directement les sections : une seule liste, sans défilement séparé. */}
+          <span className="nav-separator" aria-hidden="true" />
           <InstallAppButton onDone={() => setMenuOpen(false)} />
           <button type="button" title="Manuel d'utilisation de cette section" className={`nav-item ${activeView === "Manuel d'utilisation" ? "active" : ""}`} onClick={() => go(() => navigateTo(pathForManual(manualSection)))}><span className="nav-icon"><BookMarked size={19} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span><span className="nav-text">Manuel d&apos;utilisation</span></button>
           {user && <button type="button" title="Paramètres" className={`nav-item ${activeView === "Paramètres" ? "active" : ""}`} onClick={() => go(onSettings)}><span className="nav-icon"><Settings size={19} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span><span className="nav-text">Paramètres</span></button>}
+        </nav>
+        <div className="sidebar-bottom">
           <div className={`sidebar-user ${activeView === "Profil" ? "active" : ""}`}>
             <button type="button" title="Mon compte" className="profile-card" onClick={() => go(onProfile)}><UserAvatar user={user} /><span className="profile-text"><strong>{name}</strong><small>{user?.poste?.nom ?? (user?.role === "admin" ? "Administrateur" : "Équipe")}</small></span></button>
             <div className="sidebar-user-links">
