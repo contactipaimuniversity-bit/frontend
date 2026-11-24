@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-// Installation de l'espace étudiant sur l'écran d'accueil.
+// Installation de l'application (espace étudiant ou espace de gestion) sur
+// l'écran d'accueil ou le bureau.
 // Chrome/Edge (Android, ordinateur) annoncent « beforeinstallprompt » quand l'app
 // est installable : on le garde pour proposer l'installation au bon moment.
 // Safari (iPhone) n'a pas cet événement : on y explique le geste à faire.
@@ -28,14 +29,14 @@ if (typeof window !== "undefined") {
 
 type InstallState = { installed: boolean; canPrompt: boolean; ios: boolean; dismissed: boolean };
 
-function readState(): InstallState {
+function readState(dismissKey: string): InstallState {
   const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
   const ua = navigator.userAgent;
   // iPhone/iPad, y compris l'iPad qui se présente comme un Mac.
   const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
   let dismissed = false;
   try {
-    const until = Number(window.localStorage.getItem(DISMISS_KEY));
+    const until = Number(window.localStorage.getItem(dismissKey));
     dismissed = Number.isFinite(until) && until > Date.now();
   } catch {
     /* stockage indisponible : on propose à chaque visite */
@@ -43,15 +44,16 @@ function readState(): InstallState {
   return { installed: standalone, canPrompt: Boolean(deferred), ios, dismissed };
 }
 
-export function useInstall() {
+/** dismissKey : où retenir « Plus tard » (un par espace). */
+export function useInstall(dismissKey = DISMISS_KEY) {
   const [state, setState] = useState<InstallState>({ installed: true, canPrompt: false, ios: false, dismissed: true });
 
   useEffect(() => {
-    const refresh = () => setState(readState());
+    const refresh = () => setState(readState(dismissKey));
     refresh();
     window.addEventListener(READY_EVENT, refresh);
     return () => window.removeEventListener(READY_EVENT, refresh);
-  }, []);
+  }, [dismissKey]);
 
   const prompt = async () => {
     if (!deferred) return;
@@ -59,16 +61,19 @@ export function useInstall() {
     await event.prompt();
     await event.userChoice.catch(() => undefined);
     deferred = null;
-    setState(readState());
+    setState(readState(dismissKey));
+    // Les autres endroits qui proposent l'installation se mettent à jour.
+    window.dispatchEvent(new Event(READY_EVENT));
   };
 
   const dismiss = () => {
     try {
-      window.localStorage.setItem(DISMISS_KEY, String(Date.now() + DISMISS_DAYS * 24 * 60 * 60 * 1000));
+      window.localStorage.setItem(dismissKey, String(Date.now() + DISMISS_DAYS * 24 * 60 * 60 * 1000));
     } catch {
       /* rien à retenir */
     }
     setState((previous) => ({ ...previous, dismissed: true }));
+    window.dispatchEvent(new Event(READY_EVENT));
   };
 
   return {

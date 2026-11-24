@@ -1344,3 +1344,18 @@ button.daily-summary-stat.active { border-color: var(--brand-navy, #14285c); box
 .space-card:hover .space-card-open svg { transform: translateX(3px); }
 :root[data-color-mode="dark"] .space-head-count, :root[data-color-mode="dark"] .space-card-chip.todo { color: #f3cf83; background: color-mix(in srgb, var(--brand-gold) 18%, var(--surface)); }
 @media (prefers-reduced-motion: reduce) { .space-card, .space-card-open svg { transition: none; } .space-card:hover { transform: none; } }
+
+/* ---------- Installer l'application (PWA) ---------- */
+.install-app-modal { display: grid; gap: 18px; width: min(520px, calc(100vw - 32px)); padding: 28px; border-radius: 24px; }
+.install-app-head { display: flex; align-items: center; gap: 16px; }
+.install-app-head img { flex: 0 0 auto; border-radius: 16px; background: #fff; box-shadow: 0 6px 18px rgb(12 27 67 / .14); }
+.install-app-head .eyebrow { margin: 0 0 4px; }
+.install-app-head h3 { margin: 0; color: var(--ink); font-size: var(--text-xl); line-height: 1.25; }
+.install-app-points { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.install-app-points li { display: flex; align-items: flex-start; gap: 12px; color: var(--ink); line-height: 1.5; }
+.install-app-points svg { flex: 0 0 auto; margin-top: 2px; color: var(--teal); }
+.install-app-note { margin: 0; padding: 12px 14px; border-radius: 14px; color: var(--muted); background: var(--paper); font-size: var(--text-sm); line-height: 1.5; }
+.install-app-steps { display: grid; gap: 10px; margin: 0; padding: 14px 16px 14px 34px; border-radius: 14px; color: var(--ink); background: var(--paper); line-height: 1.5; }
+.install-app-steps svg { vertical-align: -2px; color: var(--teal); }
+.install-app-modal .form-actions { margin: 0; }
+.install-app-modal .primary-button { display: inline-flex; align-items: center; gap: 8px; }

@@ -24,6 +24,10 @@ const lora = Lora({ variable: "--font-lora", subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "IPAIM | Gestion scolaire",
   description: "Tableau de bord de gestion des admissions et inscriptions",
+  // Installable comme une application (l'espace étudiant a son propre manifeste).
+  manifest: "/ipaim.webmanifest",
+  applicationName: "IPAIM Gestion scolaire",
+  appleWebApp: { capable: true, title: "IPAIM", statusBarStyle: "default" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

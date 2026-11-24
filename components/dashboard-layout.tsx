@@ -6,6 +6,7 @@ import { User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/student-photo";
 import { GlobalSearch } from "@/components/global-search";
+import { InstallAppButton, InstallAppModal } from "@/components/install-app";
 import { canAccessView } from "@/lib/access";
 import { MANUAL_BY_GROUP } from "@/lib/manuals";
 import { ManualSection, navigateTo, pathForManual, pathForSpace } from "@/lib/routes";
@@ -261,6 +262,7 @@ export function DashboardLayout({ activeView, activeManual, activeSpace, setActi
           })}
         </nav>
         <div className="sidebar-bottom">
+          <InstallAppButton onDone={() => setMenuOpen(false)} />
           <button type="button" title="Manuel d'utilisation de cette section" className={`nav-item ${activeView === "Manuel d'utilisation" ? "active" : ""}`} onClick={() => go(() => navigateTo(pathForManual(manualSection)))}><span className="nav-icon"><BookMarked size={19} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span><span className="nav-text">Manuel d&apos;utilisation</span></button>
           {user && <button type="button" title="Paramètres" className={`nav-item ${activeView === "Paramètres" ? "active" : ""}`} onClick={() => go(onSettings)}><span className="nav-icon"><Settings size={19} strokeWidth={1.7} aria-hidden="true" focusable="false" /></span><span className="nav-text">Paramètres</span></button>}
           <div className={`sidebar-user ${activeView === "Profil" ? "active" : ""}`}>
@@ -274,6 +276,7 @@ export function DashboardLayout({ activeView, activeManual, activeSpace, setActi
         </div>
       </aside>
       <main className="content-area">{children}</main>
+      <InstallAppModal />
       {logoutOpen && <div className="modal-backdrop" onMouseDown={() => setLogoutOpen(false)}><section className="modal confirm-modal" role="alertdialog" aria-modal="true" aria-label="Se déconnecter" onMouseDown={(event) => event.stopPropagation()}><div className="confirm-icon">↪</div><h3>Se déconnecter ?</h3><p>Votre session actuelle sera fermée.</p><div className="form-actions"><button className="secondary-button" onClick={() => setLogoutOpen(false)}>Annuler</button><button className="danger-solid-button" onClick={confirmLogout}>Confirmer la déconnexion</button></div></section></div>}
     </div>
   );
