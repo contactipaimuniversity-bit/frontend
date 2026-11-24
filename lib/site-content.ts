@@ -220,9 +220,9 @@ export const COMMUNITY = [
 ];
 
 export const LEADERSHIP = [
-  { title: "Direction générale", text: "Définit les orientations, noue les partenariats et instruit les demandes de bourse." },
-  { title: "Direction académique", text: "Conçoit l'offre de formation, organise les enseignements et veille à la réussite." },
-  { title: "Direction administrative", text: "Assure le bon fonctionnement de l'établissement au quotidien." },
+  { title: "Direction générale", text: "Fixe les grandes orientations de l'université, noue ses partenariats avec les entreprises et les institutions, et statue sur les demandes de bourse." },
+  { title: "Direction académique", text: "Conçoit l'offre de formation, organise les enseignements et les examens, encadre le corps enseignant et veille à la réussite de chaque étudiant." },
+  { title: "Direction administrative", text: "Assure le bon fonctionnement de l'établissement au quotidien : accueil, scolarité, gestion des dossiers et suivi des ressources humaines." },
   { title: "Direction des systèmes d'information et de la communication", text: "Fait vivre les outils numériques de l'université (plateforme de gestion, application étudiante, réseau) et porte sa communication auprès du public." },
 ];
 
