@@ -229,7 +229,11 @@ export type FeePayment = { id: string; montant: number; date: string; type: stri
 type Line = { id: string; libelle: string; montant: number; paye: number; reste: number; dateLimite?: string | null };
 export type Fees = {
   anneeScolaire: string;
-  situation: { regime: unknown; mensualites: Line[]; annexes: Line[]; fraisInscription: Line[]; resteMensualites: number; resteAnnexes: number; resteTotal: number; tropPercu: number } | null;
+  bourse?: { nom: string; mode: "REDUCTION" | "MOIS_FIXES" | string; taux: number | null } | null;
+  reductionIndividuelle?: number | null;
+  tarifNormal?: number | null;
+  nombreMoisNormal?: number;
+  situation: { regime: string; mensualites: Line[]; annexes: Line[]; fraisInscription: Line[]; fraisBourse?: Line[]; resteMensualites: number; resteAnnexes: number; resteTotal: number; tropPercu: number } | null;
   paiements: FeePayment[];
   dossier?: { filiere: string; niveau: string };
 };

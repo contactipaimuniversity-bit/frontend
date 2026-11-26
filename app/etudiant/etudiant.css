@@ -307,6 +307,15 @@ html:has(.stu-root), body:has(.stu-root) { background: #ffffff; -webkit-text-siz
 .stu-message-important { box-shadow: inset 4px 0 0 var(--md-error); }
 .stu-message-important .stu-message-meta { color: var(--md-error); font-weight: 600; }
 
+/* ---------- Bourse dans les paiements ---------- */
+.stu-scholarship { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: var(--md-lg); color: var(--md-on-tertiary-container); background: var(--md-tertiary-container); }
+.stu-scholarship-tag { flex: 0 0 auto; padding: 4px 10px; border-radius: var(--md-full); color: #fff; background: var(--md-gold); font-size: 11.5px; font-weight: 700; letter-spacing: .02em; }
+.stu-scholarship > div { display: grid; gap: 2px; }
+.stu-scholarship strong { font-size: 15px; }
+.stu-scholarship p { font-size: 13.5px; line-height: 1.45; }
+.stu-scholarship-saved { font-weight: 600; }
+.stu-price-normal { margin-right: 6px; color: var(--md-outline); text-decoration: line-through; }
+
 /* ---------- Reçu (lecture seule) ---------- */
 .stu-row-button { width: 100%; border: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .stu-row-button:hover { background: var(--md-surface-container); }

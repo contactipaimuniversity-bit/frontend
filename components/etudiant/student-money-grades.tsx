@@ -155,7 +155,10 @@ export function FeesScreen() {
       <Loaded resource={fees} lines={5}>
         {(data) => {
           const situation = data.situation;
-          const lines = situation ? [...situation.fraisInscription, ...situation.mensualites, ...situation.annexes] : [];
+          const lines = situation ? [...(situation.fraisBourse ?? []), ...situation.fraisInscription, ...situation.mensualites, ...situation.annexes] : [];
+          const monthIds = new Set(situation?.mensualites.map((line) => line.id) ?? []);
+          // Prix normal d'un mois, barré à côté du prix réduit par la bourse.
+          const normal = data.tarifNormal ?? null;
           const total = lines.reduce((sum, line) => sum + line.montant, 0);
           const paid = lines.reduce((sum, line) => sum + line.paye, 0);
           const ratio = total ? Math.min(100, Math.round((paid / total) * 100)) : 0;
@@ -178,6 +181,8 @@ export function FeesScreen() {
                 </dl>
               </section>
 
+              <ScholarshipCard fees={data} />
+
               {late.length > 0 && (
                 <div className="stu-info stu-info-bad">
                   <p>{late.length === 1 ? `Échéance en retard : ${late[0].libelle}.` : `${late.length} échéances en retard.`}</p>
@@ -198,7 +203,10 @@ export function FeesScreen() {
                         <div key={line.id} className="stu-row">
                           <div>
                             <strong>{line.libelle}</strong>
-                            <span>{money(line.montant)}{line.dateLimite ? ` · avant le ${shortDate(line.dateLimite, { day: "numeric", month: "long" })}` : ""}</span>
+                            <span>
+                              {monthIds.has(line.id) && normal !== null && line.montant < normal && <s className="stu-price-normal">{money(normal)}</s>}
+                              {money(line.montant)}{line.dateLimite ? ` · avant le ${shortDate(line.dateLimite, { day: "numeric", month: "long" })}` : ""}
+                            </span>
                             {line.reste > 0 && line.paye > 0 && <span>Reste {money(line.reste)}</span>}
                           </div>
                           <Pill tone={status.tone}>{status.label}</Pill>
@@ -232,6 +240,42 @@ export function FeesScreen() {
           );
         }}
       </Loaded>
+    </div>
+  );
+}
+
+/** Ce que la bourse change, en clair : l'étudiant voit qu'elle est bien prise en compte. */
+function ScholarshipCard({ fees }: { fees: Fees }) {
+  const situation = fees.situation;
+  if (!situation) return null;
+  const months = situation.mensualites.length;
+  const normal = fees.tarifNormal ?? null;
+  const fullYear = normal !== null && fees.nombreMoisNormal ? normal * fees.nombreMoisNormal : null;
+  const yearDue = situation.mensualites.reduce((sum, line) => sum + line.montant, 0);
+  const saved = fullYear !== null ? Math.max(0, fullYear - yearDue) : null;
+
+  if (!fees.bourse) {
+    if (fees.reductionIndividuelle === null || fees.reductionIndividuelle === undefined) return null;
+    return (
+      <div className="stu-scholarship">
+        <span className="stu-scholarship-tag">Réduction</span>
+        <p><strong>{fees.reductionIndividuelle} % de réduction</strong> sur chaque mois{normal !== null ? ` (prix normal ${money(normal)})` : ""}.</p>
+      </div>
+    );
+  }
+  const name = fees.bourse.nom.replace(/^bourse\s+/i, "");
+  const detail =
+    fees.bourse.mode === "MOIS_FIXES"
+      ? `Tu ne paies que ${months} mois${fees.nombreMoisNormal ? ` sur ${fees.nombreMoisNormal}` : ""}${normal !== null ? `, à ${money(situation.mensualites[0]?.montant ?? normal)}` : ""}.`
+      : `${fees.bourse.taux ?? 0} % de réduction sur chaque mois${normal !== null ? ` : ${money(situation.mensualites[0]?.montant ?? 0)} au lieu de ${money(normal)}` : ""}.`;
+  return (
+    <div className="stu-scholarship">
+      <span className="stu-scholarship-tag">Boursier</span>
+      <div>
+        <strong>Bourse {name}</strong>
+        <p>{detail}</p>
+        {saved !== null && saved > 0 && <p className="stu-scholarship-saved">Économie sur l&apos;année : {money(saved)}</p>}
+      </div>
     </div>
   );
 }
