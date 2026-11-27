@@ -32,6 +32,15 @@ export const PAY_RHYTHMS: Record<string, string> = { MENSUEL: "Chaque mois", BIM
 const SESSION_LENGTHS: Array<[string, string]> = [["60", "1 h"], ["90", "1 h 30"], ["120", "2 h"], ["150", "2 h 30"], ["180", "3 h"], ["240", "4 h"]];
 const lengthLabel = (minutes: number) => `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${String(minutes % 60).padStart(2, "0")}` : ""}`;
 
+// Fin d'un contrat d'un mois : la veille du même jour, le mois suivant (26 oct. → 25 nov.).
+function unMoisPlusTard(debut: string) {
+  const [annee, mois, jour] = debut.split("-").map(Number);
+  const dernier = new Date(Date.UTC(annee, mois + 1, 0)).getUTCDate();
+  const suivant = new Date(Date.UTC(annee, mois, Math.min(jour, dernier)));
+  suivant.setUTCDate(suivant.getUTCDate() - 1);
+  return suivant.toISOString().slice(0, 10);
+}
+
 type Contract = { id: string; type: string; dateDebut: string; dateFin?: string | null; salaireBase: string; tauxHoraire: string; tarifMontant: string; tarifMinutes: number; periodicitePaie: string; statut: string; motifFin?: string | null };
 // La rémunération telle qu'elle a été convenue : « 2 400 F pour 1 h 30 » ou un salaire mensuel.
 const payLabel = (contract: Contract) =>
@@ -271,6 +280,18 @@ function EmployeeModal({ id, user, canEdit, onClose, onChanged }: { id: string; 
                     <label>Fin{["CDD", "STAGE"].includes(contract.values.type) ? "" : " (facultatif)"}<input type="date" required={["CDD", "STAGE"].includes(contract.values.type)} min={contract.values.dateDebut} {...contract.bind("dateFin")} /></label>
                     {contract.values.type !== "VACATION" && <label>Salaire de base mensuel (F)<input required={contract.values.type !== "STAGE"} type="number" min="0" {...contract.bind("salaireBase")} /></label>}
                   </div>
+                  {contract.values.type !== "VACATION" && (
+                    <p className="panel-subtitle">
+                      Le salaire saisi est versé <strong>en entier pour chaque mois de contrat</strong> (du 26 octobre au 25 novembre, par exemple), quel que soit le nombre de jours du mois.
+                      {" "}<strong>Recommandé : une durée d&apos;un mois</strong>, renouvelée ensuite (un contrat qui suit sans interruption garde le même rythme de paie).
+                      {contract.values.dateDebut && (
+                        <>
+                          {" "}
+                          <button type="button" className="link-button" onClick={() => contract.setValues({ ...contract.values, dateFin: unMoisPlusTard(contract.values.dateDebut) })}>Fixer la fin à un mois</button>
+                        </>
+                      )}
+                    </p>
+                  )}
                   {contract.values.type === "VACATION" && (
                     <>
                       <p className="form-section-label">Tarif convenu avec l&apos;enseignant</p>
