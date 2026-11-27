@@ -16,6 +16,16 @@ const DISMISS_DAYS = 7;
 
 let deferred: InstallEvent | null = null;
 if (typeof window !== "undefined") {
+  // Signal déjà capté par le script de la page, avant le chargement de l'application.
+  const early = () => {
+    const captured = (window as Window & { __ipaimInstall?: InstallEvent | null }).__ipaimInstall;
+    if (captured && captured !== deferred) {
+      deferred = captured;
+      window.dispatchEvent(new Event(READY_EVENT));
+    }
+  };
+  early();
+  window.addEventListener("ipaim-install-captured", early);
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     deferred = event as InstallEvent;
@@ -102,6 +112,16 @@ export function useInstall(dismissKey = DISMISS_KEY, perVisit = false) {
  * - desktop : icône d'installation de la barre d'adresse ou menu du navigateur.
  */
 export type InstallGuide = "ios-safari" | "ios-other" | "in-app" | "android" | "desktop";
+
+/** Lien qui ouvre directement cette page dans Chrome (Android) ou Safari (iPhone) depuis WhatsApp, Facebook… */
+export function openInBrowserLink(): string | null {
+  if (typeof window === "undefined") return null;
+  const { host, pathname, search } = window.location;
+  const ua = navigator.userAgent;
+  if (/android/i.test(ua)) return `intent://${host}${pathname}${search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(window.location.href)};end`;
+  if (/iphone|ipad|ipod/i.test(ua)) return `x-safari-https://${host}${pathname}${search}`;
+  return null;
+}
 
 export function installGuide(): InstallGuide {
   if (typeof navigator === "undefined") return "desktop";

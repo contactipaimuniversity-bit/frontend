@@ -392,6 +392,7 @@ html:has(.stu-root), body:has(.stu-root) { background: #ffffff; -webkit-text-siz
 .stu-modal .stu-button-block svg { width: 18px; height: 18px; }
 .stu-modal-steps .stu-link { margin: 8px 0 0 -12px; gap: 6px; }
 .stu-modal-steps strong { font-weight: 700; }
+.stu-open-browser { margin-bottom: 12px; text-decoration: none; }
 .stu-modal-note { color: var(--md-on-surface-variant) !important; font-size: 12.5px !important; }
 
 /* ---------- Profil ---------- */

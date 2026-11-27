@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { Copy, Download, EllipsisVertical, Share, SquarePlus, X } from "lucide-react";
-import { InstallGuide, installGuide, isStandalone, setInstallModalOpen, useInstall } from "@/lib/student-install";
+import { Copy, Download, EllipsisVertical, ExternalLink, Share, SquarePlus, X } from "lucide-react";
+import { InstallGuide, installGuide, isStandalone, openInBrowserLink, setInstallModalOpen, useInstall } from "@/lib/student-install";
 
 const LATER_KEY = "ipaim-etudiant-install-rappel";
 // « Plus tard » ne vaut que 10 minutes : la fenêtre revient ensuite, et à
@@ -47,7 +47,7 @@ function Steps({ guide }: { guide: InstallGuide }) {
     return (
       <ol>
         <li>Touche le menu <EllipsisVertical size={15} aria-label="⋮" /> en haut à droite de Chrome ;</li>
-        <li>choisis <strong>« Installer l&apos;application »</strong> ou <strong>« Ajouter à l&apos;écran d&apos;accueil »</strong> ;</li>
+        <li>choisis <strong>« Installer l&apos;application »</strong>. S&apos;il n&apos;y est pas : <strong>« Ajouter à l&apos;écran d&apos;accueil »</strong>, puis <strong>« Installer »</strong> ;</li>
         <li>confirme, puis ouvre IPAIM depuis l&apos;écran d&apos;accueil.</li>
       </ol>
     );
@@ -132,6 +132,11 @@ export function InstallModal() {
           </button>
         ) : (
           <div className="stu-modal-steps">
+            {guide === "in-app" && openInBrowserLink() && (
+              <a className="stu-button stu-button-primary stu-button-block stu-open-browser" href={openInBrowserLink() ?? "#"}>
+                <ExternalLink aria-hidden="true" /> Ouvrir dans {/iphone|ipad|ipod/i.test(navigator.userAgent) ? "Safari" : "Chrome"}
+              </a>
+            )}
             <Steps guide={guide} />
             {guide === "in-app" && (
               <button type="button" className="stu-link" onClick={() => void copy()}>

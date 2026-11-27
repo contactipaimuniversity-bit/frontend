@@ -27,6 +27,16 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 
+// Chrome n'annonce qu'une fois que l'app est installable (« beforeinstallprompt »),
+// parfois avant même que l'application soit chargée : ce petit script, placé
+// dans la page, le capte dès le début pour que le bouton « Installer » marche.
+const CAPTURE_INSTALL = `window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__ipaimInstall=e;window.dispatchEvent(new Event("ipaim-install-captured"));});window.addEventListener("appinstalled",function(){window.__ipaimInstall=null;});`;
+
 export default function EtudiantLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      <script dangerouslySetInnerHTML={{ __html: CAPTURE_INSTALL }} />
+      {children}
+    </>
+  );
 }
