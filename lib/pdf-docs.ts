@@ -1502,3 +1502,93 @@ export async function studentAccessPdf(slip: StudentAccessSlip, fileName: string
   footer(pdf);
   savePdf(pdf, fileName);
 }
+
+// ---------- Fiches d'accès à l'espace étudiant ----------
+
+export type StudentAccessSlip = {
+  nom: string;
+  prenom: string;
+  matricule: string | null;
+  filiere: string | null;
+  niveau: string | null;
+  classe: string | null;
+  codeActivation: string;
+  codeExpireLe: string | null;
+};
+
+// Dix fiches par page A4 (2 × 5), à découper et remettre en main propre :
+// nom, matricule, code d'activation, QR code vers l'espace étudiant et les
+// trois gestes pour activer son accès.
+export async function studentAccessSlipsPdf(slips: StudentAccessSlip[], options: { url: string; fileName: string }) {
+  const pdf = await createPdf();
+  const [logo, QRCode] = await Promise.all([logoData(), import("qrcode").then((module) => module.default)]);
+  const columns = 2;
+  const rows = 5;
+  // Marge de 6 mm : la plupart des imprimantes n'impriment pas jusqu'au bord.
+  const margin = 6;
+  const width = (210 - 2 * margin) / columns;
+  const height = (297 - 2 * margin) / rows;
+  const qr = QRCode.create(options.url, { errorCorrectionLevel: "M" }).modules;
+  const shownUrl = options.url.replace(/^https?:\/\//, "");
+  const clip = (text: string, max: number) => (pdf.splitTextToSize(pdfSafe(text), max)[0] as string) ?? "";
+
+  for (const [index, slip] of slips.entries()) {
+    const slot = index % (columns * rows);
+    if (index > 0 && slot === 0) pdf.addPage();
+    const x = margin + (slot % columns) * width;
+    const y = margin + Math.floor(slot / columns) * height;
+    const pad = 5;
+    const qrSize = 25;
+    const qrX = x + width - pad - qrSize;
+    const textWidth = width - 2 * pad - qrSize - 4;
+
+    // Traits de coupe.
+    pdf.setDrawColor(150, 160, 180).setLineWidth(0.15).setLineDashPattern([1.2, 1.2], 0);
+    pdf.rect(x, y, width, height);
+    pdf.setLineDashPattern([], 0);
+
+    // En-tête : logo, « Espace étudiant », filet doré.
+    if (logo) pdf.addImage(logo, "JPEG", x + pad, y + 3.5, 7, 7);
+    pdf.setTextColor(20, 40, 92).setFont("helvetica", "bold").setFontSize(9);
+    pdf.text("ESPACE ÉTUDIANT", x + pad + (logo ? 9 : 0), y + 7);
+    pdf.setFont("helvetica", "normal").setFontSize(6.5).setTextColor(110, 120, 135);
+    pdf.text("IPAIM University", x + pad + (logo ? 9 : 0), y + 10.2);
+    pdf.setTextColor(150, 120, 50).setFont("helvetica", "normal").setFontSize(5.6);
+    pdf.text("Personnel · ne pas partager", x + width - pad, y + 7, { align: "right" });
+    pdf.setFillColor(200, 148, 27).rect(x + pad, y + 12.3, width - 2 * pad, 0.5, "F");
+
+    // L'étudiant.
+    pdf.setTextColor(25, 30, 45).setFont("helvetica", "bold").setFontSize(10.5);
+    const name = pdf.splitTextToSize(pdfSafe(`${slip.nom.toUpperCase()} ${slip.prenom}`), textWidth) as string[];
+    pdf.text(name.slice(0, 2), x + pad, y + 17.5);
+    const after = y + 17.5 + Math.min(name.length, 2) * 4.3;
+    pdf.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(70, 78, 95);
+    pdf.text(clip(`Matricule : ${slip.matricule ?? "-"}`, textWidth), x + pad, after);
+    const study = slip.classe ?? [slip.filiere, slip.niveau].filter(Boolean).join(" · ");
+    if (study) pdf.text(clip(study, textWidth), x + pad, after + 3.6);
+
+    // Le code d'activation, bien lisible.
+    const codeY = y + 34.5;
+    pdf.setFillColor(244, 232, 203).roundedRect(x + pad, codeY, textWidth, 11, 1.6, 1.6, "F");
+    pdf.setTextColor(110, 90, 40).setFont("helvetica", "normal").setFontSize(6);
+    pdf.text("CODE D'ACTIVATION", x + pad + 2.5, codeY + 3.4);
+    pdf.setTextColor(20, 40, 92).setFont("courier", "bold").setFontSize(15);
+    pdf.text(slip.codeActivation, x + pad + 2.5, codeY + 9.2);
+    pdf.setFont("helvetica", "normal").setFontSize(6).setTextColor(110, 120, 135);
+    if (slip.codeExpireLe) pdf.text(pdfSafe(`Valable jusqu'au ${formatDate(slip.codeExpireLe)}, une seule fois.`), x + pad, codeY + 14.2);
+
+    // QR code (vectoriel : net à l'impression) vers l'espace étudiant.
+    const cell = qrSize / qr.size;
+    pdf.setFillColor(0, 0, 0);
+    for (let row = 0; row < qr.size; row += 1)
+      for (let column = 0; column < qr.size; column += 1)
+        if (qr.data[row * qr.size + column]) pdf.rect(qrX + column * cell, y + 15 + row * cell, cell + 0.02, cell + 0.02, "F");
+    pdf.setTextColor(70, 78, 95).setFont("helvetica", "normal").setFontSize(5.4);
+    pdf.text(clip(shownUrl, qrSize + 6), qrX + qrSize / 2, y + 43, { align: "center" });
+
+    // Les trois gestes, sur une seule ligne.
+    pdf.setTextColor(40, 46, 62).setFontSize(5.8);
+    pdf.text(pdfSafe("1. Scanne le QR code  ·  2. Touche « J'ai un code »  ·  3. Matricule + code, puis ton mot de passe"), x + width / 2, y + height - 3.6, { align: "center" });
+  }
+  savePdf(pdf, options.fileName);
+}

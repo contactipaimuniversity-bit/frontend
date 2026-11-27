@@ -323,6 +323,26 @@ export const PAGE_HELP: Record<HelpedView, PageHelp> = {
       { question: "Qui peut modifier le carrousel ?", answer: "Les postes qui ont le droit « Site vitrine · carrousel » en modification, et l'administrateur." },
     ],
   },
+  "Fiches d'accès": {
+    summary: "Les codes d'activation de l'espace étudiant, générés en série et imprimés sur des fiches à découper.",
+    purpose: [
+      "Voir quels étudiants n'ont pas encore activé leur espace mobile.",
+      "Générer leurs codes d'activation en une fois et imprimer 10 fiches par page : nom, matricule, code et QR code.",
+    ],
+    steps: [
+      { title: "Filtrer", detail: "Choisissez une filière, un niveau ou une classe. Par défaut, seuls les étudiants dont l'accès n'est pas activé sont affichés." },
+      { title: "Cocher", detail: "Cochez les étudiants concernés (ou tous). Les accès déjà activés ne peuvent pas être cochés." },
+      { title: "Générer et imprimer", detail: "Un nouveau code est créé pour chacun et le PDF se télécharge. Imprimez-le, découpez les fiches et remettez-les en main propre." },
+    ],
+    tips: [
+      "Les codes n'apparaissent que dans le PDF : conservez-le jusqu'à la distribution.",
+      "Réimprimer la fiche d'un étudiant remplace son code : l'ancienne fiche ne marche plus.",
+    ],
+    faq: [
+      { question: "Que fait l'étudiant avec sa fiche ?", answer: "Il scanne le QR code, touche « J'ai un code », saisit son matricule et le code, puis choisit son mot de passe." },
+      { question: "Un étudiant a perdu sa fiche ?", answer: "Réimprimez la sienne seule (filtre par classe, cochez-le) ou générez un code depuis sa fiche personne." },
+    ],
+  },
   Annonces: {
     summary: "Les messages de l'administration aux étudiants, affichés dans leur espace mobile.",
     purpose: [

@@ -81,6 +81,7 @@ export const VIEW_ACCESS: Partial<Record<ViewName, AccessArea | AccessArea[]>> =
   "Paramètres finances": "finance-settings",
   "Frais de scolarité": "tuition-settings",
   Annonces: "announcements",
+  "Fiches d'accès": ["people", "enrollments"],
   "Site vitrine": "website",
   Comptabilité: "accounting",
   "Tableau de bord académique": ["academics", "teaching", "grades", "deliberations", "academic-stats"],

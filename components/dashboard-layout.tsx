@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
-import { Award, Megaphone, BadgeCheck, Banknote, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, FileBadge, GraduationCap, Globe, Info, LayoutDashboard, LayoutGrid, LogOut, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, UserRound, Users, Wallet, ArrowLeft, House } from "lucide-react";
+import { Award, Megaphone, KeyRound, BadgeCheck, Banknote, BookMarked, CalendarCheck2, ScanLine, ClipboardList, Sparkles, BriefcaseBusiness, ChartColumn, HandCoins, Landmark, PiggyBank, Printer, ReceiptText, BookOpenCheck, CalendarDays, Calculator, ChartPie, DatabaseBackup, IdCard, Coins, NotebookPen, Scale, School, FileBadge, GraduationCap, Globe, Info, LayoutDashboard, LayoutGrid, LogOut, type LucideIcon, Menu, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Trash2, UserPlus, UserRound, Users, Wallet, ArrowLeft, House } from "lucide-react";
 import { User, ViewName } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
 import { UserAvatar } from "@/components/student-photo";
@@ -30,6 +30,7 @@ const icons: Record<string, LucideIcon> = {
   finance: Landmark,
   tuition: GraduationCap,
   announcements: Megaphone,
+  accessSlips: KeyRound,
   people: Users,
   recruiting: BriefcaseBusiness,
   references: SlidersHorizontal,
@@ -94,6 +95,7 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
       { label: "Délibérations", icon: "deliberations" },
       { label: "Statistiques académiques", icon: "stats" },
       { label: "Annonces", icon: "announcements" },
+      { label: "Fiches d'accès", icon: "accessSlips" },
     ],
   },
   {

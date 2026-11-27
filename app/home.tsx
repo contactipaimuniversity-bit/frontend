@@ -49,6 +49,7 @@ import { CardCheckPage } from "@/components/card-check-page";
 import { PaymentHandoverPage } from "@/components/payment-handover-page";
 import { TuitionPage } from "@/components/tuition-page";
 import { AnnouncementsPage } from "@/components/announcements-page";
+import { StudentAccessPage } from "@/components/student-access-page";
 import { WebsitePage } from "@/components/website-page";
 import { MANUAL_BY_GROUP, MANUALS } from "@/lib/manuals";
 import { useWork, workBadges } from "@/lib/work";
@@ -642,6 +643,8 @@ export default function Home() {
         <ExpenseExecutionPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Budget" ? (
         <BudgetPage user={user} refreshSignal={refreshKey} />
+      ) : activeView === "Fiches d'accès" ? (
+        <StudentAccessPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Annonces" ? (
         <AnnouncementsPage user={user} refreshSignal={refreshKey} />
       ) : activeView === "Site vitrine" ? (
