@@ -383,10 +383,16 @@ html:has(.stu-root), body:has(.stu-root) { background: #ffffff; -webkit-text-siz
 .stu-modal-switch strong { color: var(--md-on-primary-container); }
 .stu-modal-switch p { color: color-mix(in srgb, var(--md-on-primary-container) 75%, transparent) !important; }
 .stu-modal-steps { width: 100%; padding: 14px 16px; border-radius: var(--md-lg); background: var(--md-surface-low); font-size: 13.5px; text-align: left; }
-.stu-modal-steps ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.6; }
+.stu-modal-steps ol { margin: 8px 0 0; padding-left: 20px; line-height: 1.6; list-style: decimal; }
+.stu-modal-steps li { padding-left: 2px; }
 .stu-modal-steps svg { display: inline; vertical-align: -2px; color: var(--md-primary); }
 .stu-modal .stu-form-error { width: 100%; text-align: left; }
 .stu-modal-later { margin-top: 2px; color: var(--md-on-surface-variant) !important; }
+.stu-modal-app-icon { width: 64px; height: 64px; padding: 4px; border-radius: var(--md-lg); background: #fff; box-shadow: 0 0 0 1px var(--md-surface-high); }
+.stu-modal .stu-button-block svg { width: 18px; height: 18px; }
+.stu-modal-steps .stu-link { margin: 8px 0 0 -12px; gap: 6px; }
+.stu-modal-steps strong { font-weight: 700; }
+.stu-modal-note { color: var(--md-on-surface-variant) !important; font-size: 12.5px !important; }
 
 /* ---------- Profil ---------- */
 .stu-profile-card { display: flex; align-items: center; gap: 16px; padding: 18px; border-radius: var(--md-xl); background: var(--md-surface-low); }

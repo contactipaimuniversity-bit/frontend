@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BellOff, BellRing, Share } from "lucide-react";
 import { studentPost, useStudentResource } from "@/lib/student-api";
+import { useInstallModalOpen } from "@/lib/student-install";
 import { disablePush, enablePush, testPush, usePush } from "@/lib/student-push";
 
 const LATER_KEY = "ipaim-etudiant-notifications-plus-tard";
@@ -25,6 +26,8 @@ function laterUntil() {
  */
 export function NotificationsModal() {
   const push = usePush();
+  // L'installation passe d'abord (sur iPhone, elle est même nécessaire).
+  const installOpen = useInstallModalOpen();
   const [closed, setClosed] = useState(() => typeof window !== "undefined" && laterUntil() > Date.now());
 
   // Retour sur l'application (téléphone déverrouillé, appli rouverte) ou délai écoulé : elle revient.
@@ -60,7 +63,7 @@ export function NotificationsModal() {
     return () => window.clearTimeout(timer);
   }, [done]);
 
-  if (closed || !push.ready || push.support === "unsupported") return null;
+  if (installOpen || closed || !push.ready || push.support === "unsupported") return null;
   if (push.subscribed && !done) return null;
 
   const enable = async () => {

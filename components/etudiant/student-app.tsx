@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { BookOpenCheck, CalendarDays, House, UserRound, Wallet } from "lucide-react";
-import { InstallBanner } from "@/components/etudiant/install-banner";
+import { InstallModal } from "@/components/etudiant/install-banner";
 import { AnnouncementsScreen } from "@/components/etudiant/student-announcements";
 import { StudentLogin } from "@/components/etudiant/student-login";
 import { NotificationsModal } from "@/components/etudiant/student-notifications";
@@ -45,12 +45,8 @@ export function StudentApp() {
   return (
     <div className="stu-root">
       <StudentSplash />
-      {token ? <StudentShell /> : (
-        <>
-          <div className="stu-install-slot"><InstallBanner /></div>
-          <StudentLogin />
-        </>
-      )}
+      <InstallModal />
+      {token ? <StudentShell /> : <StudentLogin />}
     </div>
   );
 }
@@ -107,7 +103,6 @@ function StudentShell() {
     <>
       <NotificationsModal />
       <main className={`stu-main${tab === "carte" ? " stu-main-card" : ""}`}>
-        {(tab === "" || tab === "profil") && <div className="stu-install-slot"><InstallBanner /></div>}
         {screen}
       </main>
       {tab !== "carte" && (
