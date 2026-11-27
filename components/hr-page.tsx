@@ -216,7 +216,10 @@ function EmployeeModal({ id, user, canEdit, onClose, onChanged }: { id: string; 
     event.preventDefault();
     const { utilisateurId, ...fields } = form.values;
     void action.run(async () => {
-      apply(await send<Employee>(`/rh/employes/${id}`, "PATCH", { ...fields, ...(user?.role === "admin" ? { utilisateurId: utilisateurId || null } : {}) }, true));
+      await send<Employee>(`/rh/employes/${id}`, "PATCH", { ...fields, ...(user?.role === "admin" ? { utilisateurId: utilisateurId || null } : {}) }, true);
+      // Relit la fiche complète plutôt que d'afficher la seule réponse de l'enregistrement.
+      detail.reload();
+      onChanged();
       toast("Fiche enregistrée.");
     });
   };
