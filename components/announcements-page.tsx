@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { Megaphone, Pin } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { Megaphone, Pin, UserRound } from "lucide-react";
 import { askConfirm, toast } from "@/components/feedback";
 import { Badge, Empty, FormActions, LoadingBlock, Modal, PageIntro, Panel, messageOf, send, useAction, useLoad } from "@/components/ui-kit";
+import { apiFetch } from "@/lib/api";
 import { hasAccess } from "@/lib/access";
 import { User, formatDate } from "@/lib/types";
 
@@ -16,6 +17,8 @@ type Announcement = {
   filiereId: string | null;
   niveau: string | null;
   classeId: string | null;
+  personneId: string | null;
+  etudiant: string | null;
   filiere: string | null;
   classe: string | null;
   publieeLe: string;
@@ -23,11 +26,13 @@ type Announcement = {
   creeParNom: string;
   modifieLe: string;
 };
+type StudentHit = { id: string; nom: string; matricule: string | null; detail: string | null; espaceActif: boolean; notifications: boolean };
 type Targets = { filieres: Array<{ id: string; nom: string }>; niveaux: Array<{ code: string; libelle: string }>; classes: Array<{ id: string; nom: string }> };
 
 const dayOf = (value?: string | null) => (value ? value.slice(0, 10) : "");
 
 function audience(item: Announcement) {
+  if (item.etudiant) return <><UserRound size={13} aria-hidden="true" /> {item.etudiant}</>;
   const parts = [item.classe, item.filiere, item.niveau].filter(Boolean);
   return parts.length ? parts.join(" · ") : "Tous les étudiants";
 }
@@ -59,7 +64,7 @@ export function AnnouncementsPage({ user, refreshSignal }: { user: User | null; 
 
   return (
     <div className="content-scroll">
-      <PageIntro eyebrow="Communication" title="Annonces" text="Les messages publiés ici apparaissent dans l'espace étudiant, à tous ou à une filière, un niveau ou une classe.">
+      <PageIntro eyebrow="Communication" title="Annonces" text="Les messages publiés ici apparaissent dans l'espace étudiant : à tous, à une filière, un niveau, une classe, ou à un étudiant précis.">
         {canEdit && <button className="primary-button compact" onClick={() => setEditing("new")}><Megaphone size={15} aria-hidden="true" /> Nouvelle annonce</button>}
       </PageIntro>
       <Panel eyebrow="Annonces" title={list.data ? `${list.data.length} annonce(s)` : "Chargement…"} subtitle="Les annonces épinglées restent en tête chez l'étudiant.">
@@ -114,14 +119,24 @@ function AnnouncementForm({ item, onClose, onSaved }: { item: Announcement | nul
     classeId: item?.classeId ?? "",
     publieeLe: dayOf(item?.publieeLe),
     expireLe: dayOf(item?.expireLe),
+    personneId: item?.personneId ?? "",
   });
+  const [mode, setMode] = useState<"groupe" | "etudiant">(item?.personneId ? "etudiant" : "groupe");
+  const [student, setStudent] = useState<{ id: string; nom: string } | null>(item?.personneId ? { id: item.personneId, nom: item.etudiant ?? "Étudiant" } : null);
   const action = useAction();
   const set = (patch: Partial<typeof form>) => setForm({ ...form, ...patch });
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     void action.run(async () => {
-      const body = { ...form, publieeLe: form.publieeLe || null, expireLe: form.expireLe ? `${form.expireLe}T23:59:59` : null };
+      if (mode === "etudiant" && !student) throw new Error("Choisissez l'étudiant à qui envoyer l'annonce.");
+      const body = {
+        ...form,
+        personneId: mode === "etudiant" ? student?.id ?? null : null,
+        ...(mode === "etudiant" ? { filiereId: "", niveau: "", classeId: "" } : {}),
+        publieeLe: form.publieeLe || null,
+        expireLe: form.expireLe ? `${form.expireLe}T23:59:59` : null,
+      };
       await send(item ? `/annonces/${item.id}` : "/annonces", item ? "PATCH" : "POST", body, true);
       toast(item ? "Annonce modifiée." : "Annonce publiée.");
       onSaved();
@@ -134,11 +149,19 @@ function AnnouncementForm({ item, onClose, onSaved }: { item: Announcement | nul
       <form className="entity-form" onSubmit={submit}>
         <label>Titre<input required maxLength={140} value={form.titre} onChange={(event) => set({ titre: event.target.value })} placeholder="Ex. Report des examens de L1" /></label>
         <label>Message<textarea required rows={6} maxLength={4000} value={form.contenu} onChange={(event) => set({ contenu: event.target.value })} /></label>
+        <div className="tuition-choices" role="radiogroup" aria-label="Destinataires">
+          <button type="button" role="radio" aria-checked={mode === "groupe"} className={mode === "groupe" ? "active" : ""} onClick={() => setMode("groupe")}><strong>Un groupe</strong><small>Tous, ou une filière, un niveau, une classe.</small></button>
+          <button type="button" role="radio" aria-checked={mode === "etudiant"} className={mode === "etudiant" ? "active" : ""} onClick={() => setMode("etudiant")}><strong>Un étudiant précis</strong><small>Message personnel, vu de lui seul.</small></button>
+        </div>
+        {mode === "etudiant" ? (
+          <StudentPicker value={student} onChange={setStudent} />
+        ) : (
         <div className="form-grid">
           <label>Filière<select value={form.filiereId} onChange={(event) => set({ filiereId: event.target.value })}><option value="">Toutes les filières</option>{targets.data?.filieres.map((filiere) => <option key={filiere.id} value={filiere.id}>{filiere.nom}</option>)}</select></label>
           <label>Niveau<select value={form.niveau} onChange={(event) => set({ niveau: event.target.value })}><option value="">Tous les niveaux</option>{targets.data?.niveaux.map((niveau) => <option key={niveau.code} value={niveau.code}>{niveau.libelle ? `${niveau.code} · ${niveau.libelle}` : niveau.code}</option>)}</select></label>
           <label>Classe<select value={form.classeId} onChange={(event) => set({ classeId: event.target.value })}><option value="">Toutes les classes</option>{targets.data?.classes.map((classe) => <option key={classe.id} value={classe.id}>{classe.nom}</option>)}</select></label>
         </div>
+        )}
         <div className="form-grid">
           <label>Publier le (vide : maintenant)<input type="date" value={form.publieeLe} onChange={(event) => set({ publieeLe: event.target.value })} /></label>
           <label>Afficher jusqu&apos;au (facultatif)<input type="date" value={form.expireLe} onChange={(event) => set({ expireLe: event.target.value })} /></label>
@@ -152,5 +175,55 @@ function AnnouncementForm({ item, onClose, onSaved }: { item: Announcement | nul
         <FormActions busy={action.busy} label={item ? "Enregistrer" : "Publier"} onCancel={onClose} />
       </form>
     </Modal>
+  );
+}
+
+/** Recherche d'un étudiant (nom, prénom ou matricule), avec l'état de son espace. */
+function StudentPicker({ value, onChange }: { value: { id: string; nom: string } | null; onChange: (value: { id: string; nom: string } | null) => void }) {
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<StudentHit[] | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      apiFetch<StudentHit[]>(`/annonces/etudiants?q=${encodeURIComponent(q)}`, { skipCache: true })
+        .then((found) => active && (setHits(found), setError("")))
+        .catch((failure) => active && setError(messageOf(failure, "Recherche impossible.")));
+    }, 300);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
+
+  if (value)
+    return (
+      <div className="announce-student-picked">
+        <UserRound size={16} aria-hidden="true" />
+        <strong>{value.nom}</strong>
+        <button type="button" className="link-button" onClick={() => onChange(null)}>Changer</button>
+      </div>
+    );
+  return (
+    <div className="announce-student-search">
+      <label>Étudiant<input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nom, prénom ou matricule" /></label>
+      {error && <p className="form-error">{error}</p>}
+      {query.trim().length >= 2 && hits && (
+        <ul>
+          {hits.map((hit) => (
+            <li key={hit.id}>
+              <button type="button" onClick={() => onChange({ id: hit.id, nom: `${hit.nom}${hit.matricule ? ` (${hit.matricule})` : ""}` })}>
+                <span><strong>{hit.nom}</strong> {hit.matricule}<small>{hit.detail ?? ""}</small></span>
+                {hit.notifications ? <Badge tone="ok">Notifications actives</Badge> : hit.espaceActif ? <Badge tone="wait">Espace activé, sans notifications</Badge> : <Badge tone="off">Espace non activé</Badge>}
+              </button>
+            </li>
+          ))}
+          {!hits.length && <li className="announce-student-empty">Aucun étudiant avec matricule ne correspond.</li>}
+        </ul>
+      )}
+    </div>
   );
 }

@@ -23,7 +23,7 @@ export function AnnouncementCard({ item, unread, open = false }: { item: Announc
       <header>
         <span className="stu-message-meta">
           {item.epinglee && <Pin size={13} aria-label="Épinglée" />}
-          {item.importance === "IMPORTANTE" ? "Important · " : ""}{when(item.publieeLe)}
+          {item.personnelle ? "Pour toi · " : ""}{item.importance === "IMPORTANTE" ? "Important · " : ""}{when(item.publieeLe)}
         </span>
         {unread && <span className="stu-message-dot" aria-label="Non lu" />}
       </header>

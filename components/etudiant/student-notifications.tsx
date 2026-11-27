@@ -6,28 +6,48 @@ import { studentPost, useStudentResource } from "@/lib/student-api";
 import { disablePush, enablePush, testPush, usePush } from "@/lib/student-push";
 
 const LATER_KEY = "ipaim-etudiant-notifications-plus-tard";
+// « Plus tard » ne vaut que 10 minutes : la fenêtre revient ensuite, dès que
+// l'étudiant rouvre ou revient sur l'application, tant qu'il n'a pas activé.
+const LATER_MS = 10 * 60 * 1000;
+
+function laterUntil() {
+  try {
+    return Number(window.localStorage.getItem(LATER_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
 
 /**
- * À chaque ouverture de l'application, tant que les notifications ne sont pas
- * activées sur ce téléphone : une fenêtre propose de les activer, avec
- * l'interrupteur directement. « Plus tard » la ferme jusqu'à la prochaine ouverture.
+ * Tant que les notifications ne sont pas activées sur ce téléphone, une fenêtre
+ * avec l'interrupteur s'impose : à chaque ouverture de l'application, à chaque
+ * retour dessus, et au plus tard 10 minutes après « Plus tard ».
  */
 export function NotificationsModal() {
   const push = usePush();
-  const [closed, setClosed] = useState(() => {
-    try {
-      return typeof window !== "undefined" && window.sessionStorage.getItem(LATER_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
+  const [closed, setClosed] = useState(() => typeof window !== "undefined" && laterUntil() > Date.now());
+
+  // Retour sur l'application (téléphone déverrouillé, appli rouverte) ou délai écoulé : elle revient.
+  useEffect(() => {
+    const recheck = () => {
+      if (document.visibilityState === "visible" && laterUntil() <= Date.now()) setClosed(false);
+    };
+    const timer = window.setInterval(recheck, 60_000);
+    document.addEventListener("visibilitychange", recheck);
+    window.addEventListener("focus", recheck);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", recheck);
+      window.removeEventListener("focus", recheck);
+    };
+  }, []);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
   const close = () => {
     try {
-      window.sessionStorage.setItem(LATER_KEY, "1");
+      window.localStorage.setItem(LATER_KEY, String(Date.now() + LATER_MS));
     } catch {
       /* rien à retenir */
     }

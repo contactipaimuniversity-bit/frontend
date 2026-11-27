@@ -288,7 +288,7 @@ export function toMinutes(time: string) {
 
 // ---------- Annonces ----------
 
-export type Announcement = { id: string; titre: string; contenu: string; importance: "NORMALE" | "IMPORTANTE"; epinglee: boolean; publieeLe: string; modifieLe: string; auteur: string };
+export type Announcement = { id: string; titre: string; contenu: string; importance: "NORMALE" | "IMPORTANTE"; epinglee: boolean; publieeLe: string; modifieLe: string; auteur: string; personnelle?: boolean };
 
 const READ_KEY = "ipaim-etudiant-annonces-lues";
 const READ_EVENT = "ipaim-etudiant-annonces-lues";
