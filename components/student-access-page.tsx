@@ -6,7 +6,7 @@ import { askConfirm, toast } from "@/components/feedback";
 import { Badge, Empty, LoadingBlock, PageIntro, Panel, messageOf, useLoad } from "@/components/ui-kit";
 import { hasAccess } from "@/lib/access";
 import { API_URL } from "@/lib/connectivity";
-import { StudentAccessSlip, studentAccessSlipsPdf } from "@/lib/pdf-docs";
+import { StudentAccessBatchSlip, studentAccessSlipsPdf } from "@/lib/pdf-docs";
 import { User, formatDate } from "@/lib/types";
 
 type AccessRow = {
@@ -43,7 +43,7 @@ async function issueCodes(personneIds: string[], dureeJours: number, remplacerCo
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ personneIds, dureeJours, remplacerCodesEnCours }),
   });
-  const body = (await response.json().catch(() => null)) as { fiches?: StudentAccessSlip[]; ignores?: string[]; codesConserves?: string[]; message?: string | string[] } | null;
+  const body = (await response.json().catch(() => null)) as { fiches?: StudentAccessBatchSlip[]; ignores?: string[]; codesConserves?: string[]; message?: string | string[] } | null;
   if (!response.ok) {
     const message = Array.isArray(body?.message) ? body.message.join(" ") : body?.message;
     throw new Error(message || "Le serveur est injoignable. Cette action nécessite une connexion.");

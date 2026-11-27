@@ -1505,7 +1505,7 @@ export async function studentAccessPdf(slip: StudentAccessSlip, fileName: string
 
 // ---------- Fiches d'accès à l'espace étudiant ----------
 
-export type StudentAccessSlip = {
+export type StudentAccessBatchSlip = {
   nom: string;
   prenom: string;
   matricule: string | null;
@@ -1519,7 +1519,7 @@ export type StudentAccessSlip = {
 // Dix fiches par page A4 (2 × 5), à découper et remettre en main propre :
 // nom, matricule, code d'activation, QR code vers l'espace étudiant et les
 // trois gestes pour activer son accès.
-export async function studentAccessSlipsPdf(slips: StudentAccessSlip[], options: { url: string; fileName: string }) {
+export async function studentAccessSlipsPdf(slips: StudentAccessBatchSlip[], options: { url: string; fileName: string }) {
   const pdf = await createPdf();
   const [logo, QRCode] = await Promise.all([logoData(), import("qrcode").then((module) => module.default)]);
   const columns = 2;
