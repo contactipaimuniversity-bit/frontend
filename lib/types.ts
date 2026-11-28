@@ -7,6 +7,7 @@ export type Person = {
   prenom: string;
   telephone?: string;
   quartier?: string;
+  ville?: string | null;
   dateNaissance?: string;
   lieuNaissance?: string;
   sexe?: string | null;

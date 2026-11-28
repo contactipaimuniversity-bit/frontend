@@ -571,3 +571,18 @@ tbody tr:hover { background: #e5edf8; }
 .sync-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin: 0 0 22px; padding: 14px 16px; border: 1px solid var(--line, #e2e8f2); border-radius: 10px; }.sync-tools p { margin: 0; color: var(--muted); font-size: var(--text-sm); }.sync-tools > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .sync-tools .outline-button { width: auto; }td > .local-payment-note { display: block; margin-top: 4px; }
 .sync-duplicates { margin: 0 0 22px; padding: 14px 16px; border-left: 3px solid #c8941b; background: #fbf5e7; }.sync-duplicates h3 { margin: 0 0 4px; font-size: var(--text-base); }.sync-duplicates p { margin: 0 0 10px; color: #7c611e; font-size: var(--text-sm); }.sync-duplicates ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }.sync-duplicates li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.sync-duplicates li small { display: block; color: var(--muted); }.sync-duplicates .outline-button { width: auto; flex: 0 0 auto; }.receipt-provisional { margin: 0 0 12px; padding: 8px 12px; border: 1px dashed #c8941b; color: #7c611e; background: #fbf5e7; font-size: var(--text-sm); font-weight: 700; text-align: center; }td .local-payment-note { display: block; margin-top: 4px; }
+
+/* Listes à imprimer : case à cocher par ligne. */
+th.select-cell,
+td.select-cell {
+  width: 2.25rem;
+  text-align: center;
+}
+.select-cell input {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+tr.row-unchecked td:not(.select-cell) {
+  opacity: 0.45;
+}

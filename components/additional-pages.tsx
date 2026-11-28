@@ -74,6 +74,7 @@ export function PersonForm({
     prenom: person?.prenom ?? "",
     telephone: person?.telephone ?? "",
     quartier: person?.quartier ?? "",
+    ville: person?.ville ?? "",
     dateNaissance: person?.dateNaissance?.slice(0, 10) ?? "",
     lieuNaissance: person?.lieuNaissance ?? "",
     sexe: person?.sexe ?? "",
@@ -152,6 +153,15 @@ export function PersonForm({
               value={form.quartier}
               onChange={(event) =>
                 setForm({ ...form, quartier: event.target.value })
+              }
+            />
+          </label>
+          <label>
+            Ville
+            <input
+              value={form.ville}
+              onChange={(event) =>
+                setForm({ ...form, ville: event.target.value })
               }
             />
           </label>

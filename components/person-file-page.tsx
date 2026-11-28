@@ -115,6 +115,7 @@ export function PersonFilePage({ personId, user, refreshSignal }: { personId: st
           <div><dt>Téléphone</dt><dd>{person.telephone ? <a href={`tel:${person.telephone}`}><Phone size={13} aria-hidden="true" /> {person.telephone}</a> : "—"}</dd></div>
           <div><dt>Né(e) le</dt><dd>{person.dateNaissance ? `${formatDate(person.dateNaissance)}${person.lieuNaissance ? ` à ${person.lieuNaissance}` : ""}` : "—"}</dd></div>
           <div><dt>Quartier</dt><dd>{person.quartier || "—"}</dd></div>
+          <div><dt>Ville</dt><dd>{person.ville || "—"}</dd></div>
           <div><dt>Parent / tuteur</dt><dd>{[person.tuteurPrenom, person.tuteurNom].filter(Boolean).join(" ") || "—"}{person.tuteurTelephone ? <> · <a href={`tel:${person.tuteurTelephone}`}>{person.tuteurTelephone}</a></> : null}</dd></div>
           <div><dt>Connu(e) depuis</dt><dd>{formatDate(person.dateEnregistrement)}{person.prospect ? ` · prospect ${(statusLabels[person.prospect.statutRelance] ?? person.prospect.statutRelance).toLowerCase()}` : ""}</dd></div>
         </dl>

@@ -161,6 +161,7 @@ type NewPersonForm = {
   prenom: string;
   telephone: string;
   quartier: string;
+  ville: string;
   dateNaissance: string;
   lieuNaissance: string;
   tuteurNom: string;
@@ -173,6 +174,7 @@ const EMPTY_PERSON: NewPersonForm = {
   prenom: "",
   telephone: "",
   quartier: "",
+  ville: "",
   dateNaissance: "",
   lieuNaissance: "",
   tuteurNom: "",
@@ -199,6 +201,7 @@ function NewPersonFields({
       <div className="form-grid">
         <label>Téléphone<input value={person.telephone} onChange={(event) => update("telephone", event.target.value)} /></label>
         <label>Quartier<input value={person.quartier} onChange={(event) => update("quartier", event.target.value)} /></label>
+        <label>Ville<input value={person.ville} onChange={(event) => update("ville", event.target.value)} /></label>
       </div>
       <div className="form-grid">
         <label>Date de naissance<input type="date" value={person.dateNaissance} onChange={(event) => update("dateNaissance", event.target.value)} /></label>
@@ -2306,6 +2309,7 @@ export function DossierDetailsPage({
                 <DetailField label="Matricule" value={person?.matricule} />
                 <DetailField label="Téléphone" value={person?.telephone} />
                 <DetailField label="Quartier" value={person?.quartier} />
+                <DetailField label="Ville" value={person?.ville} />
                 <DetailField label="Date de naissance" value={fullDate(person?.dateNaissance)} />
                 <DetailField label="Lieu de naissance" value={person?.lieuNaissance} />
                 <DetailField label="Tuteur" value={[person?.tuteurPrenom, person?.tuteurNom].filter(Boolean).join(" ")} />

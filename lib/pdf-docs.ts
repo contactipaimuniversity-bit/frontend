@@ -171,7 +171,7 @@ export type Scholar = {
   id: string;
   filiereSouhaitee: string;
   typeBourse: string;
-  personne: { nom: string; prenom: string; telephone?: string | null; matricule?: string | null; quartier?: string | null; tuteurTelephone?: string | null };
+  personne: { nom: string; prenom: string; telephone?: string | null; matricule?: string | null; quartier?: string | null; ville?: string | null; tuteurTelephone?: string | null };
   inscription: { anneeScolaire: string; niveau: string; filiere: string; statut?: string } | null;
 };
 
@@ -225,6 +225,7 @@ export type PendingScholarshipApplication = {
     prenom: string;
     telephone: string | null;
     quartier: string | null;
+    ville?: string | null;
     dateNaissance: string | null;
     lieuNaissance: string | null;
     tuteurNom: string | null;
@@ -274,9 +275,10 @@ export async function pendingScholarshipApplicationsPdf(
     { label: "Nom", width: 27 },
     { label: "Prénom", width: 27 },
     { label: "Date de naissance", width: 27 },
-    { label: "Lieu de naissance", width: 34 },
-    { label: "Quartier", width: 34 },
-    { label: "Filière souhaitée", width: 74 },
+    { label: "Lieu de naissance", width: 30 },
+    { label: "Quartier", width: 28 },
+    { label: "Ville", width: 26 },
+    { label: "Filière souhaitée", width: 60 },
     { label: "Téléphone", width: 38 },
   ];
   const tableX = 15;
@@ -308,6 +310,7 @@ export async function pendingScholarshipApplicationsPdf(
       item.personne.dateNaissance ? formatDate(item.personne.dateNaissance) : "-",
       item.personne.lieuNaissance ?? "-",
       item.personne.quartier ?? "-",
+      item.personne.ville ?? "-",
       item.filiereSouhaitee,
       item.personne.telephone ?? "-",
     ].map((text, cellIndex) => (pdf.splitTextToSize(pdfSafe(text), columns[cellIndex].width - 4) as string[]));
@@ -365,6 +368,7 @@ export async function pendingScholarshipApplicationsPdf(
       ["Date et lieu de naissance", [item.personne.dateNaissance ? formatDate(item.personne.dateNaissance) : null, item.personne.lieuNaissance].filter(Boolean).join(" · ")],
       ["Téléphone", item.personne.telephone],
       ["Quartier", item.personne.quartier],
+      ["Ville", item.personne.ville],
       ["Tuteur", [item.personne.tuteurNom, item.personne.tuteurPrenom].filter(Boolean).join(" ")],
       ["Téléphone du tuteur", item.personne.tuteurTelephone],
     ].forEach(([label, value]) => {

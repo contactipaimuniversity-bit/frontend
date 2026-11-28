@@ -28,7 +28,7 @@ function csvCell(value: unknown) {
 
 function downloadPendingCsv(rows: PendingScholarshipApplication[]) {
   const headers = [
-    "Nom", "Prénom", "Date de naissance", "Lieu de naissance", "Quartier",
+    "Nom", "Prénom", "Date de naissance", "Lieu de naissance", "Quartier", "Ville",
     "Filière souhaitée", "Numéro de téléphone",
     "Sexe", "Matricule", "Nom du tuteur", "Prénom du tuteur", "Téléphone du tuteur",
     "Statut", "Type de bourse", "Niveau demandé",
@@ -42,6 +42,7 @@ function downloadPendingCsv(rows: PendingScholarshipApplication[]) {
     item.personne.dateNaissance ? formatDate(item.personne.dateNaissance) : "",
     item.personne.lieuNaissance,
     item.personne.quartier,
+    item.personne.ville,
     item.filiereSouhaitee,
     item.personne.telephone,
     item.personne.sexe,
@@ -86,8 +87,24 @@ export function ScholarsListModal({ scholarshipTypes, onClose }: { scholarshipTy
   const list = useLoad<Scholar[]>(situation === "EN_ATTENTE" ? null : `/demandes-bourse/boursiers${query ? `?${query}` : ""}`);
   const pendingQuery = new URLSearchParams(typeBourseId ? { typeBourseId } : {}).toString();
   const pendingList = useLoad<PendingScholarshipApplication[]>(situation === "EN_ATTENTE" ? `/demandes-bourse/en-attente/export${pendingQuery ? `?${pendingQuery}` : ""}` : null);
-  const rows = list.data ?? [];
-  const pendingRows = pendingList.data ?? [];
+  const allRows = list.data ?? [];
+  const allPendingRows = pendingList.data ?? [];
+  // Cases à cocher : seules les lignes cochées vont dans le PDF ou le fichier Excel.
+  // Tout est coché à chaque nouvelle liste.
+  const listKey = `${typeBourseId}|${situation}`;
+  const [selection, setSelection] = useState<{ key: string; unchecked: Set<string> }>({ key: listKey, unchecked: new Set() });
+  const unchecked = selection.key === listKey ? selection.unchecked : new Set<string>();
+  const setUnchecked = (next: Set<string>) => setSelection({ key: listKey, unchecked: next });
+  const toggle = (id: string) => {
+    const next = new Set(unchecked);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setUnchecked(next);
+  };
+  const shownIds = (situation === "EN_ATTENTE" ? allPendingRows : allRows).map((item) => item.id);
+  const allChecked = shownIds.every((id) => !unchecked.has(id));
+  const toggleAll = () => setUnchecked(allChecked ? new Set(shownIds) : new Set());
+  const rows = allRows.filter((item) => !unchecked.has(item.id));
+  const pendingRows = allPendingRows.filter((item) => !unchecked.has(item.id));
   const error = situation === "EN_ATTENTE" ? pendingList.error : list.error;
   const isPending = situation === "EN_ATTENTE";
   const withoutPhone = rows.filter((item) => !item.personne.telephone).length;
@@ -126,14 +143,15 @@ export function ScholarsListModal({ scholarshipTypes, onClose }: { scholarshipTy
           <label>Situation<select value={situation} onChange={(event) => setSituation(event.target.value)}>{SITUATIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
         </div>
         {error && <p className="form-error">{error}</p>}
-        {loaded && <p className="panel-subtitle">{isPending ? `${pendingRows.length} demande(s)` : `${rows.length} étudiant(s)${withoutPhone ? ` · ${withoutPhone} sans numéro de téléphone` : ""}`}</p>}
+        {loaded && <p className="panel-subtitle">{isPending ? `${pendingRows.length} demande(s) cochée(s) sur ${allPendingRows.length}` : `${rows.length} étudiant(s) coché(s) sur ${allRows.length}${withoutPhone ? ` · ${withoutPhone} sans numéro de téléphone` : ""}`} · décoche ceux qui ne doivent pas figurer sur le document.</p>}
         <div className="table-wrap"><table>
           <thead><tr>{isPending
-            ? <><th>Candidat</th><th>Téléphone</th><th>Niveau</th><th>Filière souhaitée</th><th>École d&apos;origine</th><th>Pièces du dossier</th></>
-            : <><th>Étudiant</th><th>Téléphone</th><th>Bourse</th><th>Filière</th><th>Situation</th></>}</tr></thead>
+            ? <><th className="select-cell"><input type="checkbox" aria-label="Tout cocher" checked={shownIds.length > 0 && allChecked} onChange={toggleAll} /></th><th>Candidat</th><th>Téléphone</th><th>Niveau</th><th>Filière souhaitée</th><th>École d&apos;origine</th><th>Pièces du dossier</th></>
+            : <><th className="select-cell"><input type="checkbox" aria-label="Tout cocher" checked={shownIds.length > 0 && allChecked} onChange={toggleAll} /></th><th>Étudiant</th><th>Téléphone</th><th>Bourse</th><th>Filière</th><th>Situation</th></>}</tr></thead>
           <tbody>
-            {isPending ? pendingRows.map((item) => (
-              <tr key={item.id}>
+            {isPending ? allPendingRows.map((item) => (
+              <tr key={item.id} className={unchecked.has(item.id) ? "row-unchecked" : undefined}>
+                <td className="select-cell"><input type="checkbox" aria-label={`Imprimer ${item.personne.nom} ${item.personne.prenom}`} checked={!unchecked.has(item.id)} onChange={() => toggle(item.id)} /></td>
                 <td className="strong-cell">{item.personne.nom} {item.personne.prenom}</td>
                 <td>{item.personne.telephone ?? <span className="muted-action">Non renseigné</span>}</td>
                 <td>{item.niveauDemande}</td>
@@ -141,8 +159,9 @@ export function ScholarsListModal({ scholarshipTypes, onClose }: { scholarshipTy
                 <td>{item.ecoleOrigine ?? <span className="muted-action">Non renseignée</span>}</td>
                 <td>{item.elementsDossier.length} pièce(s)</td>
               </tr>
-            )) : rows.map((item) => (
-              <tr key={item.id}>
+            )) : allRows.map((item) => (
+              <tr key={item.id} className={unchecked.has(item.id) ? "row-unchecked" : undefined}>
+                <td className="select-cell"><input type="checkbox" aria-label={`Imprimer ${item.personne.nom} ${item.personne.prenom}`} checked={!unchecked.has(item.id)} onChange={() => toggle(item.id)} /></td>
                 <td className="strong-cell">{item.personne.nom} {item.personne.prenom}</td>
                 <td>{item.personne.telephone ?? <span className="muted-action">Non renseigné</span>}</td>
                 <td>{item.typeBourse}</td>
@@ -150,8 +169,8 @@ export function ScholarsListModal({ scholarshipTypes, onClose }: { scholarshipTy
                 <td>{scholarSituation(item)}</td>
               </tr>
             ))}
-            {!loaded && !error && <Empty columns={isPending ? 6 : 5} loading />}
-            {loaded && !(isPending ? pendingRows.length : rows.length) && <Empty columns={isPending ? 6 : 5}>{isPending ? "Aucune demande en attente avec ces filtres." : "Aucun boursier avec ces filtres."}</Empty>}
+            {!loaded && !error && <Empty columns={isPending ? 7 : 6} loading />}
+            {loaded && !(isPending ? allPendingRows.length : allRows.length) && <Empty columns={isPending ? 7 : 6}>{isPending ? "Aucune demande en attente avec ces filtres." : "Aucun boursier avec ces filtres."}</Empty>}
           </tbody>
         </table></div>
         <div className="form-actions">
